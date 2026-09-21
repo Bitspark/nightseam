@@ -27,6 +27,7 @@ both, and says so at the top.
 | [A concept is admitted by composition](a-concept-is-admitted-by-composition.md) | [boundary](../goals/boundary.md), [composability](../goals/composability.md) | 0.5.0, #199 |
 | [Envelope members are what the peer acts on](envelope-members-are-what-the-peer-acts-on.md) | [layering](../goals/layering.md) | v2 |
 | [`meta` is a header, not a member](meta-is-a-header-not-a-member.md) | [layering](../goals/layering.md), [boundary](../goals/boundary.md) | 0.3.0, #49 |
+| [Request serials increase in publication order](request-serials-increase-in-publication-order.md) | [observability](../goals/observability.md), [layering](../goals/layering.md) | #439 |
 | [No subprotocol by default](no-subprotocol-by-default.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
 | [A deadline is not a cancel](a-deadline-is-not-a-cancel.md) | [observability](../goals/observability.md) | 0.3.0 |
 | [Queues are paced for one deadline](queues-are-paced-for-one-deadline.md) | [configurability](../goals/configurability.md) | 0.3.0 |
@@ -36,6 +37,7 @@ both, and says so at the top.
 | [The relay mints its own ids](the-relay-mints-its-own-ids.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.2.0 |
 | [The session's vocabulary is not logged](the-sessions-vocabulary-is-not-logged.md) *(superseded, 0.5.0)* | [layering](../goals/layering.md) | 0.3.0 |
 | [A layer takes a wire](the-session-runs-over-any-connection-of-the-seam.md) | [composability](../goals/composability.md) | #48, #289, #321 |
+| [An invocation is a Wire, and routing is composed above it](an-invocation-is-a-wire-and-routing-is-composed-above-it.md) | [composability](../goals/composability.md), [layering](../goals/layering.md), [boundary](../goals/boundary.md) | #439 |
 | [Refusals are codes, not prose](refusals-are-codes-not-prose.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
 | [The log is bound at its head](the-log-is-bound-at-its-head.md) *(superseded, 0.5.0)* | [composability](../goals/composability.md) | 0.3.0 |
 | [The observer is told at the write](the-observer-is-told-at-the-write.md) | [observability](../goals/observability.md) | 0.3.0 |

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, pipe, type Message, type Wire } from '@nightseam/duplex';
+import { mount, pipe, type Endpoint, type Message, type Wire } from '@nightseam/duplex';
 import { DuplexPeer } from './peer.ts';
+import { createDispatcher } from './dispatcher.ts';
 import type { PeerOptions } from './peer.ts';
 import { emitWire, forwardWire, registerWire, callWire, handleWire } from './wire.ts';
 import type { WireEventContext } from './wire.ts';
@@ -45,11 +46,22 @@ test('physical events keep verified context through forwarding local pair and mo
   t.after(peers.close);
   const [access, binding] = wirePair({ maxPendingRequests: 1 });
   t.after(() => access.close());
-  t.after(forwardWire(peers.server.wire(), at(mount(new Map([['local', access]])), ['local'])));
-  const model = at(mount(new Map([['model', binding]])), ['model', 'events']);
+  const accessMount = mount(new Map([['local', access]]));
+  const accessDispatcher = createDispatcher(accessMount);
+  const modelMount = mount(new Map([['model', binding]]));
+  const model = createDispatcher(modelMount);
+  const clientDispatcher = createDispatcher(peers.client.wire());
+  t.after(() => {
+    accessDispatcher.close();
+    model.close();
+    clientDispatcher.close();
+    accessMount.close();
+    modelMount.close();
+  });
+  t.after(forwardWire(peers.server.wire(), accessDispatcher.select(['local'])));
   const observed = deferred<WireEventContext>();
   let effects = 0;
-  registerWire(model, ['change'], {
+  registerWire(model, ['model', 'events', 'change'], {
     event: (_data, context) => {
       observed.resolve(context);
       if ((context as unknown as Record<symbol, unknown>)[marker] !== verified) throw new Error('Unverified event');
@@ -62,11 +74,11 @@ test('physical events keep verified context through forwarding local pair and mo
   assert.equal((context as unknown as Record<symbol, unknown>)[marker], verified);
   assert.deepEqual(context.meta, meta);
   assert.equal((context as unknown as { peer: DuplexPeer }).peer, peers.server);
-  handleWire(binding, ['barrier'], () => effects);
+  handleWire(model, ['model', 'barrier'], () => effects);
   assert.equal(await callWire(access, ['barrier']), 1);
   const received: WireEventContext[] = [];
   const arrived = deferred<void>();
-  registerWire(peers.client.wire(), ['outgoing'], {
+  registerWire(clientDispatcher, ['outgoing'], {
     event: (_value, context) => {
       received.push(context);
       if (received.length === 2) arrived.resolve();
@@ -88,7 +100,9 @@ test('event metadata cannot create the private context required by an effect gua
   t.after(() => access.close());
   t.after(forwardWire(peers.server.wire(), access));
   const denied = deferred<boolean>();
-  registerWire(binding, ['guard'], {
+  const dispatcher = createDispatcher(binding);
+  t.after(() => dispatcher.close());
+  registerWire(dispatcher, ['guard'], {
     event: (_value, context) => {
       if (!(context as unknown as Record<symbol, unknown>)[marker]) {
         denied.resolve(true);
@@ -117,7 +131,9 @@ test('a forwarded event context ends at the next physical transport boundary', a
   t.after(destination.close);
   t.after(forwardWire(source.server.wire(), destination.client.wire()));
   const observed = deferred<WireEventContext>();
-  registerWire(destination.server.wire(), ['event'], { event: (_value, context) => observed.resolve(context) });
+  const dispatcher = createDispatcher(destination.server.wire());
+  t.after(() => dispatcher.close());
+  registerWire(dispatcher, ['event'], { event: (_value, context) => observed.resolve(context) });
   emitWire(source.client.wire(), ['event'], null, { meta: { explicit: 'yes' } });
   const context = await observed.promise;
   assert.equal((context as unknown as Record<symbol, unknown>)[marker], undefined);
@@ -137,7 +153,9 @@ test('pure local events use the configured propagator', async (t) => {
   });
   t.after(() => a.close());
   const observed = deferred<WireEventContext>();
-  registerWire(b, ['event'], { event: (_value, context) => observed.resolve(context) });
+  const dispatcher = createDispatcher(b);
+  t.after(() => dispatcher.close());
+  registerWire(dispatcher, ['event'], { event: (_value, context) => observed.resolve(context) });
   emitWire(a, ['event']);
   assert.equal(((await observed.promise) as unknown as Record<symbol, unknown>)[marker], true);
 });
@@ -158,13 +176,12 @@ test('a custom event propagator cannot rewrite the received frame when it is for
   const sent = deferred<Message>(),
     received = deferred<Message>();
   const source: Wire = {
-    ...peers.client.wire(),
     send: (path, message) => {
       sent.resolve(message);
       peers.client.wire().send(path, message);
     },
   };
-  const destination: Wire = {
+  const destination: Endpoint = {
     ...access,
     send: (path, message) => {
       received.resolve(message);
@@ -173,7 +190,9 @@ test('a custom event propagator cannot rewrite the received frame when it is for
   };
   t.after(forwardWire(peers.server.wire(), destination));
   const delivered = deferred<WireEventContext>();
-  registerWire(binding, ['event'], { event: (_value, context) => delivered.resolve(context) });
+  const dispatcher = createDispatcher(binding);
+  t.after(() => dispatcher.close());
+  registerWire(dispatcher, ['event'], { event: (_value, context) => delivered.resolve(context) });
   emitWire(source, ['event']);
   assert.equal((await received.promise).frame.traceparent, (await sent.promise).frame.traceparent);
   assert.equal((await delivered.promise).trace, changed);

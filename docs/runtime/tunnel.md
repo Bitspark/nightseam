@@ -37,7 +37,12 @@ await peer.connect(url);
 | accept a prepared Wire | `carrier.Accept(ctx, runtime.Options{})` | `await carrier.accept(options)` |
 | resolve a prepared Wire by id | `carrier.Channel(id, options)` → `(*Channel, bool, error)` | `await carrier.channel(id, options)` → `Channel \| undefined` |
 | identify a channel | `channel.ID`, `channel.Family`, `channel.Digest` | `channel.id`, `channel.family`, `channel.digest` |
-| use its Wire | `Send(path, message)`, `Receive(path, receiver)`, `Close(code, reason)` | `send`, `receive`, `close` |
+| use its Endpoint | `Send(path, message)`, `Receive(receiver)`, `Close(code, reason)` | `send`, `receive`, `close` |
+
+A channel is an `Endpoint`: it has one owning attachment, and a dispatcher
+composed over it holds whatever routing a consumer wants. Its inner peer is a
+carrier of its own, so it mints its own request serials and maps the replies
+back ([the profile](../wire/profile.md#serials-increase-in-publication-order)).
 
 Acquisition constructs one inner peer eagerly. Its options and `Prepare` /
 `prepare` install the model before that peer starts reading. Repeated lookup

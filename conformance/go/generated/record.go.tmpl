@@ -12,13 +12,13 @@ import (
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
-func recordDestination(values chan string) (duplex.Wire, error) {
+func recordDestination(values chan string) (duplex.Endpoint, error) {
 	return binding.ToWire(func(cell.Client[string]) (cell.Server[string], error) {
 		return cell.Server[string]{Methods: &wireCell[string]{}, Events: wireNoted[string]{values}}, nil
 	}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
 }
 
-func recordExercise(ctx context.Context, target duplex.Wire) (map[string]any, func(), error) {
+func recordExercise(ctx context.Context, target duplex.Endpoint) (map[string]any, func(), error) {
 	originals := make(chan string, 4)
 	primary, err := recordDestination(originals)
 	if err != nil {

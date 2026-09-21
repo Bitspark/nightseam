@@ -16,6 +16,16 @@ import (
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
+func testBinding(t *testing.T, endpoint duplex.Endpoint) *ws.Dispatcher {
+	t.Helper()
+	binding, err := ws.NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = binding.Close(duplex.CodeNormal, "done") })
+	return binding
+}
+
 type wireReplySink struct{ replies chan duplex.ProfileFrame }
 
 func TestReceiverDeadlineWinsImmediateHandlerRefusal(t *testing.T) {
@@ -101,7 +111,8 @@ func TestWireCancellationRetainsExecutingHandlerBudget(t *testing.T) {
 						t.Cleanup(stop)
 						model = right
 					}
-					_, err = ws.HandleWire(model, []string{"hold"}, handler)
+					modelBinding := testBinding(t, model)
+					_, err = ws.HandleWire(modelBinding, []string{"hold"}, handler)
 				}
 				if err != nil {
 					t.Fatal(err)
@@ -190,11 +201,13 @@ func (p wireContextPropagator) Extract(ctx context.Context, trace ws.Trace) cont
 
 func TestWireKeepsReceivedContextWithoutForwardingApplicationMetadata(t *testing.T) {
 	client, server := newPair(t, ws.Options{Propagator: wireContextPropagator{ws.DefaultPropagator}}, ws.Options{})
-	_, err := ws.HandleWire(client.Wire(), []string{"reverse"}, func(ctx context.Context, _ json.RawMessage) (any, error) { return ws.MetaFrom(ctx), nil })
+	clientBinding := testBinding(t, client.Wire())
+	_, err := ws.HandleWire(clientBinding, []string{"reverse"}, func(ctx context.Context, _ json.RawMessage) (any, error) { return ws.MetaFrom(ctx), nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ws.HandleWire(server.Wire(), []string{"check"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	serverBinding := testBinding(t, server.Wire())
+	_, err = ws.HandleWire(serverBinding, []string{"check"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		var reverse ws.Meta
 		if err := ws.CallWire(ctx, server.Wire(), []string{"reverse"}, nil, &reverse); err != nil {
 			return nil, err
@@ -220,7 +233,8 @@ func TestWireKeepsReceivedContextWithoutForwardingApplicationMetadata(t *testing
 func TestWireHandlerPanicStaysPrivateAndObserved(t *testing.T) {
 	observed := &recorder{}
 	client, server := newPair(t, ws.Options{Observer: observed}, ws.Options{})
-	_, err := ws.HandleWire(server.Wire(), []string{"panic"}, func(context.Context, json.RawMessage) (any, error) { panic("private failure") })
+	serverBinding := testBinding(t, server.Wire())
+	_, err := ws.HandleWire(serverBinding, []string{"panic"}, func(context.Context, json.RawMessage) (any, error) { panic("private failure") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,14 +260,15 @@ func TestWireHandlerPanicStaysPrivateAndObserved(t *testing.T) {
 	}
 }
 
-func (s *wireReplySink) Send(_ []string, message duplex.Message) error {
+// A return capability refuses what it does not implement, as every addressed
+// receiver in this profile does; this one carries outcomes and nothing else.
+func (s *wireReplySink) Send(path []string, message duplex.Message) error {
+	if len(path) != 0 {
+		return errors.New("this return capability carries outcomes only")
+	}
 	s.replies <- message.Frame
 	return nil
 }
-func (*wireReplySink) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
-}
-func (*wireReplySink) Close(duplex.Code, string) error { return nil }
 
 func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 	observed := &recorder{}
@@ -262,9 +277,10 @@ func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 	address := &duplex.ReturnAddress{Wire: sink}
 	wire := client.Wire()
 	var want []string
+	serverBinding := testBinding(t, server.Wire())
 	for i := range 40 {
 		path := []string{"ordered", fmt.Sprint(i)}
-		_, err := ws.HandleWire(server.Wire(), path, func(context.Context, json.RawMessage) (any, error) { return nil, nil })
+		_, err := ws.HandleWire(serverBinding, path, func(context.Context, json.RawMessage) (any, error) { return nil, nil })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,11 +318,11 @@ func TestWirePreservesCancellationBeforeTheFollowingEvent(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{Observer: observed})
 	started := make(chan struct{})
 	eventReceived := make(chan struct{})
-	afterName, _ := duplex.EncodePath([]string{"after"})
-	if err := server.HandleEvent(afterName, func(context.Context, *ws.Peer, json.RawMessage) { close(eventReceived) }); err != nil {
+	serverBinding := testBinding(t, server.Wire())
+	if _, err := ws.RegisterWire(serverBinding, []string{"after"}, ws.WireHandlers{Event: func(context.Context, json.RawMessage) error { close(eventReceived); return nil }}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := ws.HandleWire(server.Wire(), []string{"wait"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	_, err := ws.HandleWire(serverBinding, []string{"wait"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -346,7 +362,8 @@ func TestMountedWireKeepsIndependentOriginsAndCancellation(t *testing.T) {
 	finished := make(chan string, 2)
 	allow := make(chan struct{})
 	defer close(allow)
-	_, err := ws.HandleWire(server.Wire(), []string{"worker", "run"}, func(ctx context.Context, raw json.RawMessage) (any, error) {
+	serverBinding := testBinding(t, server.Wire())
+	_, err := ws.HandleWire(serverBinding, []string{"worker", "run"}, func(ctx context.Context, raw json.RawMessage) (any, error) {
 		var name string
 		if err := json.Unmarshal(raw, &name); err != nil {
 			return nil, err
@@ -365,7 +382,7 @@ func TestMountedWireKeepsIndependentOriginsAndCancellation(t *testing.T) {
 	}
 	// Both views select the same existing carrier. Each CallWire has its own
 	// local return address, so cancelling one cannot cancel the other's id.
-	wire := duplex.At(duplex.Mount(map[string]duplex.Wire{"service": client.Wire()}), []string{"service", "worker"})
+	wire := duplex.At(duplex.Mount(map[string]duplex.Endpoint{"service": client.Wire()}), []string{"service", "worker"})
 	first, cancelFirst := context.WithCancel(context.Background())
 	second, cancelSecond := context.WithCancel(context.Background())
 	defer cancelFirst()
@@ -392,7 +409,7 @@ func TestMountedWireKeepsIndependentOriginsAndCancellation(t *testing.T) {
 		t.Fatalf("cancelled %q, want first", name)
 	}
 	var echoed string
-	_, err = ws.HandleWire(server.Wire(), []string{"worker", "echo"}, func(_ context.Context, value json.RawMessage) (any, error) { return value, nil })
+	_, err = ws.HandleWire(serverBinding, []string{"worker", "echo"}, func(_ context.Context, value json.RawMessage) (any, error) { return value, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,11 +428,12 @@ func TestMountedWireKeepsIndependentOriginsAndCancellation(t *testing.T) {
 
 func TestWirePathPreservesOpaqueSegmentsOverTheExistingEnvelope(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
+	serverBinding := testBinding(t, server.Wire())
 	for _, route := range []struct {
 		path []string
 		want string
 	}{{[]string{"a.b"}, "one segment"}, {[]string{"a", "b"}, "two segments"}, {[]string{""}, "empty segment"}} {
-		_, err := ws.HandleWire(server.Wire(), route.path, func(context.Context, json.RawMessage) (any, error) { return route.want, nil })
+		_, err := ws.HandleWire(serverBinding, route.path, func(context.Context, json.RawMessage) (any, error) { return route.want, nil })
 		if err != nil {
 			t.Fatal(err)
 		}

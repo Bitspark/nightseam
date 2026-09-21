@@ -2,6 +2,11 @@
 
 ## Shared tables
 
+The [Bitwire adoption suite](bitwire/README.md) additionally compares the Go
+and TypeScript runtime observations with the shared contract's published cases,
+over local access and real WebSockets. Its expected data come from the pinned
+public module; this driver protocol and the profile scenarios remain Nightseam's.
+
 The runtime unit suites and the conformance driver hold the same wire facts:
 
 | table | holds |

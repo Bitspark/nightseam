@@ -1,0 +1,113 @@
+{
+  "name": "a request serial that does not increase ends the connection",
+  "layer": "peer",
+  "needs": [
+    "peer",
+    "seam"
+  ],
+  "foreach": {
+    "table": "tables/serials.json",
+    "as": "row",
+    "where": {
+      "valid": false
+    }
+  },
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peer_and_conn",
+      "args": {
+        "peer": "b",
+        "role": "server"
+      },
+      "bind": {
+        "peer": "pb",
+        "conn": "ca"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "wait",
+        "behavior": {
+          "kind": "wait"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "read",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "$row.before"
+      },
+      "note": "what the direction published first, which the receiver takes as its mark"
+    },
+    {
+      "on": "a",
+      "op": "conn.receive",
+      "args": {
+        "on": "$ca"
+      },
+      "note": "its answer, so that the mark is set and the peer is idle before the serial that does not increase arrives: what is judged is the order, not a race with a write"
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "$row.frame"
+      },
+      "note": "and the serial that does not increase, refused as a malformed frame is"
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "clean": false,
+        "code": 4011
+      },
+      "note": "the profile's own close: a side that broke it is told so, and told the same thing by either language"
+    },
+    {
+      "on": "a",
+      "op": "conn.await_close",
+      "args": {
+        "on": "$ca"
+      },
+      "expect": {
+        "code": 4011
+      },
+      "note": "and the raw side reads that code off the wire, where an abort would have left it 1006 and nothing to act on"
+    }
+  ]
+}

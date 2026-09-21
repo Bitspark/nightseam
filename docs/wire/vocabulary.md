@@ -99,6 +99,19 @@ A layer that speaks on the wire does it as the tunnel does:
   by that layer and forwarded up from nobody. The vocabulary belongs to the
   layer that defined it.
 
+There is one vocabulary that is spoken somewhere other than a peer root: the
+invocation's. An admitted request's return capability is the invocation,
+presented as a Wire — the empty path is its outcome, and `invocation.capture`,
+`invocation.ready`, `invocation.release`, `invocation.begin`, `invocation.done`
+and `invocation.control` are its lifecycle, as ordinary events. It is the same
+shape by the same rule: one layer produces it, another reads it, the peer only
+forwards. It differs in one thing only, and the difference is why it takes no
+built-in family: those operations never reach a peer root and never cross a
+physical hop, so no consumer's operation can collide with them, and a return
+capability's path space has no other claimant. The reasoning is [an invocation
+is a Wire](../decisions/an-invocation-is-a-wire-and-routing-is-composed-above-it.md),
+and the surface is [relative-path wires](../runtime/wire.md#the-invocation-lifecycle).
+
 ## How a change to the wire is made
 
 Directly and whole, in one lane — both peers, both validators, the tables,

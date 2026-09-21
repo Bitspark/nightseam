@@ -1,2 +1,6 @@
 packages:
   - "*/ts"
+minimumReleaseAgeExclude:
+  # The adopted public release is pinned and independently checked by the
+  # contract conformance and installed-consumer gates.
+  - '@bitspark/bitwire@0.2.0'

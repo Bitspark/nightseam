@@ -184,7 +184,7 @@ func TestMixedStructureAndCodecs(t *testing.T){
  }
 }
 func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
- serve:=func(build func(*runtime.Peer)(duplex.Wire,error))*httptest.Server{
+ serve:=func(build func(*runtime.Peer)(duplex.Endpoint,error))*httptest.Server{
   options:=runtime.ServerOptions{Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}}
   options.Options.Prepare=func(peer *runtime.Peer)error{
    model,err:=build(peer);if err!=nil{return err};if _,err=runtime.ForwardWire(peer.Wire(),model);err!=nil{_ = model.Close(duplex.CodeInternalError,"setup failed");return err}
@@ -192,8 +192,8 @@ func TestMixedClientsRoundtripBothDeclarations(t *testing.T){
   }
   handler,err:=runtime.NewHandler(options);if err!=nil{t.Fatal(err)};return httptest.NewServer(handler)
  }
- ls:=serve(func(*runtime.Peer)(duplex.Wire,error){return lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{})})
- rs:=serve(func(peer *runtime.Peer)(duplex.Wire,error){return rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]())})
+ ls:=serve(func(*runtime.Peer)(duplex.Endpoint,error){return lb.ToWire(func(left.Client)(left.Server,error){return left.Server{Methods:leftServer{},Events:struct{}{}},nil},runtime.AdapterContext{})})
+ rs:=serve(func(peer *runtime.Peer)(duplex.Endpoint,error){return rb.ToWire[E,H,string](func(right.Client[E,H,string])(right.Server[E,H,string],error){return right.Server[E,H,string]{Methods:rightServer{},Events:struct{}{}},nil},runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H](),runtime.JSONAdapter[string]())})
  defer ls.Close();defer rs.Close()
  leftURL,rightURL:="ws"+strings.TrimPrefix(ls.URL,"http"),"ws"+strings.TrimPrefix(rs.URL,"http")
  ctx,cancel:=context.WithTimeout(context.Background(),15*time.Second);defer cancel()

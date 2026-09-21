@@ -1,83 +1,57 @@
 package duplex
 
 import (
-	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 )
 
 // ProfileKind is one of the profile's four frame kinds. Correlation and
 // validation remain the peer's; a wire only carries the frame.
-type ProfileKind string
+type ProfileKind = bitwire.ProfileKind
 
 const (
-	ProfileRequest  ProfileKind = "request"
-	ProfileResponse ProfileKind = "response"
-	ProfileEvent    ProfileKind = "event"
-	ProfileCancel   ProfileKind = "cancel"
+	ProfileRequest  = bitwire.ProfileRequest
+	ProfileResponse = bitwire.ProfileResponse
+	ProfileEvent    = bitwire.ProfileEvent
+	ProfileCancel   = bitwire.ProfileCancel
 )
 
 // ProfileError is public error data, without a runtime error dependency.
-type ProfileError struct {
-	Code    string          `json:"code"`
-	Message string          `json:"message"`
-	Data    json.RawMessage `json:"data,omitempty"`
-}
+type ProfileError = bitwire.ProfileError
 
 // ProfileFrame carries a profile frame. The Send path is the request method or
 // event name; keeping it outside this value prevents contradictory names.
 // Payloads retain their JSON representation, including numeric precision.
-type ProfileFrame struct {
-	Version     int               `json:"version"`
-	Kind        ProfileKind       `json:"kind"`
-	ID          string            `json:"id,omitempty"`
-	Params      json.RawMessage   `json:"params,omitempty"`
-	Result      json.RawMessage   `json:"result,omitempty"`
-	Error       *ProfileError     `json:"error,omitempty"`
-	Data        json.RawMessage   `json:"data,omitempty"`
-	Traceparent string            `json:"traceparent,omitempty"`
-	Tracestate  string            `json:"tracestate,omitempty"`
-	Meta        map[string]string `json:"meta,omitempty"`
-}
+type ProfileFrame = bitwire.ProfileFrame
 
 // ReturnAddress is a local address with stable pointer identity, even when its
 // Wire implementation is not comparable. It is never an envelope member.
-type ReturnAddress struct{ Wire Wire }
+type ReturnAddress = bitwire.ReturnAddress
 
 // Message preserves a frame and its local return capability through routing.
-type Message struct {
-	Frame  ProfileFrame
-	Return *ReturnAddress `json:"-"`
-}
+type Message = bitwire.Message
 
 // Receiver receives deliveries relative to its wire's origin, and an ending.
 // A root owns asynchronous dispatch; composition does not invoke Message itself.
-type Receiver struct {
-	// Namespace matches this path and every descendant. Exact registrations
-	// take precedence; otherwise the longest segment prefix wins.
-	Namespace bool
-	Message   func(path []string, message Message)
-	Closed    func(code Code, reason string)
-}
+type Receiver = bitwire.Receiver
 
-// Wire is an endpoint with an origin. Receive registers an exact relative
-// dispatch path; duplicate registrations are refused. Its detach is idempotent.
-// Send returns when accepted or refused, without running a destination handler.
-// A root owns queue bounds, dispatch and carrier closure. A selected view shares
-// that ownership; a mount only owns its routing and registrations.
-type Wire interface {
-	Send(path []string, message Message) error
-	Receive(path []string, receiver Receiver) (detach func(), err error)
-	Close(code Code, reason string) error
-}
+// Wire grants send access without receive attachment or lifecycle control.
+type Wire = bitwire.Wire
+
+// Endpoint owns one receive attachment and its lifecycle. Path dispatch and
+// sharing among selected receiving views belong to an explicit dispatcher.
+type Endpoint = bitwire.Endpoint
 
 var (
 	ErrPath           = errors.New("invalid wire path")
 	ErrNoRoute        = errors.New("wire path has no destination")
-	ErrReceiverExists = errors.New("wire path already has a receiver")
+	ErrReceiverExists = errors.New("endpoint already has a receiver")
 )
 
 // EncodePath concatenates UTF-8 byte-length-prefixed scalar-string segments.
@@ -134,7 +108,7 @@ type selectedWire struct {
 }
 
 // At selects a relative path without allocating a peer, channel or queue.
-// Closing the selection closes the endpoint it selects from.
+// The selection grants only send access, even when path is empty.
 func At(root Wire, path []string) Wire {
 	return &selectedWire{root: root, prefix: append([]string{}, path...)}
 }
@@ -145,43 +119,37 @@ func (w *selectedWire) path(path []string) []string {
 func (w *selectedWire) Send(path []string, message Message) error {
 	return w.root.Send(w.path(path), message)
 }
-func (w *selectedWire) Receive(path []string, receiver Receiver) (func(), error) {
-	return w.root.Receive(w.path(path), Receiver{
-		Namespace: receiver.Namespace,
-		Message: func(delivered []string, message Message) {
-			if receiver.Message != nil {
-				receiver.Message(append([]string{}, delivered[len(w.prefix):]...), message)
-			}
-		},
-		Closed: receiver.Closed,
-	})
-}
-func (w *selectedWire) Close(code Code, reason string) error { return w.root.Close(code, reason) }
 
 type mountedWire struct {
-	children      map[string]Wire
-	mu            sync.Mutex
-	closed        bool
-	registrations map[*mountedReceiver]struct{}
+	children map[string]Endpoint
+	mu       sync.Mutex
+	closed   bool
+	current  *mountedReceiver
 }
 type mountedReceiver struct {
-	receiver Receiver
-	detach   func()
-	active   bool
+	receiver  Receiver
+	active    bool
+	children  []*mountedChild
+	remaining int
+}
+type mountedChild struct {
+	detach func()
+	ended  bool
 }
 
 // Mount consumes one path segment and delegates to that child. The map is
 // copied. A mount has no leaf at []; [""] can select an empty-string key.
-// Closing a mount detaches its receivers and leaves every child usable.
-func Mount(children map[string]Wire) Wire {
-	w := &mountedWire{children: make(map[string]Wire, len(children)), registrations: map[*mountedReceiver]struct{}{}}
+// Its single receive attachment borrows one attachment from each child.
+// Closing a mount detaches those attachments and leaves every child usable.
+func Mount(children map[string]Endpoint) Endpoint {
+	w := &mountedWire{children: make(map[string]Endpoint, len(children))}
 	for key, child := range children {
 		w.children[key] = child
 	}
 	return w
 }
 
-func (w *mountedWire) destination(path []string) (Wire, error) {
+func (w *mountedWire) destination(path []string) (Endpoint, error) {
 	if w.closed {
 		return nil, ErrClosed
 	}
@@ -206,60 +174,15 @@ func (w *mountedWire) Send(path []string, message Message) error {
 	}
 	return child.Send(append([]string{}, path[1:]...), message)
 }
-func (w *mountedWire) Receive(path []string, receiver Receiver) (func(), error) {
-	if len(path) == 0 && receiver.Namespace {
-		return w.receiveNamespace(receiver)
-	}
-	w.mu.Lock()
-	child, err := w.destination(path)
-	if err != nil {
-		w.mu.Unlock()
-		return nil, err
-	}
-	registration := &mountedReceiver{receiver: receiver, active: true}
-	key := path[0]
-	w.registrations[registration] = struct{}{}
-	w.mu.Unlock()
-	detach, err := child.Receive(append([]string{}, path[1:]...), Receiver{
-		Namespace: receiver.Namespace,
-		Message: func(path []string, message Message) {
-			// Detach removes future dispatch at the child. Already accepted
-			// requests retain their captured receiver for cancellation.
-			if receiver.Message != nil {
-				receiver.Message(append([]string{key}, path...), message)
-			}
-		},
-		Closed: func(code Code, reason string) { w.remove(registration, true, code, reason) },
-	})
-	w.mu.Lock()
-	active := registration.active
-	if err != nil {
-		registration.active = false
-		delete(w.registrations, registration)
-	} else if active {
-		registration.detach = detach
-	}
-	w.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	if !active {
-		if detach != nil {
-			detach()
-		}
-		return nil, ErrClosed
-	}
-	return func() { w.remove(registration, false, 0, "") }, nil
-}
-
-// A namespace at the mount origin receives every child under that child's
-// key. One child's end removes only that route; the namespace ends when its
-// last child ends or when the mount itself is closed.
-func (w *mountedWire) receiveNamespace(receiver Receiver) (func(), error) {
+func (w *mountedWire) Receive(receiver Receiver) (func(), error) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
 		return nil, ErrClosed
+	}
+	if w.current != nil {
+		w.mu.Unlock()
+		return nil, ErrReceiverExists
 	}
 	keys := make([]string, 0, len(w.children))
 	for key, child := range w.children {
@@ -267,68 +190,115 @@ func (w *mountedWire) receiveNamespace(receiver Receiver) (func(), error) {
 			keys = append(keys, key)
 		}
 	}
-	var mu sync.Mutex
-	var detaches []func()
-	ended, remaining := false, len(keys)
-	registration := &mountedReceiver{receiver: receiver, active: true}
-	registration.detach = func() {
-		mu.Lock()
-		ended = true
-		held := detaches
-		detaches = nil
-		mu.Unlock()
-		for _, detach := range held {
-			detach()
-		}
+	sort.Strings(keys)
+	attachment := &mountedReceiver{receiver: receiver, active: true, remaining: len(keys)}
+	for range keys {
+		attachment.children = append(attachment.children, &mountedChild{})
 	}
-	w.registrations[registration] = struct{}{}
+	w.current = attachment
 	w.mu.Unlock()
-	for _, key := range keys {
-		detach, err := w.Receive([]string{key}, Receiver{
-			Namespace: true,
-			Message:   receiver.Message,
-			Closed: func(code Code, reason string) {
-				mu.Lock()
-				remaining--
-				last := remaining == 0
-				mu.Unlock()
-				if last {
-					w.remove(registration, true, code, reason)
-				}
-			},
-		})
-		if err != nil {
-			w.remove(registration, false, 0, "")
-			return nil, err
-		}
-		mu.Lock()
-		if ended {
-			mu.Unlock()
-			detach()
+
+	for i, key := range keys {
+		slot := attachment.children[i]
+		w.mu.Lock()
+		active := attachment.active
+		w.mu.Unlock()
+		if !active {
 			return nil, ErrClosed
 		}
-		detaches = append(detaches, detach)
-		mu.Unlock()
+		detach, err := w.children[key].Receive(Receiver{
+			Message: func(path []string, message Message) {
+				// The child owns capture of accepted invocations. A retained
+				// delivery, including cancellation, keeps its original receiver.
+				if receiver.Message != nil {
+					receiver.Message(append([]string{key}, path...), message)
+				}
+			},
+			Closed: func(code Code, reason string) { w.childEnded(attachment, slot, code, reason) },
+		})
+		w.mu.Lock()
+		active = attachment.active && !slot.ended
+		if err == nil && active {
+			slot.detach = detach
+		}
+		w.mu.Unlock()
+		if err != nil || !active {
+			// Close may happen while the child's Receive is returning. Its
+			// late disposer is still ours, even after the attachment ended.
+			if detach != nil {
+				detach()
+			}
+			w.remove(attachment)
+			if err != nil {
+				return nil, err
+			}
+			return nil, ErrClosed
+		}
 	}
-	return func() { w.remove(registration, false, 0, "") }, nil
-}
-func (w *mountedWire) remove(registration *mountedReceiver, tell bool, code Code, reason string) {
 	w.mu.Lock()
-	if !registration.active {
+	active := attachment.active
+	w.mu.Unlock()
+	if !active {
+		return nil, ErrClosed
+	}
+	return func() { w.remove(attachment) }, nil
+}
+
+// releaseLocked retires only this attachment. Clear its ownership before
+// invoking borrowed disposers or callbacks, which may reenter the mount.
+func (w *mountedWire) releaseLocked(attachment *mountedReceiver) []func() {
+	attachment.active = false
+	if w.current == attachment {
+		w.current = nil
+	}
+	var detaches []func()
+	for _, child := range attachment.children {
+		if child.detach != nil {
+			detaches = append(detaches, child.detach)
+			child.detach = nil
+		}
+	}
+	return detaches
+}
+
+func (w *mountedWire) remove(attachment *mountedReceiver) {
+	w.mu.Lock()
+	if !attachment.active {
 		w.mu.Unlock()
 		return
 	}
-	registration.active = false
-	delete(w.registrations, registration)
-	detach := registration.detach
+	detaches := w.releaseLocked(attachment)
 	w.mu.Unlock()
-	if detach != nil {
+	for _, detach := range detaches {
 		detach()
 	}
-	if tell && registration.receiver.Closed != nil {
-		registration.receiver.Closed(code, reason)
+}
+
+func (w *mountedWire) childEnded(attachment *mountedReceiver, child *mountedChild, code Code, reason string) {
+	w.mu.Lock()
+	if !attachment.active || child.ended {
+		w.mu.Unlock()
+		return
+	}
+	child.ended = true
+	attachment.remaining--
+	last := attachment.remaining == 0
+	var detaches []func()
+	if last {
+		detaches = w.releaseLocked(attachment)
+	} else if child.detach != nil {
+		detaches = append(detaches, child.detach)
+		child.detach = nil
+	}
+	w.mu.Unlock()
+	for _, detach := range detaches {
+		detach()
+	}
+	if last && attachment.receiver.Closed != nil {
+		attachment.receiver.Closed(code, reason)
 	}
 }
+
 func (w *mountedWire) Close(code Code, reason string) error {
 	w.mu.Lock()
 	if w.closed {
@@ -336,22 +306,17 @@ func (w *mountedWire) Close(code Code, reason string) error {
 		return nil
 	}
 	w.closed = true
-	registrations := make([]*mountedReceiver, 0, len(w.registrations))
-	for registration := range w.registrations {
-		registration.active = false
-		registrations = append(registrations, registration)
+	attachment := w.current
+	var detaches []func()
+	if attachment != nil {
+		detaches = w.releaseLocked(attachment)
 	}
-	w.registrations = nil
 	w.mu.Unlock()
-	for _, registration := range registrations {
-		if registration.detach != nil {
-			registration.detach()
-		}
+	for _, detach := range detaches {
+		detach()
 	}
-	for _, registration := range registrations {
-		if registration.receiver.Closed != nil {
-			registration.receiver.Closed(code, reason)
-		}
+	if attachment != nil && attachment.receiver.Closed != nil {
+		attachment.receiver.Closed(code, reason)
 	}
 	return nil
 }

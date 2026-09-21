@@ -60,3 +60,25 @@ export type {
   Slots,
   Validator,
 } from './validate.ts';
+
+export { createDispatcher, WireDispatcher, SelectedEndpoint } from './dispatcher.ts';
+export type { HandlerRegistry, DispatcherOptions } from './dispatcher.ts';
+export {
+  Invocation,
+  InvocationError,
+  InvocationCaptureHandle,
+  InvocationBodyHandle,
+  beginInvocationBody,
+  captureInvocation,
+  relayInvocationControl,
+  defaultInvocationLimits,
+  defaultInvocationCaptures,
+  defaultInvocationBodies,
+  invocationCapture,
+  invocationReady,
+  invocationRelease,
+  invocationBegin,
+  invocationDone,
+  invocationControl,
+} from './invocation.ts';
+export type { InvocationLimits, InvocationRefusal } from './invocation.ts';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { pipe } from '@nightseam/duplex';
-import { DuplexPeer, DuplexError, handleWire } from '@nightseam/runtime';
+import { DuplexPeer, DuplexError, handleWire, createDispatcher } from '@nightseam/runtime';
 import { liveOver, valueEnvironment, type LiveScope } from '@nightseam/live';
 import * as combinator from './api/ts/combinator-client/src/index.ts';
 import * as owners from './api/ts/owners-client/src/index.ts';
@@ -23,13 +23,16 @@ const isCode=(code:string)=>(error:unknown)=>error instanceof DuplexError&&error
 for (const path of ['callable', 'operation']) {
   for (const selection of ['foreign', 'released-foreign', 'local']) {
     const { sa, sb, close } = await pair(4);
+    let detachDispatcher = () => {};
     try {
       let invoke: combinator.Factory;
       if (path === 'callable') {
         invoke = combinator.importFactory(sb.owner().child(), combinator.exportFactory(sa.owner(), async input => input));
       } else {
         const serverOwner = sa.owner().child();
-        handleWire(sa.peer.wire(), ['pack'], raw => {
+        const dispatcher = createDispatcher(sa.peer.wire());
+        detachDispatcher = () => dispatcher.close();
+        handleWire(dispatcher, ['pack'], raw => {
           const input = combinator.importUnary(serverOwner, (raw as {item: unknown}).item);
           return { metadata: { seed: 7 }, run: combinator.exportUnary(serverOwner, input) };
         });
@@ -56,7 +59,7 @@ for (const path of ['callable', 'operation']) {
       sb.owner().release();
       sa.owner().release();
       await zero(sa, sb);
-    } finally { close(); }
+    } finally { detachDispatcher(); close(); }
   }
 }
 

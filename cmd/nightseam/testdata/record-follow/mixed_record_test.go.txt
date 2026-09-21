@@ -29,7 +29,7 @@ func TestMixedTypeAndFamilyRecording(t *testing.T) {
 	defer owner.Release()
 	environment := runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(scope)}
 	values := make(chan protocol.Payload[string, handles.Box], 4)
-	makeTarget := func() (duplex.Wire, error) {
+	makeTarget := func() (duplex.Endpoint, error) {
 		return client.ToWire(func(protocol.Server[string, handles.Box]) (protocol.Client[string, handles.Box], error) {
 			return protocol.Client[string, handles.Box]{Events: mixedDestination{values}}, nil
 		}, environment, runtime.JSONAdapter[string](), handles.AdapterBox())

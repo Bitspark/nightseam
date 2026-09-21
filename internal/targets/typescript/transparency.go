@@ -20,8 +20,8 @@ func emitTransparency(f *file, side string) {
 	if side == "Client" {
 		protocol = "'./types.ts'"
 	}
-	f.linef("import { DuplexPeer, DuplexError, wirePair, forwardWire, type AdapterContext, type WireModelContext, type ValueAdapter, type ValueContext } from %s;", quote(f.config.Runtime))
-	f.line("import { at, mount, pipe as framePipe, type Wire } from '@nightseam/duplex';")
+	f.linef("import { DuplexPeer, DuplexError, wirePair, forwardWire, createDispatcher, type AdapterContext, type WireModelContext, type ValueAdapter, type ValueContext } from %s;", quote(f.config.Runtime))
+	f.line("import { mount, pipe as framePipe, type Endpoint } from '@nightseam/duplex';")
 	f.line("import { toWire, prepareFromWire } from './index.ts';")
 	f.linef("import type * as Protocol from %s;", protocol)
 	f.linef("import type { AnyFamily, FamilyBinding } from %s;", protocol)
@@ -151,7 +151,7 @@ func emitExamples(f *file) {
 }
 
 const tsTransparencySupport = `
-export type Presentation = (wire: Wire) => { wire: Wire; close(): void } | Promise<{ wire: Wire; close(): void }>;
+export type Presentation = (wire: Endpoint) => { wire: Endpoint; close(): void } | Promise<{ wire: Endpoint; close(): void }>;
 export interface Options {
  context?: AdapterContext;
  remoteContext?: AdapterContext;
@@ -163,7 +163,11 @@ export interface Options {
 function once(action: () => void): () => void { let closed=false; return () => { if (!closed) { closed=true; action(); } }; }
 function hasMethod(facet:unknown,name:string):boolean{for(let current=facet;current!=null&&current!==Object.prototype;current=Object.getPrototypeOf(current)){if(Object.prototype.hasOwnProperty.call(current,name))return typeof (facet as Record<string,unknown>)[name]==='function';}return false;}
 export const local: Presentation = wire => ({wire,close(){}});
-export const mounted: Presentation = wire => {const root=mount(new Map([['family',wire]]));return {wire:at(root,['family']),close:once(()=>root.close(1000,''))};};
+export const mounted: Presentation = wire => {
+ const root=mount(new Map([['family',wire]]));
+ try { const dispatcher=createDispatcher(root); return {wire:dispatcher.select(['family']),close:once(()=>{try{dispatcher.close(1000,'');}finally{root.close(1000,'');}})}; }
+ catch(error){root.close(1000,'');throw error;}
+};
 export const forwarded: Presentation = wire => {
  const [left,right]=wirePair();
  try { const detach=forwardWire(right,wire); return {wire:left,close:once(()=>{detach();left.close(1000,'');})}; }

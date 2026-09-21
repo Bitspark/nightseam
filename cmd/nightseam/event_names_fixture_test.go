@@ -41,14 +41,16 @@ func TestGeneratedEventNameOverride(t *testing.T) {
 }
 
 const tsEventNameOverrideFixture = `import {prepareFromWire, type ClientEvents} from './api/ts/probe-binding/src/index.ts';
-import {DuplexPeer, type FrameConnection} from '@nightseam/runtime';
-import {at,mount,encodePath,pipe} from '@nightseam/duplex';
+import {DuplexPeer, createDispatcher, type FrameConnection} from '@nightseam/runtime';
+import {mount,encodePath,pipe} from '@nightseam/duplex';
 for (const mounted of [false,true]) {
  const peer = new DuplexPeer();
  let receive!: (value: string) => void;
  const delivered = new Promise<string>(resolve => { receive = resolve; });
  const events: ClientEvents = {textChanged: receive};
- const wire=mounted?at(mount(new Map([['nested',peer.wire()]])),['nested']):peer.wire();
+ const root=mounted?mount(new Map([['nested',peer.wire()]])):undefined;
+ const dispatcher=root?createDispatcher(root):undefined;
+ const wire=dispatcher?dispatcher.select(['nested']):peer.wire();
  const prepared=prepareFromWire(wire,{});
  const [near,far]=pipe();
  const remote=new DuplexPeer({role:'server'});
@@ -62,6 +64,7 @@ for (const mounted of [false,true]) {
  bind({methods:{},events});
  if (await delivered !== 'first') throw new Error('the override changed the wire event');
  prepared.close();
+ dispatcher?.close();root?.close();
  peer.close();
  remote.close();
 }
@@ -89,10 +92,10 @@ func TestEventWireName(t *testing.T) {
    var complete func(context.Context)(protocol.ServerModel,error)
    var cleanup func()
    options := runtime.Options{Prepare:func(peer *runtime.Peer)error {
-    wire:=peer.Wire();if mounted{wire=duplex.At(duplex.Mount(map[string]duplex.Wire{"nested":wire}),[]string{"nested"})}
+    wire:=peer.Wire();if mounted{root:=duplex.Mount(map[string]duplex.Endpoint{"nested":wire});t.Cleanup(func(){root.Close(duplex.CodeNormal,"")});dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{return err};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});wire=dispatcher.Select([]string{"nested"})}
     var err error
     complete,cleanup,err=binding.PrepareFromWire(wire,runtime.AdapterContext{});if err!=nil{return err}
-    if _,err=wire.Receive([]string{"to_string"},duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return fmt.Errorf("typed event was not installed")}
+    if _,err=wire.Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return fmt.Errorf("typed event attachment was not installed")}
     return nil
    }}
    if err := far.Send(ctx,duplex.Frame{Kind:duplex.Text,Data:[]byte("{\"version\":1,\"kind\":\"event\",\"event\":\"9:to_string\",\"data\":\"first\"}")}); err != nil { t.Fatal(err) }

@@ -17,6 +17,9 @@ import (
 func fixtureTypeScriptPaths(t *testing.T, directory string, roots ...string) map[string][]string {
 	t.Helper()
 	paths := map[string][]string{}
+	// Copied runtime sources still resolve the installed public contract. The
+	// isolated packed smoke separately checks its transitive package install.
+	paths["@bitspark/bitwire"] = []string{filepath.ToSlash(filepath.Join(repositoryRoot(t), "duplex/ts/node_modules/@bitspark/bitwire/dist/index.d.ts"))}
 	for _, component := range []string{"runtime", "duplex", "tunnel", "live"} {
 		paths["@nightseam/"+component] = []string{"./" + component + "/ts/src/index.ts"}
 	}

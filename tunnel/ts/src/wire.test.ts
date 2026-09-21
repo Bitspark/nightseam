@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, pipe, type Wire } from '@nightseam/duplex';
-import { DuplexPeer, callWire, handleWire } from '@nightseam/runtime';
+import { at, mount, pipe, type Endpoint } from '@nightseam/duplex';
+import { DuplexPeer, callWire, createDispatcher, handleWire } from '@nightseam/runtime';
 import { Tunnel } from './index.ts';
 
 async function tunnels() {
@@ -31,13 +31,15 @@ test('channel is a prepared wire before its first selection or mounted use', asy
     },
   };
   const digest = 'a'.repeat(64);
-  const opened: Wire & { id: number; digest: string } = await pair.client.open('wire', digest, { observer });
+  const opened: Endpoint & { id: number; digest: string } = await pair.client.open('wire', digest, { observer });
   const pending = callWire(opened, ['deep', 'echo'], 'ok');
   await Promise.resolve();
   const accepted = await pair.server.accept({
     observer,
     prepare: (peer) => {
-      handleWire(peer.wire(), ['deep', 'echo'], (value) => value);
+      const dispatcher = createDispatcher(peer.wire());
+      t.after(() => dispatcher.close());
+      handleWire(dispatcher, ['deep', 'echo'], (value) => value);
     },
   });
   assert.equal(await pending, 'ok');
@@ -80,7 +82,7 @@ test('peer preparation runs after validation and cleans registered wire receiver
       new DuplexPeer({
         prepare: (peer) => {
           prepared++;
-          peer.wire().receive(['installed'], {
+          peer.wire().receive({
             closed: () => {
               closed++;
             },
@@ -104,7 +106,9 @@ test('server-opened wire channel preserves channel parity and carries calls in b
   t.after(pair.close);
   const options = {
     prepare: (peer: DuplexPeer) => {
-      handleWire(peer.wire(), ['echo'], (value) => value);
+      const dispatcher = createDispatcher(peer.wire());
+      t.after(() => dispatcher.close());
+      handleWire(dispatcher, ['echo'], (value) => value);
     },
   };
   const opened = await pair.server.open('reverse', '', options),

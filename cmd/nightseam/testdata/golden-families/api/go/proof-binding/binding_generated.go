@@ -264,7 +264,7 @@ func (c *serverMethods[SEnvelope, SHandle, Item]) Relay(ctx context.Context, par
 	}()
 	return received, err
 }
-func bindServer[SEnvelope, SHandle, Item any](wire duplex.Wire, lookup func() protocol.Server[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error {
+func bindServer[SEnvelope, SHandle, Item any](wire runtime.HandlerRegistry, lookup func() protocol.Server[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -641,7 +641,7 @@ func (c *clientEvents[SEnvelope, SHandle, Item]) PartAdded(ctx context.Context, 
 	}
 	return runtime.EmitWire(ctx, c.wire, []string{"part.added"}, data, runtime.WireEmitOptions{Observer: c.environment.Options.Observer, Family: "proof", Propagator: c.environment.Options.Propagator})
 }
-func bindClient[SEnvelope, SHandle, Item any](wire duplex.Wire, lookup func() protocol.Client[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error {
+func bindClient[SEnvelope, SHandle, Item any](wire runtime.HandlerRegistry, lookup func() protocol.Client[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error {
 	var detach []func()
 	complete := false
 	defer func() {
@@ -718,8 +718,8 @@ func normalizeContext[SEnvelope, SHandle, Item any](environment runtime.AdapterC
 	return environment, nil
 }
 
-// ToWire binds one model factory and returns its access wire.
-func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](model protocol.ServerModel[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (duplex.Wire, error) {
+// ToWire binds one model factory and returns its owned access endpoint.
+func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](model protocol.ServerModel[SEnvelope, SHandle, Item], environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (duplex.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -755,7 +755,11 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag
 			_ = access.Close(duplex.CodeInternalError, "model construction failed")
 		}
 	}()
-	if _, err := registerIdentity(binding, identity); err != nil {
+	dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := registerIdentity(dispatcher, identity); err != nil {
 		return nil, err
 	}
 	implementation, err := model(accessClient[SEnvelope, SHandle, Item](binding, environment, adapterSEnvelope, adapterSHandle, adapterItem))
@@ -765,7 +769,7 @@ func ToWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag
 	if implementation.Methods == nil {
 		return nil, fmt.Errorf("Server methods are required")
 	}
-	if err := bindServer[SEnvelope, SHandle, Item](binding, func() protocol.Server[SEnvelope, SHandle, Item] { return implementation }, environment, adapterSEnvelope, adapterSHandle, adapterItem); err != nil {
+	if err := bindServer[SEnvelope, SHandle, Item](dispatcher, func() protocol.Server[SEnvelope, SHandle, Item] { return implementation }, environment, adapterSEnvelope, adapterSHandle, adapterItem); err != nil {
 		return nil, err
 	}
 	complete = true
@@ -778,7 +782,7 @@ func declarationIdentity[SEnvelope, SHandle, Item any](adapterSEnvelope runtime.
 	}
 	return runtime.DeclarationIdentity{Path: "proof", Digest: digest}, nil
 }
-func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (func(), error) {
+func registerIdentity(wire runtime.HandlerRegistry, identity runtime.DeclarationIdentity) (func(), error) {
 	handler, err := runtime.IdentityHandler(identity)
 	if err != nil {
 		return nil, err
@@ -790,7 +794,7 @@ func registerIdentity(wire duplex.Wire, identity runtime.DeclarationIdentity) (f
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (complete func(context.Context) (protocol.ServerModel[SEnvelope, SHandle, Item], error), cleanup func(), err error) {
+func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (complete func(context.Context) (protocol.ServerModel[SEnvelope, SHandle, Item], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -844,7 +848,7 @@ func PrepareFromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item 
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (protocol.ServerModel[SEnvelope, SHandle, Item], error) {
+func FromWire[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (protocol.ServerModel[SEnvelope, SHandle, Item], error) {
 	complete, cleanup, err := PrepareFromWire[SEnvelope, SHandle, Item](wire, environment, adapterSEnvelope, adapterSHandle, adapterItem)
 	if err != nil {
 		return nil, err
@@ -910,7 +914,7 @@ func (r *Recorder[SEnvelope, SHandle, Item]) Follow(ctx context.Context, after u
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (*Recorder[SEnvelope, SHandle, Item], error) {
+func Record[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (*Recorder[SEnvelope, SHandle, Item], error) {
 	environment, err := normalizeContext[SEnvelope, SHandle, Item](environment, adapterSEnvelope, adapterSHandle, adapterItem)
 	if err != nil {
 		return nil, err

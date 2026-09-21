@@ -90,7 +90,7 @@ await compare<%s>(%q, %s, source%s, state => {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "diagram.ts")
 }
 
-const tsAdapterDiagramProgram = `import {pipe, type Wire} from '@nightseam/duplex';
+const tsAdapterDiagramProgram = `import {pipe, type Endpoint} from '@nightseam/duplex';
 import {DuplexPeer, DuplexError, forwardWire, type ValueAdapter} from '@nightseam/runtime';
 import {scopeOf, liveOver, valueEnvironment, type LiveOwner} from '@nightseam/live';
 import * as values from '@example/values-client';
@@ -138,7 +138,7 @@ async function connect(live:boolean) {
 interface Boundary<T> extends Awaited<ReturnType<typeof connect>> {
  model:genericBinding.Server<T>;
  remote:genericBinding.Client<T>;
- modelWire:Wire;detach:()=>void;
+ modelWire:Endpoint;detach:()=>void;
  changed:Promise<T>;noted:Promise<T>;
 }
 async function derived<T>(adapter:ValueAdapter<T>,state:State):Promise<Boundary<T>> {

@@ -96,7 +96,8 @@ The complete routing contract is [relative-path wires](wire.md).
 | Operation | Go | TypeScript |
 | --- | --- | --- |
 | send a structured frame | `wire.Send(path, message)` | `wire.send(path, message)` |
-| register a receiver | `wire.Receive(path, receiver)` | `wire.receive(path, receiver)` |
+| take the one owning attachment | `endpoint.Receive(receiver)` | `endpoint.receive(receiver)` |
+| register a handler at a path | `dispatcher.Register(path, receiver)` | `dispatcher.register(path, receiver)` |
 | select a relative origin | `duplex.At(wire, prefix)` | `at(wire, prefix)` |
 | mount child origins | `duplex.Mount(children)` | `mount(children)` |
 | make a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
@@ -105,12 +106,13 @@ The complete routing contract is [relative-path wires](wire.md).
 
 Paths are arrays of Unicode strings. Selection prefixes a path; mounting
 consumes one segment to choose a child. Neither allocates a peer, including
-on first use. Exact receivers win; a receiver with `Namespace: true` /
-`namespace: true` otherwise matches a segment prefix, with the longest match
-winning. Callback paths are relative to the Wire on which the receiver was
-registered. Registration returns a detach function.
+on first use. An endpoint has one owning attachment; exact-before-longest-prefix
+matching belongs to the `Dispatcher` / `WireDispatcher` composed above it, and
+sibling and nested views share that one owner rather than each attaching to the
+root ([relative-path wires](wire.md)). Callback paths are relative to the view
+the receiver registered on. Registration returns a detach function.
 
-`ForwardWire` / `forwardWire` installs namespace receivers in both directions
+`ForwardWire` / `forwardWire` takes the one attachment of each endpoint
 and returns a detach function. It preserves the frame and local return
 capability. It adds no channel, serialization or peer. The native profile
 frames and their physical path encoding are [the profile's](../wire/profile.md#relative-paths-on-a-wire).

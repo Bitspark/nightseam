@@ -140,6 +140,31 @@ func TestTablesAreWellFormed(t *testing.T) {
 	if err != nil || len(invalid) == 0 || len(invalid) == len(rows) {
 		t.Fatalf("where did not select: %d of %d, %v", len(invalid), len(rows), err)
 	}
+	// A serials row is a sequence, not a judgement about one envelope: the
+	// frames are each well formed and what is judged is the order they arrive
+	// in, which is why it is a table of its own.
+	serials, err := tableRows(filepath.Join(root, "tables", "serials.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen = map[string]bool{}
+	for _, row := range serials {
+		name, _ := row["name"].(string)
+		to, _ := row["to"].(string)
+		before, _ := row["before"].(string)
+		frame, _ := row["frame"].(string)
+		if _, judged := row["valid"].(bool); name == "" || before == "" || frame == "" || !judged || (to != "server" && to != "client") {
+			t.Errorf("serials.json: row %q is not named, addressed, sequenced and judged", name)
+		}
+		if seen[name] {
+			t.Errorf("serials.json: two rows named %q", name)
+		}
+		seen[name] = true
+	}
+	refused, err := tableRows(filepath.Join(root, "tables", "serials.json"), map[string]any{"valid": false})
+	if err != nil || len(refused) == 0 || len(refused) == len(serials) {
+		t.Fatalf("serials.json holds only one judgement: %d of %d, %v", len(refused), len(serials), err)
+	}
 }
 
 func TestRecipesAreFound(t *testing.T) {

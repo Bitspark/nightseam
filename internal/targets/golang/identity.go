@@ -19,7 +19,7 @@ func (f *file) emitWireIdentity(side, opposite string) {
 		f.linef("if err != nil { return %s.DeclarationIdentity{}, err }", rt)
 		f.linef("return %s.DeclarationIdentity{Path:%q,Digest:digest}, nil", rt, f.family.Name)
 	})
-	f.w.Block(fmt.Sprintf("func registerIdentity(wire %s.Wire, identity %s.DeclarationIdentity) (func(), error) {", seam, rt), "}", func() {
+	f.w.Block(fmt.Sprintf("func registerIdentity(wire %s.HandlerRegistry, identity %s.DeclarationIdentity) (func(), error) {", rt, rt), "}", func() {
 		f.linef("handler, err := %s.IdentityHandler(identity)", rt)
 		f.line("if err != nil { return nil, err }")
 		f.linef("return %s.HandleWire(wire, []string{%s.IdentityMethod}, func(ctx %s.Context, raw %s.RawMessage) (any,error) { return handler(ctx,nil,raw) })", rt, rt, f.std("context"), f.std("json"))
@@ -28,7 +28,7 @@ func (f *file) emitWireIdentity(side, opposite string) {
 	f.line("// Complete checks identity and returns a factory that may be bound once. Both steps")
 	f.line("// must finish within environment.Options.RequestTimeout. Cleanup detaches this")
 	f.line("// interpretation's registrations, including after success, and never closes the wire.")
-	f.w.Block(fmt.Sprintf("func PrepareFromWire%s(wire %s.Wire, environment %s%s) (complete func(%s.Context) (%s%sModel%s,error), cleanup func(), err error) {", open, seam, contextType, f.slotParameters(), f.std("context"), proto, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func PrepareFromWire%s(wire %s.Endpoint, environment %s%s) (complete func(%s.Context) (%s%sModel%s,error), cleanup func(), err error) {", open, seam, contextType, f.slotParameters(), f.std("context"), proto, side, args), "}", func() {
 		f.linef("if wire == nil { return nil, nil, %s.Errorf(\"wire is required\") }", f.std("fmt"))
 		f.linef("environment, err = normalizeContext%s(environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, nil, err }")
@@ -59,7 +59,7 @@ func (f *file) emitWireIdentity(side, opposite string) {
 	})
 	f.line("// FromWire checks identity and returns a factory that may be bound once.")
 	f.line("// Use PrepareFromWire before attachment when incoming delivery can begin immediately.")
-	f.w.Block(fmt.Sprintf("func FromWire%s(ctx %s.Context, wire %s.Wire, environment %s%s) (%s%sModel%s,error) {", open, f.std("context"), seam, contextType, f.slotParameters(), proto, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func FromWire%s(ctx %s.Context, wire %s.Endpoint, environment %s%s) (%s%sModel%s,error) {", open, f.std("context"), seam, contextType, f.slotParameters(), proto, side, args), "}", func() {
 		f.linef("complete, cleanup, err := PrepareFromWire%s(wire,environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
 		f.line("model, err := complete(ctx)")

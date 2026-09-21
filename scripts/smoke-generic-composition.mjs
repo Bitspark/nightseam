@@ -46,16 +46,26 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
 
   // The data-only instantiation has its own source and import closure. Live
   // packages installed elsewhere in the smoke cannot hide an accidental edge.
-  const pending = ["@probe/compose-cell-binding"];
+  const pending = [{ name: "@probe/compose-cell-binding", from: consumer }];
   const visited = new Set();
-  const allowed = new Set(["@probe/compose-cell-binding", "@probe/compose-cell-client", "@nightseam/runtime", "@nightseam/duplex"]);
+  const allowed = new Set(["@probe/compose-cell-binding", "@probe/compose-cell-client", "@nightseam/runtime", "@nightseam/duplex", "@bitspark/bitwire"]);
   while (pending.length) {
-    const name = pending.pop();
+    const { name, from } = pending.pop();
     if (visited.has(name)) continue;
     visited.add(name);
     assert(allowed.has(name), `scalar generic TypeScript dependency closure reached ${name}`);
-    const installed = JSON.parse(readFileSync(join(consumer, "node_modules", name, "package.json"), "utf8"));
-    pending.push(...Object.keys(installed.dependencies ?? {}));
+    // Resolve a transitive dependency from its importer, as Node does. pnpm
+    // need not expose Bitwire beside the consumer's direct dependencies.
+    let search = from;
+    while (!existsSync(join(search, "node_modules", name, "package.json"))) {
+      assert.notEqual(search, dirname(search), `installed dependency ${name} is missing from ${from}`);
+      search = dirname(search);
+    }
+    const directory = realpathSync(join(search, "node_modules", name));
+    assert(directory.startsWith(realpathSync(consumer) + (process.platform === "win32" ? "\\" : "/")), `${name}: dependency resolved outside the packed consumer`);
+    const installed = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
+    if (name === "@bitspark/bitwire") assert.equal(installed.version, "0.2.0");
+    pending.push(...Object.keys(installed.dependencies ?? {}).map(name => ({ name, from: directory })));
   }
   assert.deepEqual(visited, allowed, "scalar generic dependency closure omitted a required package");
   for (const name of ["compose-cell-client", "compose-cell-binding"]) {
@@ -71,6 +81,10 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   const resolved = JSON.parse(run("go", ["list", "-m", "-json", "github.com/Bitspark/nightseam"], { cwd: consumer, env: go }));
   assert.equal(resolved.Replace, undefined, "generic consumer resolved through a Go replace");
   assert(resolved.Dir.startsWith(go.GOMODCACHE), "generic consumer resolved outside its isolated Go module cache");
+  const shared = JSON.parse(run("go", ["list", "-m", "-json", "github.com/Bitspark/bitwire"], { cwd: consumer, env: go }));
+  assert.equal(shared.Version, "v0.2.0");
+  assert.equal(shared.Replace, undefined, "shared contract resolved through a Go replace");
+  assert(shared.Dir.startsWith(go.GOMODCACHE), "shared contract resolved outside the isolated public module cache");
 
   // Install the scalar TypeScript consumer separately, with no live package
   // available through a parent node_modules directory or another fixture.

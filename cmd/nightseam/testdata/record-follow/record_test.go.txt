@@ -53,7 +53,7 @@ func next[T comparable](t *testing.T, ctx context.Context, values <-chan T, want
 		t.Fatal(ctx.Err())
 	}
 }
-func target(t *testing.T) (duplex.Wire, chan int64) {
+func target(t *testing.T) (duplex.Endpoint, chan int64) {
 	t.Helper()
 	values := make(chan int64, 16)
 	wire, err := client.ToWire(func(protocol.Server) (protocol.Client, error) {

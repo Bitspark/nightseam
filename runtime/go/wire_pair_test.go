@@ -19,12 +19,18 @@ type localTestObserver func(ObserverEvent)
 func (observe localTestObserver) Observe(event ObserverEvent) { observe(event) }
 
 func (r *localTestReturn) Send(_ []string, m duplex.Message) error { return r.send(m) }
-func (*localTestReturn) Receive([]string, duplex.Receiver) (func(), error) {
-	return nil, duplex.ErrReceiverExists
-}
-func (*localTestReturn) Close(duplex.Code, string) error { return nil }
 
-func localPair(t *testing.T, options Options) (duplex.Wire, duplex.Wire) {
+func testBinding(t *testing.T, endpoint duplex.Endpoint) *Dispatcher {
+	t.Helper()
+	binding, err := NewDispatcher(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = binding.Close(duplex.CodeNormal, "done") })
+	return binding
+}
+
+func localPair(t *testing.T, options Options) (duplex.Endpoint, duplex.Endpoint) {
 	t.Helper()
 	a, b, err := NewWirePair(options)
 	if err != nil {
@@ -36,11 +42,13 @@ func localPair(t *testing.T, options Options) (duplex.Wire, duplex.Wire) {
 
 func TestLocalWirePairRoundTripReverseAndIsolation(t *testing.T) {
 	a, b := localPair(t, Options{})
-	_, err := HandleWire(a, []string{"reverse"}, func(_ context.Context, raw json.RawMessage) (any, error) { return string(raw), nil })
+	aBinding := testBinding(t, a)
+	_, err := HandleWire(aBinding, []string{"reverse"}, func(_ context.Context, raw json.RawMessage) (any, error) { return string(raw), nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = HandleWire(b, []string{"call"}, func(ctx context.Context, raw json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, err = HandleWire(bBinding, []string{"call"}, func(ctx context.Context, raw json.RawMessage) (any, error) {
 		var result string
 		err := CallWire(ctx, b, []string{"reverse"}, raw, &result)
 		return result, err
@@ -53,7 +61,8 @@ func TestLocalWirePairRoundTripReverseAndIsolation(t *testing.T) {
 		t.Fatalf("reverse result %q: %v", result, err)
 	}
 	x, y := localPair(t, Options{})
-	_, _ = HandleWire(y, []string{"call"}, func(context.Context, json.RawMessage) (any, error) { return "independent", nil })
+	yBinding := testBinding(t, y)
+	_, _ = HandleWire(yBinding, []string{"call"}, func(context.Context, json.RawMessage) (any, error) { return "independent", nil })
 	_ = a.Close(duplex.CodeNormal, "first pair only")
 	if err := CallWire(context.Background(), x, []string{"call"}, nil, &result); err != nil || result != "independent" {
 		t.Fatalf("other pair %q: %v", result, err)
@@ -63,7 +72,8 @@ func TestLocalWirePairRoundTripReverseAndIsolation(t *testing.T) {
 func TestLocalWirePairRetainsPendingUntilResponse(t *testing.T) {
 	a, b := localPair(t, Options{MaxPendingRequests: 1})
 	started, release := make(chan struct{}), make(chan struct{})
-	_, _ = HandleWire(b, []string{"hold"}, func(context.Context, json.RawMessage) (any, error) { close(started); <-release; return "done", nil })
+	bBinding := testBinding(t, b)
+	_, _ = HandleWire(bBinding, []string{"hold"}, func(context.Context, json.RawMessage) (any, error) { close(started); <-release; return "done", nil })
 	first := make(chan error, 1)
 	go func() { var result string; first <- CallWire(context.Background(), a, []string{"hold"}, nil, &result) }()
 	<-started
@@ -77,7 +87,7 @@ func TestLocalWirePairRetainsPendingUntilResponse(t *testing.T) {
 	if err := <-first; err != nil {
 		t.Fatal(err)
 	}
-	_, _ = HandleWire(b, []string{"next"}, func(context.Context, json.RawMessage) (any, error) { return "reused", nil })
+	_, _ = HandleWire(bBinding, []string{"next"}, func(context.Context, json.RawMessage) (any, error) { return "reused", nil })
 	if err := CallWire(context.Background(), a, []string{"next"}, nil, &result); err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +95,9 @@ func TestLocalWirePairRetainsPendingUntilResponse(t *testing.T) {
 
 func TestLocalWirePairOrderedEventsAndReservedCancel(t *testing.T) {
 	a, b := localPair(t, Options{QueueCapacity: 1, MaxPendingRequests: 1})
+	bBinding := testBinding(t, b)
 	started, cancelled := make(chan struct{}), make(chan struct{})
-	_, _ = HandleWire(b, []string{"hold"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	_, _ = HandleWire(bBinding, []string{"hold"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
 		<-ctx.Done()
 		close(cancelled)
@@ -100,7 +111,7 @@ func TestLocalWirePairOrderedEventsAndReservedCancel(t *testing.T) {
 	entered, release, drained := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var mu sync.Mutex
 	var seen []int
-	_, _ = b.Receive([]string{"event"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
 		var n int
 		_ = json.Unmarshal(m.Frame.Data, &n)
 		mu.Lock()
@@ -140,9 +151,10 @@ func TestLocalWirePairOrderedEventsAndReservedCancel(t *testing.T) {
 
 func TestLocalWirePairOverflowClosesOnlyItsCarrier(t *testing.T) {
 	a, b := localPair(t, Options{QueueCapacity: 1})
+	bBinding := testBinding(t, b)
 	entered, release, ended := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
-	_, _ = b.Receive([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { close(entered); <-release }, Closed: func(duplex.Code, string) { close(ended) }})
+	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { close(entered); <-release }, Closed: func(duplex.Code, string) { close(ended) }})
 	if err := EmitWire(context.Background(), a, []string{"event"}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -162,8 +174,9 @@ func TestLocalWirePairOverflowClosesOnlyItsCarrier(t *testing.T) {
 
 func TestLocalWirePairReturnMappingAndFailedResponseRetirement(t *testing.T) {
 	a, b := localPair(t, Options{MaxPendingRequests: 1})
+	bBinding := testBinding(t, b)
 	received := make(chan duplex.Message, 2)
-	_, _ = b.Receive([]string{"raw"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { received <- m }})
+	_, _ = bBinding.Register([]string{"raw"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { received <- m }})
 	failed := errors.New("return failed")
 	original := &duplex.ReturnAddress{Wire: &localTestReturn{send: func(duplex.Message) error { return Unpublished(failed) }}}
 	if err := a.Send([]string{"raw"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1", Params: json.RawMessage("null")}, Return: original}); err != nil {
@@ -187,7 +200,7 @@ func TestLocalWirePairReturnMappingAndFailedResponseRetirement(t *testing.T) {
 	if errors.As(err, &unpublished) {
 		t.Fatal("return retained publication proof after dispatch")
 	}
-	_, _ = HandleWire(b, []string{"next"}, func(context.Context, json.RawMessage) (any, error) { return "reused", nil })
+	_, _ = HandleWire(bBinding, []string{"next"}, func(context.Context, json.RawMessage) (any, error) { return "reused", nil })
 	var result string
 	if err := CallWire(context.Background(), a, []string{"next"}, nil, &result); err != nil || result != "reused" {
 		t.Fatalf("next: %q, %v", result, err)
@@ -199,7 +212,8 @@ func TestLocalWirePairPrivateDispatchContext(t *testing.T) {
 	type verifiedKey struct{}
 	verified := &struct{ identity string }{"verified locally"}
 	dispatch := &wireDispatchContext{ctx: context.WithValue(context.Background(), verifiedKey{}, verified)}
-	_, _ = HandleWire(b, []string{"inspect"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, _ = HandleWire(bBinding, []string{"inspect"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		if ctx.Value(verifiedKey{}) != verified {
 			return nil, errors.New("lost verified dispatch context")
 		}
@@ -211,14 +225,15 @@ func TestLocalWirePairPrivateDispatchContext(t *testing.T) {
 	}
 }
 
-func TestLocalWirePairExactAndNamespaceRoutes(t *testing.T) {
+func TestLocalDispatcherExactAndPrefixRoutes(t *testing.T) {
 	a, b := localPair(t, Options{})
+	bBinding := testBinding(t, b)
 	for _, path := range [][]string{nil, {"a"}} {
 		label := "root"
 		if len(path) > 0 {
 			label = "a"
 		}
-		_, err := b.Receive(path, duplex.Receiver{Namespace: true, Message: func(received []string, m duplex.Message) {
+		_, err := bBinding.RegisterPrefix(path, duplex.Receiver{Message: func(received []string, m duplex.Message) {
 			if len(received) == 0 {
 				t.Error("callback path lost its origin")
 			}
@@ -228,7 +243,7 @@ func TestLocalWirePairExactAndNamespaceRoutes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	detach, _ := HandleWire(b, []string{"a", "b"}, func(context.Context, json.RawMessage) (any, error) { return "exact", nil })
+	detach, _ := HandleWire(bBinding, []string{"a", "b"}, func(context.Context, json.RawMessage) (any, error) { return "exact", nil })
 	var result string
 	if err := CallWire(context.Background(), a, []string{"a", "b"}, nil, &result); err != nil || result != "exact" {
 		t.Fatalf("exact: %q, %v", result, err)
@@ -246,7 +261,8 @@ func TestLocalWirePairDeadlineRetainsNoncooperativeHandlerBudget(t *testing.T) {
 	a, b := localPair(t, Options{RequestTimeout: 15 * time.Millisecond, MaxConcurrentHandlers: 1})
 	started, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
-	_, _ = HandleWire(b, []string{"hold"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
+	bBinding := testBinding(t, b)
+	_, _ = HandleWire(bBinding, []string{"hold"}, func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
 		<-ctx.Done()
 		close(cancelled)
@@ -278,9 +294,10 @@ func TestLocalWirePairStalledEventDeadlineIsObserved(t *testing.T) {
 			pressure <- event
 		}
 	})})
+	bBinding := testBinding(t, b)
 	release, closed := make(chan struct{}), make(chan struct{})
 	defer close(release)
-	_, _ = b.Receive([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { <-release }, Closed: func(duplex.Code, string) { close(closed) }})
+	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { <-release }, Closed: func(duplex.Code, string) { close(closed) }})
 	if err := EmitWire(context.Background(), a, []string{"event"}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +317,8 @@ func TestLocalWirePairStalledEventDeadlineIsObserved(t *testing.T) {
 
 func TestLocalWirePairOversizedResponseUsesBoundedFallback(t *testing.T) {
 	a, b := localPair(t, Options{MaxFrameBytes: 512})
-	_, _ = HandleWire(b, []string{"large"}, func(context.Context, json.RawMessage) (any, error) { return strings.Repeat("x", 2048), nil })
+	bBinding := testBinding(t, b)
+	_, _ = HandleWire(bBinding, []string{"large"}, func(context.Context, json.RawMessage) (any, error) { return strings.Repeat("x", 2048), nil })
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	var result string

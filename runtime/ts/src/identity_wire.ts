@@ -1,4 +1,5 @@
-import type { Message, Path, Receiver, ReturnAddress, Wire } from '@nightseam/duplex';
+import type { Message, Path, Receiver, ReturnAddress, Endpoint } from '@nightseam/duplex';
+import { createDispatcher, type HandlerRegistry } from './dispatcher.ts';
 import { DuplexError } from './error.ts';
 import { IDENTITY_METHOD, checkIdentity, identityHandler, type DeclarationIdentity } from './identity.ts';
 import { DUPLEX_DEFAULTS, positiveInteger, type PeerOptions } from './peer.ts';
@@ -7,7 +8,7 @@ import { callWire, handleWire, publicError, response, type WireCallOptions } fro
 /** Synchronous receiver installation followed by a bounded identity check and
  * model binding. Closing this preparation never closes its source carrier. */
 export interface IdentityPreparation {
-  readonly wire: Wire;
+  readonly wire: HandlerRegistry;
   check(options?: WireCallOptions): Promise<void>;
   ready(): void;
   close(): void;
@@ -33,7 +34,7 @@ interface DeferredDelivery {
  * requestTimeoutMs bounds preparation from creation through model binding;
  * maxConcurrentHandlers also bounds deferral on arbitrary conforming wires. */
 export function prepareIdentity(
-  source: Wire,
+  endpoint: Endpoint,
   expected: DeclarationIdentity,
   options: PeerOptions = {},
 ): IdentityPreparation {
@@ -44,6 +45,7 @@ export function prepareIdentity(
     options.maxConcurrentHandlers ?? DUPLEX_DEFAULTS.maxConcurrentHandlers,
     'maxConcurrentHandlers',
   );
+  const source = createDispatcher(endpoint);
   const registrations = new Set<Registration>();
   const pending = new Map<ReturnAddress, Map<string, DeferredDelivery>>();
   let count = 0;
@@ -66,6 +68,7 @@ export function prepareIdentity(
     release();
     abort.abort();
     identityDetach?.();
+    source.close(1000, 'interpretation ended');
     for (const calls of pending.values()) for (const delivery of calls.values()) dispatch(delivery);
     const owned = [...registrations];
     registrations.clear();
@@ -121,7 +124,7 @@ export function prepareIdentity(
         delivery.cancelled = true;
         retire(delivery);
         response(delivery.message, undefined, new DuplexError('cancelled', 'Request was cancelled.'));
-      } else if (ready && !failure && registration.active) {
+      } else if (ready && !failure) {
         return registration.receiver.message?.(path, message);
       }
       return;
@@ -169,20 +172,19 @@ export function prepareIdentity(
     // must release their memory immediately rather than accumulate until Ready.
   }
 
-  const wire: Wire = {
+  const wire: HandlerRegistry = {
     send(path, message) {
       if (failure) throw failure;
       if (!ready) throw new DuplexError('busy', 'Declaration interpretation is not ready.');
       source.send(path, message);
     },
-    receive(path, receiver) {
+    register(path, receiver) {
       if (failure) throw failure;
       if (!receiver.message) throw new DuplexError('invalid_message', 'A wire receiver requires a callback.');
       const registration: Registration = { receiver, active: true, closed: false };
       registrations.add(registration);
       try {
-        registration.detached = source.receive(path, {
-          ...(receiver.namespace === undefined ? {} : { namespace: receiver.namespace }),
+        registration.detached = source.register(path, {
           message: (path, message) => deliver(registration, path, message),
           closed: () => fail(new DuplexError('disconnected', 'Interpretation carrier ended.')),
         });
@@ -203,7 +205,6 @@ export function prepareIdentity(
     },
     close(code, reason) {
       fail(new DuplexError('disconnected', 'Interpretation closed.'));
-      source.close(code, reason);
     },
   };
 
@@ -211,8 +212,8 @@ export function prepareIdentity(
     identityDetach = handleWire(
       {
         send: (path, message) => source.send(path, message),
-        receive: (path, receiver) =>
-          source.receive(path, {
+        register: (path, receiver) =>
+          source.register(path, {
             ...receiver,
             closed: (code, reason) => {
               try {

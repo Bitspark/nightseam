@@ -20,7 +20,13 @@ import (
 // This is the construction, not an alternate public live API. The descriptor
 // and active owner enter Import before the invocation is exposed as a Wire.
 // A path alone does not replace that checked interpretation or its lifetime.
-func checkedBindingWire(t *testing.T, owner *live.Owner, ref live.Reference, contract string) (duplex.Wire, error) {
+type checkedWireExposure struct {
+	duplex.Wire
+	Endpoint duplex.Endpoint
+	Binding  string
+}
+
+func checkedBindingWire(t *testing.T, owner *live.Owner, ref live.Reference, contract string) (*checkedWireExposure, error) {
 	t.Helper()
 	invoke, err := owner.Import(ref, contract, "")
 	if err != nil {
@@ -41,7 +47,12 @@ func checkedBindingWire(t *testing.T, owner *live.Owner, ref live.Reference, con
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = access.Close(duplex.CodeNormal, "") })
-	detach, err := runtime.HandleWire(binding, []string{descriptor.Binding}, func(ctx context.Context, raw json.RawMessage) (any, error) {
+	registry, err := runtime.NewDispatcher(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = registry.Close(duplex.CodeNormal, "") })
+	detach, err := runtime.HandleWire(registry, []string{descriptor.Binding}, func(ctx context.Context, raw json.RawMessage) (any, error) {
 		return invoke(ctx, raw)
 	})
 	if err != nil {
@@ -49,7 +60,7 @@ func checkedBindingWire(t *testing.T, owner *live.Owner, ref live.Reference, con
 	}
 	t.Cleanup(detach)
 	// The nonce-containing binding is one opaque path component.
-	return duplex.At(access, []string{descriptor.Binding}), nil
+	return &checkedWireExposure{Wire: duplex.At(access, []string{descriptor.Binding}), Endpoint: access, Binding: descriptor.Binding}, nil
 }
 
 func socketBindingScopes(t *testing.T) livetest.Pair {
@@ -133,7 +144,7 @@ func TestLiveBindingWireConstructionRetainsGuardsAndReleaseBarrier(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			wire = duplex.At(duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"binding": wire})}), []string{"outer", "binding"})
+			wire.Wire = duplex.At(duplex.Mount(map[string]duplex.Endpoint{"outer": duplex.Mount(map[string]duplex.Endpoint{"binding": wire.Endpoint})}), []string{"outer", "binding", wire.Binding})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			requireWireCode(t, runtime.CallWire(ctx, wire, nil, 1, nil), "denied")
@@ -387,7 +398,7 @@ func TestLiveBindingWireConstructionCloseIsNotRelease(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("binding never entered")
 	}
-	_ = wire.Close(duplex.CodeNormal, "end this exposure")
+	_ = wire.Endpoint.Close(duplex.CodeNormal, "end this exposure")
 	select {
 	case err := <-done:
 		if err == nil {

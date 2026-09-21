@@ -2,7 +2,7 @@ import { DuplexError, UnpublishedError } from './error.ts';
 export { DuplexError, UnpublishedError } from './error.ts';
 import { decodeEnvelope, carrying, requireName, isObject, type Envelope } from './envelope.ts';
 import { webSocketConnection } from '@nightseam/duplex';
-import type { Frame, FrameConnection, WebSocketLike, Wire } from '@nightseam/duplex';
+import type { Frame, FrameConnection, WebSocketLike, Endpoint } from '@nightseam/duplex';
 import { defaultPropagator, traceOf, traced } from './trace.ts';
 import type { Propagator, Trace, TraceContext } from './trace.ts';
 import { peerWire, requestCompletion, setReceivedEventTrace } from './wire.ts';
@@ -153,6 +153,15 @@ export class DuplexPeer {
   private detach?: () => void;
   private state: PeerStatus = 'disconnected';
   private nextID = 0;
+  // Only a request advances the mark: a response or a control names a serial
+  // that was taken before it.
+  private admittedSerial = 0;
+  // Requests publish in the order they were reserved. A request takes its
+  // place here when it enters the outgoing queue's gate and leaves when it has
+  // published or given up, so a sender that arrives while others are waiting
+  // for room takes its turn behind them rather than jumping in.
+  private readonly publishing: number[] = [];
+  private nextTicket = 0;
   private opening?: { resolve: () => void; reject: (error: DuplexError) => void; timer: Timer };
   private readonly pending = new Map<string, Pending>();
   private readonly incoming = new Map<string, Incoming>();
@@ -170,7 +179,7 @@ export class DuplexPeer {
   private stallTimer?: Timer;
   private generation = 0;
   private negotiated = '';
-  private relativeWire?: Wire;
+  private relativeWire?: Endpoint;
   private wireRequest?: (method: string) => RequestHandler | undefined;
   private wireEvent?: (name: string) => EventListener | undefined;
 
@@ -221,7 +230,7 @@ export class DuplexPeer {
   }
 
   /** This peer's relative origin; selections share its existing carrier. */
-  wire(): Wire {
+  wire(): Endpoint {
     return (this.relativeWire ??= peerWire(this, {
       queueCapacity: this.limits.queueCapacity,
       maxPendingRequests: this.limits.maxPendingRequests,
@@ -530,6 +539,16 @@ export class DuplexPeer {
     }
   }
 
+  /** Gives up this request's place in the publication order, once. Others
+   * waiting for room re-check their turn when the queue next drains. */
+  private release(ticket: number | undefined): void {
+    if (ticket === undefined) return;
+    const at = this.publishing.indexOf(ticket);
+    if (at < 0) return;
+    this.publishing.splice(at, 1);
+    if (at === 0) for (const wake of [...this.waitingForRoom]) wake(true);
+  }
+
   private isOpen(): boolean {
     return this.state === 'connected' && this.connection?.state === 'open';
   }
@@ -553,6 +572,10 @@ export class DuplexPeer {
   ): Promise<void> {
     let queued = false;
     let endOnRefusal = false;
+    // A response, a control or an event takes no serial and waits behind no
+    // request: only a request's publication order is a promise.
+    const ticket = envelope.kind === 'request' ? this.nextTicket++ : undefined;
+    if (ticket !== undefined) this.publishing.push(ticket);
     try {
       if (!this.isOpen()) throw new DuplexError('not_connected', 'Peer is not connected.');
       let text: string;
@@ -584,7 +607,12 @@ export class DuplexPeer {
         if (abandoned?.aborted) return;
         if (!this.isOpen() || this.connection !== connection)
           throw new DuplexError('not_connected', 'Peer is not connected.');
-        if (this.outgoing.length < this.limits.queueCapacity) break;
+        // The queue is the one ordering gate: room alone is not enough, the
+        // sender must also be the one whose turn it is. That is what keeps
+        // publication in the order senders reserved, which the request serial
+        // is a promise about.
+        if (this.outgoing.length < this.limits.queueCapacity && (ticket === undefined || this.publishing[0] === ticket))
+          break;
         if (immediate || Date.now() >= deadline) {
           if (this.observer) this.pressure(this.outgoing.length, true);
           endOnRefusal = true;
@@ -647,8 +675,10 @@ export class DuplexPeer {
       this.outgoing.push({ text, started: Date.now(), sent: false, waited: false, observeSent });
       queued = true;
       accepted?.();
+      this.release(ticket);
       this.flush();
     } catch (error) {
+      this.release(ticket);
       if (!queued) {
         const proof = new UnpublishedError(error);
         // Settle this unqueued attempt before a terminal admission failure
@@ -733,6 +763,19 @@ export class DuplexPeer {
         family: this.family(name),
       });
     }
+    // Within one connection instance and one direction, each request's serial
+    // is greater than every request's published before it. Gaps are allowed; a
+    // serial that does not increase is a protocol violation, as a malformed
+    // frame is, because the peer could not then say which invocation a later
+    // control names.
+    if (frame.kind === 'request') {
+      const serial = Number((frame.id as string).slice(this.remotePrefix.length));
+      if (!Number.isSafeInteger(serial) || serial <= this.admittedSerial) {
+        this.fail(new DuplexError('invalid_message', 'Duplex request serial did not increase.'));
+        return;
+      }
+      this.admittedSerial = serial;
+    }
     switch (frame.kind) {
       case 'response': {
         const id = frame.id as string;
@@ -811,6 +854,7 @@ export class DuplexPeer {
     const context: RequestContext = { peer: this, signal: controller.signal, requestId: id };
     if (meta) context.meta = meta;
     this.propagator.extract(context, trace);
+    const attachedHandler = this.wireRequest?.(method);
     void Promise.resolve()
       .then(() => {
         // The peer can close or cancel before the handler's first microtask.
@@ -818,10 +862,9 @@ export class DuplexPeer {
           this.respond(id, incoming, undefined, new DuplexError('cancelled', 'Request was cancelled.'), 'cancelled');
           return;
         }
+        if (attachedHandler) return attachedHandler(params, context);
         const handler = this.handlers.get(method);
         if (handler) return handler(params, context);
-        const wireHandler = this.wireRequest?.(method);
-        if (wireHandler) return wireHandler(params, context);
         if (this.options.dispatch) return this.options.dispatch(method, params, context);
         throw new DuplexError('method_not_found', `Unknown method ${method}.`);
       })

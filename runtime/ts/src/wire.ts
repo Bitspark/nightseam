@@ -1,5 +1,7 @@
 import { decodePath, encodePath, WireError } from '@nightseam/duplex';
-import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire } from '@nightseam/duplex';
+import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire, Endpoint } from '@nightseam/duplex';
+import { type HandlerRegistry } from './dispatcher.ts';
+import { Invocation, InvocationError, beginInvocationBody, defaultInvocationLimits } from './invocation.ts';
 import { DuplexError, UnpublishedError } from './error.ts';
 import { carrying, decodeEnvelope, isObject } from './envelope.ts';
 import { scalarJSON } from './unicode.ts';
@@ -55,10 +57,6 @@ const eventContextCarrier: Wire = Object.freeze({
   send: () => {
     throw new DuplexError('invalid_message', 'An event context is not a return address.');
   },
-  receive: () => {
-    throw new WireError('receiver_exists');
-  },
-  close: () => {},
 });
 /** @internal Inspect only runtime-associated event context, never caller data. */
 export function wireEventContext(message: Message): WireEventDispatchContext | undefined {
@@ -353,6 +351,7 @@ function callWireTraced<T>(
   if (!dispatch && trace) outgoingTraces.set(frame, trace);
   const completion = requestCompletion<T>();
   if (dispatch) dispatch = { ...dispatch, completion: { cancelled: false } };
+  const invocation = new Invocation(defaultInvocationLimits());
   const finish = observeWireRequest(options.observer, options.family, name, false, trace);
   let localOutcome: 'cancelled' | 'timeout' | undefined;
   void completion.promise.then(
@@ -361,28 +360,29 @@ function callWireTraced<T>(
   );
   const returning: Wire = {
     send: (suffix, message) => {
+      if (suffix.length) {
+        invocation.deliver(suffix, message);
+        return;
+      }
       const frame = profileFrame(message.frame, '', dispatch?.maxFrameBytes);
-      if (suffix.length || frame.kind !== 'response' || frame.id !== 'c:1')
+      if (frame.kind !== 'response' || frame.id !== 'c:1')
         throw new DuplexError('invalid_message', 'Invalid wire response.');
       if (completion.settled) throw new WireError('closed');
       if (frame.error?.code === 'cancelled' && dispatch?.context.signal.aborted && dispatch.completion?.cancelled)
         completion.resolve(undefined as T);
       else if (frame.error) completion.reject(new DuplexError(frame.error.code, frame.error.message, frame.error.data));
       else completion.resolve(frame.result as T);
+      invocation.settle();
     },
-    receive: () => {
-      throw new WireError('receiver_exists');
-    },
-    close: () => completion.reject(new DuplexError('disconnected', 'Connection ended; outcome may be unknown.')),
   };
   const address: ReturnAddress = { wire: returning };
-  if (dispatch) {
-    dispatchContexts.set(address, dispatch);
-    void completion.promise.then(
-      () => dispatchContexts.delete(address),
-      () => dispatchContexts.delete(address),
-    );
-  }
+  const retire = () => {
+    dispatchContexts.delete(address);
+    invocation.settle();
+    invocation.dispatchDone();
+  };
+  if (dispatch) dispatchContexts.set(address, dispatch);
+  void completion.promise.then(retire, retire);
   try {
     wire.send(path, { frame, return: address });
   } catch (error) {
@@ -409,17 +409,17 @@ function callWireTraced<T>(
 }
 
 /** Registers one operation; application code runs after the delivering turn. */
-export function handleWire(wire: Wire, path: Path, handler: WireHandler): () => void {
+export function handleWire(wire: HandlerRegistry, path: Path, handler: WireHandler): () => void {
   return registerWire(wire, path, { request: handler });
 }
 
 /** Registers request and event facets at one operation with one cancellation map. */
-export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): () => void {
+export function registerWire(wire: HandlerRegistry, path: Path, handlers: WireHandlers): () => void {
   const incoming = new Map<ReturnAddress, Map<string, AbortController>>();
   const stop = () => {
     for (const calls of incoming.values()) for (const controller of calls.values()) controller.abort();
   };
-  const detach = wire.receive(path, {
+  const detach = wire.register(path, {
     closed: stop,
     message: (_path, message) => {
       const frame = message.frame;
@@ -491,6 +491,26 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
         requestId: { value: dispatch?.context.requestId ?? frame.id, enumerable: true },
       });
       if (!dispatch) defaultPropagator.extract(context, traceOf(frame));
+      // The body runs after this receiver returns, so returning is not
+      // completion. The lease says so to whoever admitted the request: an
+      // early answer to the caller cannot retire an invocation whose body is
+      // still running. A return capability that carries no lifecycle still
+      // gets ordinary addressed delivery.
+      // A bound reached is a refusal; any other refusal means this return
+      // capability carries no lifecycle, and ordinary addressed delivery goes
+      // on without one.
+      let body: { done(): void } | undefined;
+      try {
+        body = beginInvocationBody(message);
+      } catch (error) {
+        if (error instanceof InvocationError && error.code === 'limit') {
+          calls.delete(frame.id);
+          if (!calls.size) incoming.delete(message.return);
+          controller.abort();
+          finish(response(message, undefined, new DuplexError('busy', 'Invocation participation limit reached.')));
+          return;
+        }
+      }
       let cancelledBeforeHandler = false;
       void Promise.resolve()
         .then(() => {
@@ -517,6 +537,7 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
           },
         )
         .finally(() => {
+          body?.done();
           calls!.delete(frame.id);
           if (!calls!.size) incoming.delete(message.return!);
         });
@@ -553,12 +574,12 @@ export function emitWire(wire: Wire, path: Path, data: unknown = null, options: 
 }
 
 /** The root's existing serial event dispatcher awaits an async listener. */
-export function onWireEvent(wire: Wire, path: Path, listener: WireEventListener): () => void {
+export function onWireEvent(wire: HandlerRegistry, path: Path, listener: WireEventListener): () => void {
   return registerWire(wire, path, { event: listener });
 }
 
 /** Forwards both relative origins without owning either endpoint. */
-export function forwardWire(a: Wire, b: Wire): () => void {
+export function forwardWire(a: Endpoint, b: Endpoint): () => void {
   const removals: (() => void)[] = [];
   let detached = false;
   const stop = () => {
@@ -567,7 +588,6 @@ export function forwardWire(a: Wire, b: Wire): () => void {
     for (const remove of removals) remove();
   };
   const receiver = (destination: Wire): Receiver => ({
-    namespace: true,
     closed: stop,
     message: (path, message) => {
       // Detach stops new dispatch, not controls for an already captured call.
@@ -584,7 +604,7 @@ export function forwardWire(a: Wire, b: Wire): () => void {
       [a, b],
       [b, a],
     ] as const) {
-      const remove = source.receive([], receiver(destination));
+      const remove = source.receive(receiver(destination));
       if (detached) remove();
       else removals.push(remove);
     }
@@ -630,17 +650,15 @@ interface RoutedDelivery {
 
 interface WireRegistration {
   receiver: Receiver;
-  path: Path;
   request: (path: Path, params: unknown, context: RequestContext) => Promise<unknown>;
   detach: () => void;
 }
 
 /** @internal One bridge per peer; selection never constructs another. */
-export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
+export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Endpoint {
   const queued: RoutedDelivery[] = [];
   const incoming = new Map<ReturnAddress, Map<string, RoutedCall>>();
-  const receivers = new Map<string, WireRegistration>();
-  const namespaces = new Map<string, WireRegistration>();
+  let attachment: WireRegistration | undefined;
   const lookup = (name: string): { path: Path; registration: WireRegistration } | undefined => {
     let path: Path;
     try {
@@ -648,15 +666,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
     } catch {
       return;
     }
-    let registration = receivers.get(name);
-    if (!registration) {
-      for (const candidate of namespaces.values()) {
-        if (candidate.path.length > path.length || (registration && candidate.path.length <= registration.path.length))
-          continue;
-        if (candidate.path.every((part, index) => part === path[index])) registration = candidate;
-      }
-    }
-    return registration ? { path, registration } : undefined;
+    return attachment ? { path, registration: attachment } : undefined;
   };
   options.dispatch(
     (name) => {
@@ -668,7 +678,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
       return found
         ? (_name, data, context) => {
             const receivedTrace = receivedEventTraces.has(context) ? receivedEventTraces.get(context) : context.trace;
-            return found.registration.receiver.message!(
+            return found.registration.receiver.message?.(
               found.path,
               withWireEventContext(
                 {
@@ -710,7 +720,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
     incoming.clear();
     retained = 0;
     dataQueued = 0;
-    const ending = [...receivers.values(), ...namespaces.values()];
+    const ending = attachment ? [attachment] : [];
     for (const { detach } of ending) detach();
     for (const { receiver } of ending) {
       try {
@@ -774,7 +784,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
       );
     }
   };
-  const wire: Wire = {
+  const wire: Endpoint = {
     send: (path, message) => {
       const name = encodePath(path);
       if (ended || peer.status !== 'connected') throw endError();
@@ -836,27 +846,22 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
         queueMicrotask(drain);
       }
     },
-    receive: (path, receiver) => {
+    receive: (receiver) => {
       if (ended) throw endError();
-      const name = encodePath(path);
-      if ((!name && !receiver.namespace) || !receiver.message)
-        throw new DuplexError('invalid_message', 'A wire receiver requires a nonempty operation path and callback.');
-      const registrations = receiver.namespace ? namespaces : receivers;
-      if (registrations.has(name)) throw new WireError('receiver_exists');
-      const selected = [...path];
+      if (attachment) throw new WireError('receiver_exists');
       const target: Wire = {
         send: (suffix, message) => {
           try {
-            const result = receiver.message!(suffix, message);
+            if (!receiver.message) {
+              response(message, undefined, new DuplexError('method_not_found', 'Unknown method.'));
+              return;
+            }
+            const result = receiver.message(suffix, message);
             if (result) void result.catch((error: unknown) => response(message, undefined, publicError(error)));
           } catch (error) {
             response(message, undefined, publicError(error));
           }
         },
-        receive: () => {
-          throw new WireError('receiver_exists');
-        },
-        close: () => {},
       };
       const request = (received: Path, params: unknown, context: RequestContext) =>
         callWireTraced(
@@ -877,14 +882,12 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
         );
       const registration: WireRegistration = {
         receiver,
-        path: selected,
         request,
         detach: () => {
-          if (registrations.get(name) !== registration) return;
-          registrations.delete(name);
+          if (attachment === registration) attachment = undefined;
         },
       };
-      registrations.set(name, registration);
+      attachment = registration;
       return registration.detach;
     },
     close: (code = 1000, reason = '') => options.close(code, reason),

@@ -29,8 +29,8 @@ func TestEventsBeforeReading(t *testing.T) {
    options := runtime.Options{Prepare: func(p *runtime.Peer) error {
     var err error
     complete,cleanup,err=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
-    // The generated callback is installed before the rest of host preparation.
-    if _,err=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return errors.New("typed event was not installed before host preparation")}
+    // The generated interpretation owns its attachment before host preparation.
+    if _,err=p.Wire().Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return errors.New("typed event attachment was not installed before host preparation")}
     prepared = true
     return nil
    }}
@@ -67,22 +67,22 @@ func TestEventPreparationErrors(t *testing.T) {
   near,far := duplex.Pipe(1<<20); defer far.Abort()
   sentinel := errors.New("prepare failed")
   options := runtime.Options{Prepare:func(p *runtime.Peer)error{
-   if duplicate { if _,err:=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err!=nil{return err} }
+   if duplicate { if _,err:=p.Wire().Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err!=nil{return err} }
    _,cleanup,err:=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err};defer cleanup()
    return sentinel
   }}
   peer,err := runtime.NewPeer(ctx,near,runtime.ClientRole,options)
   if peer != nil || err == nil { t.Fatalf("preparation returned %v, %v",peer,err) }
   if !duplicate && !errors.Is(err,sentinel) { t.Fatalf("lost Prepare error: %v",err) }
-  if duplicate && errors.Is(err,sentinel) { t.Fatal("duplicate registration was accepted") }
+  if duplicate && errors.Is(err,sentinel) { t.Fatal("duplicate attachment was accepted") }
  }
 }
 `
 
 const tsEventsFixture = `import assert from 'node:assert/strict';
 import {prepareFromWire} from './api/ts/probe-binding/src/index.ts';
-import {DuplexPeer} from './runtime/ts/src/index.ts';
-import {at,mount,encodePath,pipe} from '@nightseam/duplex';
+import {DuplexPeer,createDispatcher} from './runtime/ts/src/index.ts';
+import {mount,encodePath,pipe} from '@nightseam/duplex';
 for (const mounted of [false,true]) {
  let receive;
  const received=new Promise(resolve=>{receive=resolve;});
@@ -94,13 +94,16 @@ for (const mounted of [false,true]) {
   return near.listen(listener);
  }};
  const peer = new DuplexPeer();
- const wire=mounted?at(mount(new Map([['view',peer.wire()]])),['view']):peer.wire();
+ const root=mounted?mount(new Map([['view',peer.wire()]])):undefined;
+ const dispatcher=root?createDispatcher(root):undefined;
+ const wire=dispatcher?dispatcher.select(['view']):peer.wire();
  const prepared=prepareFromWire(wire,{});
  await peer.attach(connection);
  const bind=await prepared.complete();
  bind({methods:{reverse:p=>p},events:{changed:data=>{receive(data);}}});
  assert.deepEqual(await received,{text:'first',count:1},'host preparation lost the initial event');
  prepared.close();
+ dispatcher?.close();root?.close();
  peer.close();
  remote.close();
 }

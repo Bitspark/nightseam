@@ -15,7 +15,7 @@ import (
 	sync "sync"
 )
 
-type Presentation func(context.Context, duplex.Wire) (duplex.Wire, func(), error)
+type Presentation func(context.Context, duplex.Endpoint) (duplex.Endpoint, func(), error)
 type Options struct {
 	Context       runtime.AdapterContext
 	RemoteContext runtime.AdapterContext
@@ -27,18 +27,23 @@ type Options struct {
 func once(f func()) func() { var once sync.Once; return func() { once.Do(f) } }
 
 // Local keeps the bounded asynchronous wire created by ToWire.
-func Local(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error) {
+func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
 	return wire, func() {}, nil
 }
 
 // Mounted selects a nonempty origin from a mount without allocating a carrier.
-func Mounted(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error) {
-	root := duplex.Mount(map[string]duplex.Wire{"family": wire})
-	return duplex.At(root, []string{"family"}), once(func() { _ = root.Close(1000, "") }), nil
+func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
+	root := duplex.Mount(map[string]duplex.Endpoint{"family": wire})
+	dispatcher, err := runtime.NewDispatcher(root)
+	if err != nil {
+		_ = root.Close(1000, "")
+		return nil, nil, err
+	}
+	return dispatcher.Select([]string{"family"}), once(func() { _ = dispatcher.Close(1000, ""); _ = root.Close(1000, "") }), nil
 }
 
 // Forwarded introduces one local forwarding hop.
-func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error) {
+func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
 	left, right, err := runtime.NewWirePair(runtime.Options{})
 	if err != nil {
 		return nil, nil, err
@@ -52,7 +57,7 @@ func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
 }
 
 // Pipe carries real serialized frames between two prepared peers.
-func Pipe(ctx context.Context, wire duplex.Wire) (duplex.Wire, func(), error) {
+func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
 	left, right := duplex.Pipe(1 << 20)
 	var detach func()
 	server, err := runtime.NewPeer(ctx, right, runtime.ServerRole, runtime.Options{Prepare: func(peer *runtime.Peer) error {

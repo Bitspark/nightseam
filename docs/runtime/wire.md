@@ -2,6 +2,9 @@
 
 A Wire is access to an origin. Its message is one of the profile's request,
 response, event or cancel frames, and its path is relative to that origin.
+The contract is [Bitwire](https://github.com/Bitspark/bitwire)'s, adopted at
+v0.2.0: Nightseam aliases the Go declarations and re-exports the TypeScript
+ones, and defines no second copy of them anywhere.
 Generated models use this interface for local access, sockets, prepared
 tunnel channels, selected paths, mounts and forwarding. The host chooses
 the carrier; the generated model does not inspect it.
@@ -22,19 +25,23 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
 
-The duplex component defines the interface and path views. Runtime supplies
+The duplex component presents the shared Bitwire types and implements path views. Runtime supplies
 local endpoints, peer access and the request/event helpers used by generated
 adapters. A tunnel `Channel` already implements Wire. Its inner peer is
 prepared once during channel acquisition, before reads begin. Raw tunnel
 transport is available separately as `Connection`; one channel cannot be
 claimed by both presentations.
 
-These are the current Nightseam definitions. The approved
-[repository-home revision](../decisions/the-reusable-foundation-lives-in-nightseam.md)
-selects the shared Bitwire contract when ready, with adoption required in 0.6.0 by
-[#421](https://github.com/Bitspark/nightseam/issues/421). Runtime implementations
-remain here. This planned handover has not changed today's imports or introduced
-a private dependency.
+The underlying definitions are public
+[Bitwire v0.2.0](https://github.com/Bitspark/bitwire/releases/tag/v0.2.0):
+Go imports `github.com/Bitspark/bitwire/wire/go` from module
+`github.com/Bitspark/bitwire@v0.2.0`; TypeScript imports `@bitspark/bitwire@0.2.0`.
+Nightseam's duplex package deliberately aliases/re-exports the same types,
+including Go's close `Code`. Existing generated references therefore use the
+shared nominal contract directly, without a second definition or wrapper.
+Bitwire and Nightseam are maintained by Bitspark under Apache-2.0. The
+[adoption evidence](../../conformance/bitwire/README.md) pins provenance and
+distinguishes shared composition cases from Nightseam's profile/runtime suites.
 
 `Send` returns on admission or refusal. It never waits for a destination
 handler or a reply, and never executes application code on the sender's
@@ -56,11 +63,91 @@ consumes one segment to choose its child. It has no destination at `[]`;
 an empty string is a valid child key. Selection and mounting create views,
 with no peer, channel or queue, including at the first call.
 
-Receivers match an exact path unless `Namespace`/`namespace` is true.
-Exact registration wins; otherwise the longest matching segment prefix
-wins. Callbacks receive paths relative to the Wire on which they registered.
-Duplicate registrations fail. Detach prevents new dispatch while already
-admitted requests retain the return/cancellation path they captured.
+An endpoint has one active owning attachment. A second is refused without
+replacing the first, detach is idempotent and permits a later attachment, and
+there is no implicit broadcast. Handler registration, exact and prefix
+matching, overlap precedence and duplicate-path refusal are not the endpoint's:
+they belong to one reusable dispatcher composed above it.
+
+## The dispatcher
+
+`NewDispatcher` / `createDispatcher` takes one endpoint's attachment and owns
+it. Exact registration wins; otherwise the longest matching segment prefix
+wins, and a duplicate path is refused. `Select` returns a receiving view of
+that same owner — sibling and nested views share the one root attachment
+rather than each claiming it — which prepends its prefix to what it sends and
+strips it from what it delivers. Callbacks receive paths relative to the view
+they registered on. Closing a dispatcher releases its own registrations and
+leaves the borrowed endpoint usable; `DispatcherOptions{OwnEndpoint: true}` /
+`{ownEndpoint: true}` is the explicit transfer of closure authority for an
+endpoint the caller owns.
+
+Detach prevents new dispatch while already admitted requests keep the
+return and cancellation path they captured, which is [the invocation
+lifecycle](#the-invocation-lifecycle) below.
+
+## The invocation lifecycle
+
+Returning from a receiver is not invocation completion, and a router cannot
+infer from routing alone when an admitted request is finished. So the
+invocation says it, publicly: **an admitted request's return capability is the
+invocation, presented as a Wire.** Its empty path carries the outcome, as it
+always has; its other paths carry the lifecycle, as ordinary events of the
+profile — a layer's own vocabulary, the way `channel.` is the tunnel's.
+
+| path | meaning |
+| --- | --- |
+| `["invocation.capture", id]` | claim one immutable routing decision for this traversal; the message's return address is the control sink |
+| `["invocation.ready", id]` | the captured request has been delivered; a latched control reaches the sink now |
+| `["invocation.release", id]` | drop the capture |
+| `["invocation.begin", id]` | take one execution lease |
+| `["invocation.done", id]` | the body actually finished |
+| `["invocation.control"]` | relay a cancellation into the invocation, which latches it and pushes it to every ready capture once |
+
+Admission is the answer: `Send` returns on admission or refusal, so a refusal
+— retired, a bound reached, a return capability that carries no lifecycle — is
+the error it returns. The participant mints the identifier, so no operation
+needs a return value. The verbs never reach a peer root and never cross a
+physical hop, so they take no built-in family and reserve no namespace there; a
+return capability's path space is the invocation's alone. A return capability
+refuses a path it does not implement, as every addressed receiver in this
+profile does.
+
+| responsibility | Go | TypeScript |
+| --- | --- | --- |
+| capture this traversal | `runtime.CaptureInvocation(message, control)` | `captureInvocation(message, control)` |
+| say the request was delivered | `capture.Ready()` | `capture.ready()` |
+| drop the capture | `capture.Release()` | `capture.release()` |
+| take an execution lease | `runtime.BeginInvocationBody(message)` | `beginInvocationBody(message)` |
+| report the body finished | `body.Done()` | `body.done()` |
+| relay a control | `runtime.RelayInvocationControl(message)` | `relayInvocationControl(message)` |
+| keep one admitted request's lifecycle | `runtime.NewInvocation(limits, onRetired)` | `new Invocation(limits, onRetired)` |
+| answer the vocabulary | `invocation.Deliver(path, message)` | `invocation.deliver(path, message)` |
+| fix the outcome, end the request's own delivery | `invocation.Settle()`, `DispatchDone()` | `invocation.settle()`, `dispatchDone()` |
+
+An admitting runtime composes `Invocation` in its return capability, or
+answers the same paths out of a ledger of its own; a participant needs the
+Wire it was already handed and nothing else. Queue admission, invocation
+admission, caller withdrawal, a fixed outcome, body completion, the
+admitted-control drain and retirement stay distinct: an early answer to the
+caller — a deadline, a withdrawal — never retires an invocation whose body is
+still running, and retirement waits until the outcome is fixed, no capture is
+undelivered, no body unfinished and no control still reaching one. `Retired` /
+`retired` says when that happened.
+
+Captures and leases are bounded per invocation, as totals, so neither depth nor
+shallow fan-out grows what one invocation retains; the defaults are
+`DefaultInvocationLimits` / `defaultInvocationLimits`. Each traversal takes a
+capture of its own, so a dispatcher visited twice in one invocation has two.
+A control is the invocation's to route: a dispatcher that receives one relays
+it rather than resolving a route, which is what keeps a detach or a rebind from
+retargeting an admitted request. A dispatcher refuses a request whose return
+capability carries no lifecycle, rather than routing it with weaker
+guarantees — generic addressed delivery remains usable without the facility.
+It reports `busy` for a bound it recognizes as one and `invalid_message`
+otherwise, so a refusal a facility did not spell in the agreed vocabulary is
+reported as what it is: a request this dispatcher cannot route with the
+guarantees it advertises.
 
 ## Ownership and bounds
 
@@ -71,8 +158,10 @@ or completed cancels do not acquire another reservation. Deadline expiry
 answers once. A handler that ignores cancellation still occupies its
 active-work budget until it exits.
 
-Closing a selected view closes the endpoint it selects. Closing a mount
-detaches its registrations and leaves borrowed children usable. Forwarding
+Closing a selected view releases that view's own route and leaves the
+dispatcher and the endpoint beneath it usable; closure authority over a
+borrowed endpoint is never inferred from a view of it. Closing a mount
+detaches its attachments and leaves borrowed children usable. Forwarding
 returns a detach function; detaching it also leaves both borrowed endpoints
 usable. Forwarding preserves frame order and local return identity; it
 does not inspect or translate references hidden in payloads.

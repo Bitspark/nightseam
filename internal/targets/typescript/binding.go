@@ -55,8 +55,8 @@ func emitWireAdapter(f *file, side, protocol string) {
 		opposite = "Server"
 	}
 	live := fam.Live || familyValueSlots(fam)
-	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, declarationDigest, familyTypeAdapter, validateDrawnType, jsonAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
-	f.line("import { encodePath, type Wire } from '@nightseam/duplex';")
+	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, createDispatcher, declarationDigest, familyTypeAdapter, validateDrawnType, jsonAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type HandlerRegistry, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
+	f.line("import { encodePath, type Wire, type Endpoint } from '@nightseam/duplex';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
 		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
@@ -202,7 +202,7 @@ func (f *file) emitWireRegistration(side, args string) {
 			f.linef("if (!hasModelHandler(implementation.events, %s)) throw new Error(%s);", quote(f.plan.operations[e.Name]), quote("event handler for "+e.Name+" is required"))
 		}
 	})
-	f.w.Block(fmt.Sprintf("function bind%s(wire: Wire, implementation: () => Protocol.%s%s): () => void {", side, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("function bind%s(wire: HandlerRegistry, implementation: () => Protocol.%s%s): () => void {", side, side, args), "}", func() {
 		f.line("const detach: Array<() => void> = [];")
 		f.w.Block("try {", "} catch (error) { for (const remove of detach.reverse()) remove(); throw error; }", func() {
 			for _, name := range names {

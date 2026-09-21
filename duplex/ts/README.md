@@ -9,6 +9,10 @@ The common structured access surface is `Wire`: `send(path, message)`,
 Unicode strings; a message carries one of the four profile frame kinds and
 an optional local return capability, never another serialized envelope.
 
+These types are re-exported from the public `@bitspark/bitwire@0.1.0`
+contract. The dependency installs with this package; routing views, codecs,
+recording and transports remain Nightseam implementations.
+
 ```ts
 import { at, mount } from '@nightseam/duplex';
 import type { Wire } from '@nightseam/duplex';

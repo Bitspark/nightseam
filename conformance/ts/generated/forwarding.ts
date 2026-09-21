@@ -79,7 +79,7 @@ export const forwardingOps: Record<string, (args: Args) => unknown | Promise<unk
       const connection = new Session<combinator.Client>({ role: 'server' });
       const scope = liveOver(connection.peer);
       endpoint.scope = scope;
-      handleWire(connection.peer.wire(), ['fixture.forwarding.retain'], wire => {
+      handleWire(connection.dispatcher, ['fixture.forwarding.retain'], wire => {
         combinator.validateWire('Toolkit', wire);
         endpoint.retained = combinator.importToolkitUnchecked(scope.owner(), wire);
       });

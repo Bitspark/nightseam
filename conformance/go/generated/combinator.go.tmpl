@@ -149,7 +149,7 @@ func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (
 		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
-		}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err
@@ -172,7 +172,7 @@ func (t *testee) combinatorDispatch(op string, raw map[string]json.RawMessage) (
 	case "gen.combinator_dial":
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &combinatorDialled{cancel: cancel}
-		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Wire, error) {
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err

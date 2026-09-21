@@ -1,0 +1,92 @@
+{
+  "name": "a request serial that increases is served, gaps and all",
+  "layer": "peer",
+  "needs": [
+    "peer",
+    "seam"
+  ],
+  "foreach": {
+    "table": "tables/serials.json",
+    "as": "row",
+    "where": {
+      "valid": true
+    }
+  },
+  "steps": [
+    {
+      "on": "runner",
+      "op": "pair.peer_and_conn",
+      "args": {
+        "peer": "b",
+        "role": "server"
+      },
+      "bind": {
+        "peer": "pb",
+        "conn": "ca"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.handle",
+      "args": {
+        "on": "$pb",
+        "method": "echo",
+        "behavior": {
+          "kind": "echo"
+        }
+      }
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "$row.before"
+      },
+      "note": "what the direction published first"
+    },
+    {
+      "on": "a",
+      "op": "conn.send",
+      "args": {
+        "on": "$ca",
+        "kind": "text",
+        "text": "$row.frame"
+      },
+      "note": "and a serial the receiver admits"
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb",
+        "within_ms": 300
+      },
+      "expect_error": {
+        "code": "timeout"
+      },
+      "note": "the peer is still there"
+    },
+    {
+      "on": "a",
+      "op": "conn.close",
+      "args": {
+        "on": "$ca",
+        "code": 1000,
+        "reason": "done"
+      }
+    },
+    {
+      "on": "b",
+      "op": "peer.await_close",
+      "args": {
+        "on": "$pb"
+      },
+      "expect": {
+        "clean": true
+      },
+      "note": "and ends cleanly when the raw side chooses to, so the frame did the connection no harm"
+    }
+  ]
+}

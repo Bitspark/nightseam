@@ -343,7 +343,7 @@ const tsCallableNominalityFixture = `import assert from 'node:assert/strict';
 import * as nominal from './api/ts/nominal-client/src/index.ts';
 import * as previous from './api-v1/ts/nominal-client/src/types.ts';
 import * as binding from './api/ts/nominal-binding/src/index.ts';
-import { encodePath, pipe, type Wire } from '@nightseam/duplex';
+import { encodePath, pipe, type Endpoint } from '@nightseam/duplex';
 import { DuplexError, DuplexPeer, forwardWire } from '@nightseam/runtime';
 import { CONTRACT_MISMATCH, liveOver, scopeOf, valueEnvironment } from '@nightseam/live';
 
@@ -352,7 +352,7 @@ const [a, b] = pipe();
 const pa = new DuplexPeer({ role: 'client' });
 const from = liveOver(pa);
 let pb: DuplexPeer | undefined;
-let wire: Wire | undefined;
+let wire: Endpoint | undefined;
 let detach: (() => void) | undefined;
 let serverCalls = 0, reverseCalls = 0;
 const handler: nominal.ServerMethods = { accept(params) { serverCalls++; return params.callback(41); } };

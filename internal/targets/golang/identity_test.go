@@ -94,41 +94,43 @@ func (backward) Back(_ context.Context,n int64)(int64,error){return n+2,nil}
 type events struct{values chan int64}
 func (e events) Changed(_ context.Context,n int64)error{e.values<-n;return nil}
 type trackedWire struct {
- duplex.Wire
+ duplex.Endpoint
  eventEntered chan struct{}
- identityDetached chan struct{}
  receiversDetached chan struct{}
- eventOnce,detachOnce sync.Once
+ eventOnce sync.Once
  registrations atomic.Int64
- detached atomic.Int64
 }
-func(w *trackedWire)Receive(path []string,r duplex.Receiver)(func(),error){
+func(w *trackedWire)Receive(r duplex.Receiver)(func(),error){
  w.registrations.Add(1)
- if len(path)==1&&path[0]=="changed"&&w.eventEntered!=nil {
+ if w.eventEntered!=nil {
   original:=r.Message
-  r.Message=func(path []string,m duplex.Message){w.eventOnce.Do(func(){close(w.eventEntered)});original(path,m)}
+  r.Message=func(path []string,m duplex.Message){if len(path)==1&&path[0]=="changed"{w.eventOnce.Do(func(){close(w.eventEntered)})};original(path,m)}
  }
- off,err:=w.Wire.Receive(path,r);if err!=nil{return nil,err}
+ off,err:=w.Endpoint.Receive(r);if err!=nil{return nil,err}
  var once sync.Once
  return func(){off();once.Do(func(){
-  if len(path)==1&&path[0]==runtime.IdentityMethod&&w.identityDetached!=nil{w.detachOnce.Do(func(){close(w.identityDetached)})}
-  if len(path)==1&&(path[0]==runtime.IdentityMethod||path[0]=="back"||path[0]=="changed")&&w.receiversDetached!=nil&&w.detached.Add(1)==3{close(w.receiversDetached)}
+  if w.receiversDetached!=nil{close(w.receiversDetached)}
  })},nil
 }
 func testContext(t *testing.T)context.Context{t.Helper();ctx,cancel:=context.WithTimeout(context.Background(),3*time.Second);t.Cleanup(cancel);return ctx}
 func wait(t *testing.T,ctx context.Context,ch <-chan struct{}){t.Helper();select{case <-ch:case <-ctx.Done():t.Fatal(ctx.Err())}}
-func pair(t *testing.T)(duplex.Wire,duplex.Wire){t.Helper();left,right,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{t.Fatal(err)};t.Cleanup(func(){left.Close(duplex.CodeNormal,"")});return left,right}
+type testEndpoint struct{duplex.Endpoint; registry runtime.HandlerRegistry}
+func pair(t *testing.T)(*testEndpoint,*testEndpoint){
+ t.Helper();left,right,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{t.Fatal(err)};t.Cleanup(func(){left.Close(duplex.CodeNormal,"")})
+ selectRoot:=func(endpoint duplex.Endpoint)*testEndpoint{dispatcher,err:=runtime.NewDispatcher(endpoint);if err!=nil{t.Fatal(err)};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});return &testEndpoint{Endpoint:dispatcher.Select(nil),registry:dispatcher}}
+ return selectRoot(left),selectRoot(right)
+}
 func identity(t *testing.T)runtime.DeclarationIdentity{t.Helper();digest,err:=protocol.WireSchema().DeclarationDigest();if err!=nil{t.Fatal(err)};return runtime.DeclarationIdentity{Path:"x",Digest:digest}}
-func serveIdentity(t *testing.T,w duplex.Wire,id runtime.DeclarationIdentity){t.Helper();handler,err:=runtime.IdentityHandler(id);if err!=nil{t.Fatal(err)};off,err:=runtime.HandleWire(w,[]string{runtime.IdentityMethod},func(ctx context.Context,raw json.RawMessage)(any,error){return handler(ctx,nil,raw)});if err!=nil{t.Fatal(err)};t.Cleanup(off)}
-func keepCarrier(t *testing.T,left,right duplex.Wire)func(){
- t.Helper();off,err:=runtime.HandleWire(left,[]string{"unrelated"},func(context.Context,json.RawMessage)(any,error){return "alive",nil});if err!=nil{t.Fatal(err)};t.Cleanup(off)
+func serveIdentity(t *testing.T,w *testEndpoint,id runtime.DeclarationIdentity){t.Helper();handler,err:=runtime.IdentityHandler(id);if err!=nil{t.Fatal(err)};off,err:=runtime.HandleWire(w.registry,[]string{runtime.IdentityMethod},func(ctx context.Context,raw json.RawMessage)(any,error){return handler(ctx,nil,raw)});if err!=nil{t.Fatal(err)};t.Cleanup(off)}
+func keepCarrier(t *testing.T,left,right *testEndpoint)func(){
+ t.Helper();off,err:=runtime.HandleWire(left.registry,[]string{"unrelated"},func(context.Context,json.RawMessage)(any,error){return "alive",nil});if err!=nil{t.Fatal(err)};t.Cleanup(off)
  return func(){var result string;if err:=runtime.CallWire(testContext(t),right,[]string{"unrelated"},nil,&result);err!=nil||result!="alive"{t.Fatalf("shared carrier: %q %v",result,err)}}
 }
-func assertDetached(t *testing.T,w duplex.Wire){t.Helper();for _,name:=range []string{runtime.IdentityMethod,"back","changed"}{off,err:=runtime.HandleWire(w,[]string{name},func(context.Context,json.RawMessage)(any,error){return nil,nil});if err!=nil{t.Fatalf("%s receiver retained: %v",name,err)};off()}}
+func assertDetached(t *testing.T,w duplex.Endpoint){t.Helper();dispatcher,err:=runtime.NewDispatcher(w);if err!=nil{t.Fatalf("interpretation attachment retained: %v",err)};defer dispatcher.Close(duplex.CodeNormal,"");for _,name:=range []string{runtime.IdentityMethod,"back","changed"}{off,err:=runtime.HandleWire(dispatcher,[]string{name},func(context.Context,json.RawMessage)(any,error){return nil,nil});if err!=nil{t.Fatalf("%s receiver retained: %v",name,err)};off()}}
 func TestEarlyEventAndLocalIdentityProgress(t *testing.T){
  ctx:=testContext(t);var calls atomic.Int64;var remote protocol.Client
  wire,err:=binding.ToWire(func(value protocol.Client)(protocol.Server,error){remote=value;return protocol.Server{Methods:forward{&calls}},nil},runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
- tracked:=&trackedWire{Wire:wire,eventEntered:make(chan struct{})}
+ tracked:=&trackedWire{Endpoint:wire,eventEntered:make(chan struct{})}
  complete,cleanup,err:=binding.PrepareFromWire(tracked,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer cleanup()
  if err=remote.Events.Changed(ctx,7);err!=nil{t.Fatal(err)};wait(t,ctx,tracked.eventEntered)
  model,err:=complete(ctx);if err!=nil{t.Fatalf("identity while early event is held: %v",err)}
@@ -138,7 +140,7 @@ func TestEarlyEventAndLocalIdentityProgress(t *testing.T){
  if value,err:=remote.Methods.Back(ctx,4);err!=nil||value!=6{t.Fatalf("reverse: %d %v",value,err)}
  if _,err=complete(ctx);err==nil{t.Fatal("completion repeated")}
  if _,err=model(protocol.Client{Methods:backward{}});err==nil{t.Fatal("factory rebound")}
- cleanup();assertDetached(t,wire)
+ if tracked.registrations.Load()!=1{t.Fatalf("model interpretation attached %d receivers",tracked.registrations.Load())};cleanup();assertDetached(t,wire)
 }
 func TestBothInterpretationsAdvertiseBeforeCheck(t *testing.T){
  ctx:=testContext(t);left,right:=pair(t)
@@ -154,7 +156,7 @@ func TestBothInterpretationsAdvertiseBeforeCheck(t *testing.T){
 func TestRefusalAndAbsentIdentity(t *testing.T){
  for _,mode:=range []string{"mismatch","absent"}{t.Run(mode,func(t *testing.T){
   ctx:=testContext(t);left,right:=pair(t);checkCarrier:=keepCarrier(t,left,right);var calls atomic.Int64
-  off,err:=runtime.HandleWire(right,[]string{"run"},func(context.Context,json.RawMessage)(any,error){calls.Add(1);return int64(3),nil});if err!=nil{t.Fatal(err)};defer off()
+  off,err:=runtime.HandleWire(right.registry,[]string{"run"},func(context.Context,json.RawMessage)(any,error){calls.Add(1);return int64(3),nil});if err!=nil{t.Fatal(err)};defer off()
   if mode=="mismatch"{id:=identity(t);id.Digest=strings.Repeat("0",64);serveIdentity(t,right,id)}
   complete,cleanup,err:=binding.PrepareFromWire(left,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer cleanup()
   model,err:=complete(ctx)
@@ -166,16 +168,16 @@ func TestRefusalAndAbsentIdentity(t *testing.T){
 func TestCancellationAndNeverCompletedCleanup(t *testing.T){
  t.Run("cancel",func(t *testing.T){
   ctx:=testContext(t);left,right:=pair(t);checkCarrier:=keepCarrier(t,left,right);entered:=make(chan struct{})
-  off,err:=runtime.HandleWire(right,[]string{runtime.IdentityMethod},func(ctx context.Context,_ json.RawMessage)(any,error){close(entered);<-ctx.Done();return nil,ctx.Err()});if err!=nil{t.Fatal(err)};defer off()
+  off,err:=runtime.HandleWire(right.registry,[]string{runtime.IdentityMethod},func(ctx context.Context,_ json.RawMessage)(any,error){close(entered);<-ctx.Done();return nil,ctx.Err()});if err!=nil{t.Fatal(err)};defer off()
   complete,cleanup,err:=binding.PrepareFromWire(left,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer cleanup()
   checking,cancel:=context.WithCancel(ctx);defer cancel();done:=make(chan error,1);go func(){_,err:=complete(checking);done<-err}();wait(t,ctx,entered);cancel()
   select{case err:=<-done:if !errors.Is(err,context.Canceled){t.Fatalf("cancel: %v",err)};case <-ctx.Done():t.Fatal(ctx.Err())}
   assertDetached(t,left);checkCarrier()
  })
  t.Run("never completed",func(t *testing.T){
-  ctx:=testContext(t);left,right:=pair(t);checkCarrier:=keepCarrier(t,left,right);tracked:=&trackedWire{Wire:left,identityDetached:make(chan struct{}),receiversDetached:make(chan struct{})}
+  ctx:=testContext(t);left,right:=pair(t);checkCarrier:=keepCarrier(t,left,right);tracked:=&trackedWire{Endpoint:left,receiversDetached:make(chan struct{})}
   _,cleanup,err:=binding.PrepareFromWire(tracked,runtime.AdapterContext{Options:runtime.Options{RequestTimeout:30*time.Millisecond}});if err!=nil{t.Fatal(err)};defer cleanup()
-  wait(t,ctx,tracked.identityDetached);wait(t,ctx,tracked.receiversDetached);assertDetached(t,left);checkCarrier()
+  wait(t,ctx,tracked.receiversDetached);assertDetached(t,left);checkCarrier()
  })
  t.Run("missing methods",func(t *testing.T){
   ctx:=testContext(t);left,right:=pair(t);checkCarrier:=keepCarrier(t,left,right);serveIdentity(t,right,identity(t))
@@ -184,7 +186,7 @@ func TestCancellationAndNeverCompletedCleanup(t *testing.T){
  })
 }
 func TestMissingBindingFailsBeforeRegistrationOrModel(t *testing.T){
- left,_:=pair(t);tracked:=&trackedWire{Wire:left};var calls atomic.Int64
+ left,_:=pair(t);tracked:=&trackedWire{Endpoint:left};var calls atomic.Int64
  if _,_,err:=slotbinding.PrepareFromWire[string](tracked,runtime.AdapterContext{},runtime.ValueAdapter[string]{});err==nil{t.Fatal("missing binding accepted")}
  if tracked.registrations.Load()!=0{t.Fatal("registered before validating binding")}
  if _,err:=slotbinding.ToWire(func(slot.Client[string])(slot.Server[string],error){calls.Add(1);return slot.Server[string]{},nil},runtime.AdapterContext{},runtime.ValueAdapter[string]{});err==nil{t.Fatal("missing ToWire binding accepted")}

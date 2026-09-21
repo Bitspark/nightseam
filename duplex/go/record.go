@@ -104,7 +104,7 @@ type RecordedWire struct {
 }
 
 // Record takes exclusive append ownership of log. Setup reads its initial head;
-// the target is this composition's carrier and closes when the recorder ends.
+// the target is borrowed send authority and remains usable when the recorder ends.
 func Record(setup context.Context, target Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
 	if target == nil || log == nil {
 		return nil, fmt.Errorf("record requires a target and storage")
@@ -155,15 +155,6 @@ func (w *RecordedWire) Send(path []string, message Message) error {
 	}
 	return w.admit(recordCommand{path: append([]string{}, path...), message: message})
 }
-func (w *RecordedWire) Receive(path []string, receiver Receiver) (func(), error) {
-	w.mu.Lock()
-	closed := w.closed
-	w.mu.Unlock()
-	if closed {
-		return nil, ErrClosed
-	}
-	return w.target.Receive(path, receiver)
-}
 func (w *RecordedWire) Close(code Code, reason string) error { w.end(code, reason, nil); return nil }
 func (w *RecordedWire) end(code Code, reason string, err error) {
 	w.mu.Lock()
@@ -178,12 +169,11 @@ func (w *RecordedWire) end(code Code, reason string, err error) {
 		followers = append(followers, f)
 	}
 	w.mu.Unlock()
-	// No consumer callback, including carrier close, runs inside Send or a lock.
+	// No consumer callback runs inside Send or a lock. The target is borrowed access.
 	go func() {
 		for _, f := range followers {
 			f.end(code, reason, err)
 		}
-		_ = w.target.Close(code, reason)
 		if w.options.OnClose != nil {
 			w.options.OnClose(err)
 		}
@@ -308,7 +298,7 @@ func (f *Follower) end(code Code, reason string, err error) {
 	f.owner.mu.Lock()
 	delete(f.owner.followers, f)
 	f.owner.mu.Unlock()
-	go func() { _ = f.target.Close(code, reason); close(f.carrierClosed) }()
+	close(f.carrierClosed)
 }
 
 // Follow atomically takes a head and registers its handoff in append order.

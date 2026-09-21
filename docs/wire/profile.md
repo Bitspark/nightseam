@@ -127,6 +127,42 @@ Ids are per connection. A layer that carries frames across connections mints
 its own on the way out and maps the responses back ([how a layer
 speaks](vocabulary.md)).
 
+### Serials increase in publication order
+
+Within one connection instance and one direction, the decimal part of each
+published request's `id` — its **serial** — is greater than that of every
+request published before it on that direction. Gaps are allowed. Only a
+request's admission advances the receiver's high-water mark: a response
+answers a serial the receiver itself took, and a cancel names one it already
+admitted, so neither advances it. A request whose serial is not greater than
+the previous one is a protocol violation and ends the connection with 4011,
+as a malformed frame does.
+
+Reservation and publication happen under the one ordering gate the outgoing
+queue already is, so two callers cannot invert their serials between taking
+one and putting the frame in the queue: a sender that arrives while others
+are waiting for room takes its turn behind them rather than jumping in. A
+reservation that is never published — a refused encoding, a queue that never
+drained, a caller that withdrew — has still spent its serial, and the gap it leaves is what the receiver
+allows; a retry takes a fresh serial. A sender that would wrap refuses before
+wrapping and ends the connection, since a wrapped serial would name an
+invocation the receiver has already seen. The gate is what orders publication,
+so it is also what `request.started` is told under, and no frame a request
+draws can be observed ahead of the request itself; the one thing a Go observer
+must not do from that callback is publish a request of its own on the peer it
+is observing.
+
+Serials are scoped to the connection instance and the role. Every carrier
+bridge — a tunnel channel, a forwarder onto another connection — mints its
+own serials on its own connection and maps the replies back, so a bridged
+request never carries the serial it arrived with.
+
+What the rule buys is correlation the receiver can make unambiguous: a
+control that arrives late can never name a newer invocation, because a newer
+invocation has a greater serial, so no used-id set and no tombstone is
+needed. It is recorded in [request serials increase in publication
+order](../decisions/request-serials-increase-in-publication-order.md).
+
 ## Requests
 
 Either side may send a request at any time; requests are concurrent and a

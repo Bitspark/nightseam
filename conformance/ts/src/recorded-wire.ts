@@ -1,5 +1,15 @@
 /** Acceptance-only recorded wire; the generated record/follow API is a later lane. */
-import { at, mount, encodePath, WireError, type Message, type Path, type Receiver, type Wire } from '@nightseam/duplex';
+import {
+  at,
+  mount,
+  WireError,
+  type Message,
+  type Path,
+  type Receiver,
+  type Wire,
+  type Endpoint,
+} from '@nightseam/duplex';
+import { createDispatcher, type HandlerRegistry, type WireDispatcher } from '@nightseam/runtime';
 
 class Gate {
   readonly promise: Promise<void>;
@@ -73,15 +83,12 @@ class RecordedWire implements Wire {
       this.appending = false;
     }
   }
-  receive(): () => void {
-    throw new WireError('no_route');
-  }
   close(): void {
     for (const follower of this.followers.keys()) follower.end();
     this.followers.clear();
   }
 
-  attach(after: number, target: Wire, bound: number, pause: boolean): { head: number; follower: Follower } {
+  attach(after: number, target: HandlerRegistry, bound: number, pause: boolean): { head: number; follower: Follower } {
     const follower = new Follower();
     // One synchronous critical section, without an await: append cannot occur
     // between capturing this head and registering its bounded handoff.
@@ -119,8 +126,8 @@ class RecordedWire implements Wire {
 }
 
 /** Test root providing queued asynchronous delivery, without a transport API. */
-class RecordedRoot implements Wire {
-  private readonly receivers = new Map<string, Receiver>();
+class RecordedRoot implements Endpoint {
+  private receiver: Receiver | undefined;
   private readonly queue: Array<{ path: Path; message: Message }> = [];
   private scheduled = false;
   private closed = false;
@@ -135,22 +142,21 @@ class RecordedRoot implements Wire {
       this.scheduled = false;
       while (!this.closed && this.queue.length) {
         const entry = this.queue.shift()!;
-        this.receivers.get(encodePath(entry.path))?.message?.([...entry.path], entry.message);
+        this.receiver?.message?.([...entry.path], entry.message);
       }
     });
   }
-  receive(path: Path, receiver: Receiver): () => void {
-    const key = encodePath(path);
-    if (this.receivers.has(key)) throw new WireError('receiver_exists');
-    this.receivers.set(key, receiver);
+  receive(receiver: Receiver): () => void {
+    if (this.receiver) throw new WireError('receiver_exists');
+    this.receiver = receiver;
     return () => {
-      this.receivers.delete(key);
+      if (this.receiver === receiver) this.receiver = undefined;
     };
   }
   close(): void {
     this.closed = true;
     this.queue.length = 0;
-    this.receivers.clear();
+    this.receiver = undefined;
   }
 }
 
@@ -162,13 +168,27 @@ class Presentation {
   private readonly end = new RecordedRoot();
   readonly values = new Queue<number>();
   readonly closed = new Queue<number>();
-  readonly wire: Wire;
+  readonly wire: HandlerRegistry;
+  readonly rootDispatch: WireDispatcher;
+  private readonly owned: Endpoint[] = [];
+  private readonly registries: WireDispatcher[] = [];
   private failure?: unknown;
 
   constructor(store: RecordedWire) {
-    const destination = at(mount(new Map([['out', at(this.end, ['destination'])]])), ['out']);
-    this.wire = at(mount(new Map([['outer', mount(new Map([['in', at(this.root, ['source'])]]))]])), ['outer', 'in']);
-    destination.receive(['tick'], {
+    const registry = (endpoint: Endpoint) => {
+      const dispatcher = createDispatcher(endpoint);
+      this.registries.push(dispatcher);
+      return dispatcher;
+    };
+    this.rootDispatch = registry(this.root);
+    const end = registry(this.end);
+    const out = mount(new Map([['out', end.select(['destination'])]]));
+    const inner = mount(new Map([['in', this.rootDispatch.select(['source'])]]));
+    const outer = mount(new Map([['outer', inner]]));
+    this.owned.push(out, inner, outer);
+    const destination = registry(registry(out).select(['out']));
+    this.wire = registry(registry(outer).select(['outer', 'in']));
+    destination.register(['tick'], {
       message: (path, message) => {
         try {
           if (path.length !== 1 || path[0] !== 'tick') throw new Error('recorded destination received wrong path');
@@ -182,7 +202,7 @@ class Presentation {
         }
       },
     });
-    this.wire.receive(['tick'], {
+    this.wire.register(['tick'], {
       message: (path, message) => {
         try {
           destination.send(path, message);
@@ -210,7 +230,8 @@ class Presentation {
     }
   }
   close(): void {
-    this.wire.close();
+    for (const registry of [...this.registries].reverse()) registry.close();
+    for (const endpoint of [...this.owned].reverse()) endpoint.close();
     this.root.close();
     this.end.close();
   }
@@ -228,7 +249,7 @@ async function headCase(wait: Wait, before: boolean): Promise<unknown> {
   const late = new Presentation(store);
   const followers: Follower[] = [];
   try {
-    const source = at(mount(new Map([['record', store]])), ['record']);
+    const source = at(store, []);
     for (let value = 1; value <= 3; value++) source.send(['tick'], message(value));
     if (before) source.send(['tick'], message(4));
     const attached = store.attach(0, first.wire, 2, true);
@@ -293,7 +314,7 @@ async function stallCase(wait: Wait): Promise<unknown> {
     }
     if (!refused) throw new Error('stalled carrier accepted after close');
     const underneath = new Queue<number>();
-    stalled.root.receive(['probe'], {
+    stalled.rootDispatch.register(['probe'], {
       message: (_path, message) => {
         if (message.frame.kind === 'event') underneath.put(message.frame.data as number);
       },

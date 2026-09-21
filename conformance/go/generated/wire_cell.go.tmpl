@@ -91,26 +91,57 @@ func (a wireAllocations) since(before wireAllocations) wireAllocations {
 	return wireAllocations{a.Peers - before.Peers, a.Channels - before.Channels}
 }
 
-func wirePresentation(root duplex.Wire, presentation string, options runtime.Options) (duplex.Wire, func(), error) {
+// A receiving view of a mount is a view of one dispatcher that owns the
+// mount's single attachment; selection alone grants send access only.
+func wireMountedView(root duplex.Endpoint) (duplex.Endpoint, *runtime.Dispatcher, error) {
+	mounted := duplex.Mount(map[string]duplex.Endpoint{"outer": duplex.Mount(map[string]duplex.Endpoint{"leaf": root})})
+	dispatch, err := runtime.NewDispatcher(mounted)
+	if err != nil {
+		_ = mounted.Close(1000, "")
+		return nil, nil, err
+	}
+	return mounted, dispatch, nil
+}
+
+func wirePresentation(root duplex.Endpoint, presentation string, options runtime.Options) (duplex.Endpoint, func(), error) {
 	switch presentation {
 	case "local":
 		return root, func() {}, nil
 	case "mounted":
-		mounted := duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"leaf": root})})
-		return duplex.At(mounted, []string{"outer", "leaf"}), func() { _ = mounted.Close(1000, "") }, nil
+		mounted, dispatch, err := wireMountedView(root)
+		if err != nil {
+			return nil, nil, err
+		}
+		return dispatch.Select([]string{"outer", "leaf"}), func() {
+			_ = dispatch.Close(1000, "")
+			_ = mounted.Close(1000, "")
+		}, nil
 	case "forwarded":
 		left, right, err := runtime.NewWirePair(options)
 		if err != nil {
 			return nil, nil, err
 		}
-		presented := duplex.At(duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"leaf": root})}), []string{"outer", "leaf"})
-		detach, err := runtime.ForwardWire(left, presented)
+		mounted, dispatch, err := wireMountedView(root)
 		if err != nil {
 			_ = left.Close(1000, "")
 			_ = right.Close(1000, "")
 			return nil, nil, err
 		}
-		return right, func() { detach(); _ = left.Close(1000, ""); _ = right.Close(1000, "") }, nil
+		detach, err := runtime.ForwardWire(left, dispatch.Select([]string{"outer", "leaf"}))
+		if err != nil {
+			_ = dispatch.Close(1000, "")
+			_ = mounted.Close(1000, "")
+			_ = left.Close(1000, "")
+			_ = right.Close(1000, "")
+			return nil, nil, err
+		}
+		return right, func() {
+			detach()
+			_ = dispatch.Close(1000, "")
+			_ = mounted.Close(1000, "")
+			_ = left.Close(1000, "")
+			_ = right.Close(1000, "")
+		}, nil
 	default:
 		return nil, nil, fmt.Errorf("unknown wire presentation %s", presentation)
 	}

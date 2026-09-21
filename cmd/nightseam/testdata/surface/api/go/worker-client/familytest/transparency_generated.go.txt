@@ -1,10 +1,10 @@
 func (observingMethods) Supervise(ctx context.Context, params protocol.Supervise) (protocol.Outcome, error)
 func Example[T any](name string) (T, error)
-func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
-func Local(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
-func Mounted(_ context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
+func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
+func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
 func Pair(ctx context.Context, model protocol.ClientModel, options Options) (protocol.ClientModel, func(), error)
-func Pipe(ctx context.Context, wire duplex.Wire) (duplex.Wire, func(), error)
+func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
 func Smoke(ctx context.Context, model protocol.ClientModel, opposite protocol.Server, options Options) error
 type Options struct{Context runtime.AdapterContext; RemoteContext runtime.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error}
-type Presentation func(context.Context, duplex.Wire) (duplex.Wire, func(), error)
+type Presentation func(context.Context, duplex.Endpoint) (duplex.Endpoint, func(), error)

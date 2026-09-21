@@ -25,7 +25,7 @@ func (f *file) emitTransparency(side, opposite, role string) {
 		dir = layout.Client
 	}
 	f.use("adapter", f.config.Module+"/"+expand(dir, f.family.Name))
-	f.linef("type Presentation func(context.Context, %s.Wire) (%s.Wire, func(), error)", seam, seam)
+	f.linef("type Presentation func(context.Context, %s.Endpoint) (%s.Endpoint, func(), error)", seam, seam)
 	f.linef("type Options struct { Context %s.AdapterContext; RemoteContext %s.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error }", rt, rt)
 	f.line(goTransparencySupport)
 	f.linef("// Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.")
@@ -151,23 +151,24 @@ var goTransparencySupport = strings.TrimSpace(`
 func once(f func()) func() { var once sync.Once; return func(){ once.Do(f) } }
 
 // Local keeps the bounded asynchronous wire created by ToWire.
-func Local(_ context.Context, wire duplex.Wire) (duplex.Wire,func(),error) { return wire,func(){},nil }
+func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) { return wire,func(){},nil }
 
 // Mounted selects a nonempty origin from a mount without allocating a carrier.
-func Mounted(_ context.Context, wire duplex.Wire) (duplex.Wire,func(),error) {
- root:=duplex.Mount(map[string]duplex.Wire{"family":wire})
- return duplex.At(root,[]string{"family"}),once(func(){_ = root.Close(1000,"")}),nil
+func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
+ root:=duplex.Mount(map[string]duplex.Endpoint{"family":wire})
+ dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{_ = root.Close(1000,"");return nil,nil,err}
+ return dispatcher.Select([]string{"family"}),once(func(){_ = dispatcher.Close(1000,"");_ = root.Close(1000,"")}),nil
 }
 
 // Forwarded introduces one local forwarding hop.
-func Forwarded(_ context.Context, wire duplex.Wire) (duplex.Wire,func(),error) {
+func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
  left,right,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{return nil,nil,err}
  detach,err:=runtime.ForwardWire(right,wire);if err!=nil{_ = left.Close(1000,"");return nil,nil,err}
  return left,once(func(){detach();_ = left.Close(1000,"")}),nil
 }
 
 // Pipe carries real serialized frames between two prepared peers.
-func Pipe(ctx context.Context, wire duplex.Wire) (duplex.Wire,func(),error) {
+func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
  left,right:=duplex.Pipe(1<<20)
  var detach func()
  server,err:=runtime.NewPeer(ctx,right,runtime.ServerRole,runtime.Options{Prepare:func(peer *runtime.Peer)error{var err error;detach,err=runtime.ForwardWire(peer.Wire(),wire);return err}})

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, pipe, type Message, type Path, type Receiver, type Wire } from '@nightseam/duplex';
+import { at, mount, pipe, type Endpoint, type Message, type Path, type Receiver, type Wire } from '@nightseam/duplex';
 import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import { callWire, emitWire, forwardWire, handleWire, registerWire } from './wire.ts';
 import type { WireModelContext } from './wire.ts';
 import { defaultPropagator } from './trace.ts';
+import { createDispatcher } from './dispatcher.ts';
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;
@@ -37,10 +38,10 @@ test('wire namespace dispatch selects exact then longest segment prefix and pres
   const peers = await pair();
   t.after(peers.close);
   const events: string[] = [];
-  const root = peers.right.wire();
-  const receive = (path: Path, label: string, namespace = true) =>
-    root.receive(path, {
-      namespace,
+  const dispatcher = createDispatcher(peers.right.wire());
+  t.after(() => dispatcher.close());
+  const receive = (path: Path, label: string, prefix = true) =>
+    (prefix ? dispatcher.registerPrefix.bind(dispatcher) : dispatcher.register.bind(dispatcher))(path, {
       message: (received, message) => {
         if (message.frame.kind === 'event') events.push(label);
         else reply(message, { label, path: received });
@@ -81,7 +82,7 @@ test('forwardWire carries nested paths and reverse traffic through a physical ro
     cancelled = deferred(),
     event = deferred<unknown>();
   const received: { path: Path; message: Message }[] = [];
-  const model: Wire = {
+  const model: Endpoint = {
     send: (path, message) => {
       queueMicrotask(() => {
         received.push({ path, message });
@@ -92,9 +93,7 @@ test('forwardWire carries nested paths and reverse traffic through a physical ro
         else if (message.frame.kind === 'event') event.resolve(message.frame.data);
       });
     },
-    receive: (path, receiver) => {
-      assert.deepEqual(path, []);
-      assert.equal(receiver.namespace, true);
+    receive: (receiver) => {
       assert.equal(outgoing, undefined);
       outgoing = receiver;
       return () => {
@@ -113,15 +112,15 @@ test('forwardWire carries nested paths and reverse traffic through a physical ro
   assert.deepEqual(await callWire(selected, ['echo'], 7), { path: ['deep', 'echo'], params: 7 });
   emitWire(selected, ['notice'], 'event');
   assert.equal(await event.promise, 'event');
-  handleWire(peers.left.wire(), ['service', 'deep', 'reverse'], (value) => value);
+  const leftDispatcher = createDispatcher(peers.left.wire());
+  t.after(() => leftDispatcher.close());
+  handleWire(leftDispatcher, ['service', 'deep', 'reverse'], (value) => value);
   const reverse: Wire = {
     send: (path, message) => {
       queueMicrotask(() => {
         void outgoing!.message!(path, message);
       });
     },
-    receive: () => () => {},
-    close: () => {},
   };
   assert.equal(await callWire(reverse, ['deep', 'reverse'], 'back'), 'back');
   const controller = new AbortController();
@@ -146,17 +145,15 @@ test('forwardWire carries nested paths and reverse traffic through a physical ro
   await assert.rejects(callWire(selected, ['echo']), { code: 'method_not_found' });
 });
 
-test('forwardWire is a non-owning pair of registrations and preserves message identity', () => {
+test('forwardWire is a non-owning pair of attachments and preserves message identity', () => {
   const receivers: Receiver[] = [],
     detached: number[] = [],
     sent: { path: Path; message: Message }[] = [];
-  const endpoint = (index: number): Wire => ({
+  const endpoint = (index: number): Endpoint => ({
     send: (path, message) => {
       sent.push({ path, message });
     },
-    receive: (path, receiver) => {
-      assert.deepEqual(path, []);
-      assert.equal(receiver.namespace, true);
+    receive: (receiver) => {
       receivers[index] = receiver;
       return () => {
         detached.push(index);
@@ -185,8 +182,9 @@ test('structured wire request and event traces cross the physical bridge verbati
   const trace = { traceparent: '00-11111111111111111111111111111111-2222222222222222-01', tracestate: 'test=value' };
   const request = deferred<Message>(),
     event = deferred<Message>();
-  peers.right.wire().receive(['trace'], {
-    namespace: true,
+  const dispatcher = createDispatcher(peers.right.wire());
+  t.after(() => dispatcher.close());
+  dispatcher.registerPrefix(['trace'], {
     message: (_path, message) => {
       if (message.frame.kind === 'request') {
         request.resolve(message);
@@ -194,7 +192,7 @@ test('structured wire request and event traces cross the physical bridge verbati
       } else event.resolve(message);
     },
   });
-  const returning: Wire = { send: () => {}, receive: () => () => {}, close: () => {} };
+  const returning: Wire = { send: () => {} };
   peers.left.wire().send(['trace', 'call'], {
     frame: { version: 1, kind: 'request', id: 'c:1', params: null, ...trace },
     return: { wire: returning },
@@ -209,9 +207,9 @@ test('structured wire request and event traces cross the physical bridge verbati
 test('forwardWire cleans partial setup and replies to send failure without lending publication proof', async () => {
   let receiver: Receiver | undefined,
     removed = 0;
-  const a: Wire = {
+  const a: Endpoint = {
     send: () => {},
-    receive: (_path, next) => {
+    receive: (next) => {
       receiver = next;
       return () => {
         removed++;
@@ -219,7 +217,7 @@ test('forwardWire cleans partial setup and replies to send failure without lendi
     },
     close: () => assert.fail('borrowed endpoint closed'),
   };
-  const b: Wire = {
+  const b: Endpoint = {
     send: () => {
       throw new UnpublishedError(new DuplexError('busy', 'Refused downstream.'));
     },
@@ -238,8 +236,6 @@ test('forwardWire cleans partial setup and replies to send failure without lendi
     send: (path, message) => {
       void receiver!.message!(path, message);
     },
-    receive: () => () => {},
-    close: () => {},
   };
   await assert.rejects(callWire(origin, ['rejected']), (error: unknown) => {
     assert.ok(error instanceof DuplexError);
@@ -257,7 +253,7 @@ test('detaching a forward leaves captured request cancellation routed to its ori
   t.after(peers.close);
   const started = deferred(),
     cancelled = deferred();
-  const destination: Wire = {
+  const destination: Endpoint = {
     send: (_path, message) => {
       if (message.frame.kind === 'request') started.resolve();
       if (message.frame.kind === 'cancel') cancelled.resolve();
@@ -265,7 +261,13 @@ test('detaching a forward leaves captured request cancellation routed to its ori
     receive: () => () => {},
     close: () => {},
   };
-  const selected = at(mount(new Map([['route', peers.right.wire()]])), ['route']);
+  const mounted = mount(new Map([['route', peers.right.wire()]]));
+  const dispatcher = createDispatcher(mounted);
+  t.after(() => {
+    dispatcher.close();
+    mounted.close();
+  });
+  const selected = dispatcher.select(['route']);
   const stop = forwardWire(selected, destination);
   t.after(stop);
   const controller = new AbortController();
@@ -297,7 +299,13 @@ test('registerWire groups request event and cancellation while preserving verifi
     left.close();
     right.close();
   });
-  handleWire(left.wire(), ['metadata'], (_params, context) => context.meta ?? null);
+  const leftDispatcher = createDispatcher(left.wire());
+  const rightDispatcher = createDispatcher(right.wire());
+  t.after(() => {
+    leftDispatcher.close();
+    rightDispatcher.close();
+  });
+  handleWire(leftDispatcher, ['metadata'], (_params, context) => context.meta ?? null);
   const model = (context?: WireModelContext) =>
     callWire(right.wire(), ['metadata'], null, {
       context,
@@ -308,7 +316,7 @@ test('registerWire groups request event and cancellation while preserving verifi
   const arrived = deferred(),
     cancelled = deferred(),
     event = deferred<unknown>();
-  const detach = registerWire(right.wire(), ['both'], {
+  const detach = registerWire(rightDispatcher, ['both'], {
     request: async (params, context) => {
       assert.equal(Reflect.get(context, 'verified'), 'trusted');
       if (params === 'hold') {
@@ -346,21 +354,21 @@ test('registerWire groups request event and cancellation while preserving verifi
   await assert.rejects(callWire(left.wire(), ['both']), { code: 'method_not_found' });
 });
 
-test('registerWire sanitizes synchronous and asynchronous event failures into its wire close', async () => {
+test('registerWire sanitizes synchronous and asynchronous event failures into its registry close', async () => {
   for (const failure of ['sync', 'async'] as const) {
     let receiver!: Receiver;
     const closed: unknown[] = [];
-    const wire: Wire = {
+    const wire: Endpoint = {
       send: () => {},
-      receive: (_path, next) => {
+      receive: (next) => {
         receiver = next;
         return () => {};
       },
-      close: (code, reason) => {
-        closed.push([code, reason]);
-      },
+      close: () => assert.fail('registry owns no borrowed endpoint'),
     };
-    registerWire(wire, ['event'], {
+    const dispatcher = createDispatcher(wire);
+    dispatcher.registerPrefix([], { closed: (code, reason) => closed.push([code, reason]) });
+    registerWire(dispatcher, ['event'], {
       event: () => {
         if (failure === 'sync') throw new Error('private panic');
         return Promise.reject(new DuplexError('private', 'private refusal'));

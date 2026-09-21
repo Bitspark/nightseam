@@ -2,9 +2,10 @@
 
 **Revised, 2026-09-21.** The earlier blanket rejection of a separate Wire
 contract repository is superseded by the operator's decision in
-[#421](https://github.com/Bitspark/nightseam/issues/421). Nightseam will adopt
-the shared Bitwire contract when ready, as required 0.6.0 delivery. This revises
-contract ownership; it does not claim that adoption has already landed.
+[#421](https://github.com/Bitspark/nightseam/issues/421). Nightseam adopts the
+public Bitwire v0.2.0 contract as required 0.6.0 delivery. The
+[adoption evidence](../../conformance/bitwire/README.md) records exact public
+coordinates, provenance, paired types and executable behavioral coverage.
 
 **The question.** Where the adopted declaration, typed-access and authority
 mechanisms live, and whether separating their responsibilities requires
@@ -17,20 +18,24 @@ runtime implementations, carriers, peers, tunnels, live-reference machinery,
 generator, declaration/type model, canonical and applied contract identity,
 and selected optional rooted-grant authentication profile.
 
-The current Wire definitions remain in Nightseam until the handover is ready.
-The private Bitwire scaffold is not an adopted dependency or evidence of behavioral
-conformance. Before adoption, the common contract and required profile obligations
-must be agreed, versioned artifacts and specifications must be publicly usable
-without private credentials, and shared behavioral cases must exercise Nightseam's
-implementation. The package versions, provenance and Go/TypeScript type migration
-must be explicit. A second runtime or completed Bitlink generator is not required.
+The public handover is Bitwire v0.2.0 at revision
+`616a2fc5e3a0972f67f40331a9d9ca102bc9698d`, maintained by Bitspark under Apache-2.0.
+Its 0.2 delivery separates addressed delivery from dispatch: send-only `Wire`,
+receiving and closing `Endpoint`, and no registration policy in the primitive.
+Nightseam's realization of that, and of the public invocation lifecycle it
+requires, is [an invocation is a
+Wire](an-invocation-is-a-wire-and-routing-is-composed-above-it.md).
+Nightseam aliases the Go types and re-exports the TypeScript declarations, with
+no independent duplicate contract. The common contract's published behavioral
+cases exercise the migrated runtimes; Nightseam's full suite retains profile,
+context, carrier and scoped-reference obligations. A second runtime or completed
+Bitlink generator is not required.
 
 [#421](https://github.com/Bitspark/nightseam/issues/421) holds this readiness and
 adoption work in 0.6.0 under [#320](https://github.com/Bitspark/nightseam/issues/320).
-Other lanes may continue against the current interface while the handover is
-prepared. A readiness delay must remain an explicit release dependency, not an
-implicit deferral to another milestone. Updating this page does not complete the
-adoption lane. No finished 0.7.0 authentication dependency is introduced.
+Its acceptance includes public clean-consumer installation and the combined
+generic evidence, beyond this decision record. No finished 0.7.0 authentication
+dependency is introduced.
 
 This is a shared-contract extraction, not the older proposal to move the entire
 runtime into Bitwire. The existing profile remains `nightseam.duplex/1`. Sharing
@@ -48,7 +53,7 @@ Wire. Concrete packaging and public dependency provenance are held by
 [#336](https://github.com/Bitspark/nightseam/issues/336).
 
 Wire remains Nightseam's native public access surface, with its shared contract
-to be adopted from Bitwire. Multiple implementations may satisfy it; none may
+adopted from Bitwire. Multiple implementations may satisfy it; none may
 erase scoped reference state, ownership, release barriers or import checks to
 make the interface smaller.
 An abstract send with no result refines bounded admission, not delivery or a

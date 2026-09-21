@@ -4,10 +4,10 @@ func (*clientEvents) Settled(ctx context.Context, data protocol.Outcome) error
 func (*clientMethods) Supervise(ctx context.Context, params protocol.Supervise) (protocol.Outcome, error)
 func (*serverMethods) Describe(ctx context.Context, params protocol.Ticket) (string, error)
 func (*serverMethods) Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
-func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ServerModel, error)
-func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ServerModel, error), cleanup func(), err error)
-func Record(ctx context.Context, target duplex.Wire, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)
-func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Wire, error)
+func FromWire(ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
+func PrepareFromWire(wire duplex.Endpoint, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ServerModel, error), cleanup func(), err error)
+func Record(ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)
+func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Endpoint, error)
 type RecordedEvent interface{recordedEvent()}
 type RecordedSettled struct{Data protocol.Outcome}
 type Recorder struct{}

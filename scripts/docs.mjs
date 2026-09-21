@@ -95,6 +95,7 @@ export const parts = ["The question", "Decided", "Why", "Serves", "Since"];
  */
 export const attributable = new Set([
   "Archon",
+  "Bitwire",
   "CI",
   "ECMAScript",
   "GitHub",

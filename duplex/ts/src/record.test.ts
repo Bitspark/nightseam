@@ -68,9 +68,10 @@ const table = JSON.parse(
 for (const row of table.cases)
   test(`record/follow: ${row.name}`, async () => {
     const store = new HeldLog();
-    const w = await record(new Target(), store, { maxQueuedMessages: 8 });
+    const mounted = mount(new Map([['history', new Target()]]));
+    const w = await record(at(mounted, ['history']), store, { maxQueuedMessages: 8 });
     try {
-      const source = at(mount(new Map([['history', w]])), ['history']);
+      const source = at(w, []);
       for (const v of row.before) source.send(['tick'], message(v));
       const target = new Target();
       const f = await w.follow(row.after, target);
@@ -94,6 +95,7 @@ for (const row of table.cases)
       await f.done;
     } finally {
       w.close();
+      mounted.close();
     }
   });
 class BrokenSequenceLog extends MemoryWireLog {
@@ -124,7 +126,7 @@ test('setup can be cancelled before taking ownership of its target', async () =>
   target.send([], message(1));
 });
 for (const mode of ['append', 'sequence', 'target'])
-  test(`recorder ${mode} failure ends only its carrier and permits reentrant close observation`, async () => {
+  test(`recorder ${mode} failure preserves its borrowed target and permits reentrant close observation`, async () => {
     const sentinel = new Error('consumer failure');
     const target = new Target();
     let store: MemoryWireLog = new MemoryWireLog();
@@ -152,7 +154,7 @@ for (const mode of ['append', 'sequence', 'target'])
     const error = await ended.promise;
     if (mode === 'sequence') assert.ok(error instanceof RecordError && error.code === 'sequence');
     else assert.equal(error, sentinel);
-    assert.equal(target.closed, true);
+    assert.equal(target.closed, false);
   });
 for (const mode of ['read', 'sequence', 'target'])
   test(`follower ${mode} failure leaves recorder usable`, async () => {
@@ -179,13 +181,14 @@ for (const mode of ['read', 'sequence', 'target'])
       w.close();
     }
   });
-test('stalled follower closes its mount while producer and healthy follower continue', async () => {
+test('stalled follower preserves its borrowed mount while producer and healthy follower continue', async () => {
   const store = new HeldLog();
   const w = await record(new Target(), store, { maxQueuedMessages: 2 });
   try {
     w.send(['tick'], message(1));
     const slowTarget = new Target();
-    const slow = await w.follow(0, at(mount(new Map([['slow', slowTarget]])), ['slow']));
+    const mounted = mount(new Map([['slow', slowTarget]]));
+    const slow = await w.follow(0, at(mounted, ['slow']));
     await store.entered.promise;
     const target = new Target();
     const fast = await w.follow(1, target);
@@ -202,6 +205,7 @@ test('stalled follower closes its mount while producer and healthy follower cont
     await target.take();
     fast.close();
     await fast.done;
+    mounted.close();
   } finally {
     w.close();
   }
@@ -221,7 +225,7 @@ test('blocked storage cannot pace send beyond its admission bound', async () => 
     (error) => error instanceof RecordError && error.code === 'overflow',
   );
   assert.ok((await ended.promise) instanceof RecordError);
-  assert.equal(target.closed, true);
+  assert.equal(target.closed, false);
 });
 test('cursor validation, cancellation and local return identity', async () => {
   const target = new Target();

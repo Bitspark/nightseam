@@ -64,6 +64,32 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Go and TypeScript access surfaces adopt public Bitwire v0.2.0 through exact
+  shared types — send-only `Wire`, receiving and closing `Endpoint`, and the
+  named types that go with them — held to its independent composition cases
+  locally and over WebSockets in both role directions, while Nightseam retains
+  runtime and scoped-reference behavior. There is no second definition of the
+  contract anywhere in the tree.
+- One reusable dispatcher owns an endpoint's single attachment and holds the
+  routing policy above it: exact before longest segment prefix, a refusal for a
+  duplicate path, and selected receiving views that share that one owner rather
+  than each claiming the root. Registration, precedence and overlap left the
+  primitive with it.
+- A public invocation lifecycle: an admitted request's return capability is the
+  invocation, presented as a Wire, and its `invocation.capture`, `.ready`,
+  `.release`, `.begin`, `.done` and `.control` operations are ordinary events of
+  the profile at that origin. A dispatcher captures each traversal through it,
+  an execution owner reports actual body completion through it, and an endpoint
+  written by anyone can take part in it with nothing but the Wire it was handed.
+  A request whose return capability carries no lifecycle is refused rather than
+  routed with weaker guarantees.
+- Request serials increase in publication order: within one connection instance
+  and one direction, each published request's serial is greater than every one
+  published before it, gaps allowed, only request admission advancing the
+  receiver's mark, and a serial that does not increase ending the connection as
+  a malformed frame does. Reservation and publication share the outgoing
+  queue's one ordering gate, a sender that would wrap refuses first, and every
+  carrier bridge mints its own serials and maps the replies back.
 - The exposure packet of the optional authority profile: a policy of one
   treatment per declared member — guarded with an action and a scope
   template, public, or denied — bound whole to the declared surface or
@@ -179,6 +205,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Removed
 
+- The registration primitive `Wire.Receive(path, receiver)` and
+  `Receiver.Namespace` / `namespace`, which made every carrier implement
+  exact matching, a namespace flag, longest-prefix selection and
+  duplicate-registration refusal. An endpoint now takes one owning attachment
+  and a composed dispatcher states the policy. No compatibility layer retains
+  the old shape.
 - Generated transport-specific Dial/Attach/Open/Serve/Install and Client/Remote
   facades; hosts prepare transports and supply a Wire to the generated model
   adapters. Raw tunnel transport is named Connection; Channel is prepared Wire

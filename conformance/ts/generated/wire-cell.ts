@@ -1,6 +1,6 @@
 /** One generic model and its generated adapters across wire presentations and carriers. */
-import { at, mount, pipe, type Wire } from '@nightseam/duplex';
-import { DuplexPeer, declarationDigest, forwardWire, jsonAdapter, wirePair, type Observer, type ValueAdapter, type WebSocketLike } from '@nightseam/runtime';
+import { mount, pipe, type Endpoint } from '@nightseam/duplex';
+import { DuplexPeer, createDispatcher, declarationDigest, forwardWire, jsonAdapter, wirePair, type Observer, type ValueAdapter, type WebSocketLike } from '@nightseam/runtime';
 import { liveOver, type LiveScope } from '@nightseam/live';
 import { Tunnel } from '@nightseam/tunnel';
 import * as cell from './api/ts/cell-client/src/index.ts';
@@ -113,19 +113,31 @@ function opposite<T>(state: CellState<T>): cell.Client<T> {
   };
 }
 
-function nested(wire: Wire, owned: Wire[]): Wire {
+// A receiving view of a mount is a view of one dispatcher that owns the
+// mount's single attachment; selection alone grants send access only.
+function nested(wire: Endpoint, owned: Endpoint[], detaches: Array<() => void>): Endpoint {
   const inner = mount(new Map([['inner', wire]]));
   const outer = mount(new Map([['outer', inner]]));
   owned.push(inner, outer);
-  return at(at(outer, ['outer']), ['inner']);
+  const dispatch = createDispatcher(outer);
+  detaches.push(() => dispatch.close());
+  return dispatch.select(['outer', 'inner']);
 }
 
-function carrierView(wire: Wire, presentation: string, observer: Observer, owned: Wire[], detaches: Array<() => void>): Wire {
+function carrierView(
+  wire: Endpoint,
+  presentation: string,
+  observer: Observer,
+  owned: Endpoint[],
+  detaches: Array<() => void>,
+): Endpoint {
   let presented = wire;
   if (presentation !== 'local') {
     const mounted = mount(new Map([['route', presented]]));
     owned.push(mounted);
-    presented = at(mounted, ['route', 'outer', 'inner']);
+    const dispatch = createDispatcher(mounted);
+    detaches.push(() => dispatch.close());
+    presented = dispatch.select(['route', 'outer', 'inner']);
   }
   if (presentation === 'forwarded') {
     const [access, forwarding] = wirePair({ observer });
@@ -162,7 +174,8 @@ async function local<T>(args: Args, slot: Slot<T>): Promise<unknown> {
   const context = adapterContext(calleeScope, { observer });
   const effects = state(first);
   const local = binding.toWire(model(effects), context, slot.adapter);
-  const owned: Wire[] = [local];
+  const owned: Endpoint[] = [local];
+  const views: Array<() => void> = [];
   let detach: (() => void) | undefined;
   // Root carriers are prepared before views are measured. The observer counts
   // cumulative creations, so opening and closing a hidden carrier cannot pass.
@@ -171,11 +184,11 @@ async function local<T>(args: Args, slot: Slot<T>): Promise<unknown> {
   const setupAllocations = snapshot();
   const beforeViews = snapshot();
   try {
-    let presented: Wire = local;
-    if (presentation === 'mounted') presented = nested(local, owned);
+    let presented: Endpoint = local;
+    if (presentation === 'mounted') presented = nested(local, owned, views);
     if (bridge) {
       detach = forwardWire(bridge[1], local);
-      presented = nested(bridge[0], owned);
+      presented = nested(bridge[0], owned, views);
     }
     const viewAllocations = delta(beforeViews);
     const beforeUse = snapshot();
@@ -202,6 +215,7 @@ async function local<T>(args: Args, slot: Slot<T>): Promise<unknown> {
     return { revisions, value, reverse, changed, noted, ...retained, setup_allocations: setupAllocations, view_allocations: viewAllocations, use_allocations: delta(beforeUse), counts: held, released_counts: released };
   } finally {
     detach?.();
+    for (const close of views.reverse()) close();
     for (const wire of owned.reverse()) wire.close();
     for (const peer of peers) peer.close();
   }
@@ -210,7 +224,7 @@ async function local<T>(args: Args, slot: Slot<T>): Promise<unknown> {
 /** The test owns the chosen carrier; the generic model and adapter do not. */
 class WireEndpoint<T> {
 
-  recordTarget?: Wire;
+  recordTarget?: Endpoint;
   async record(within:number):Promise<unknown>{const exercise=await recordExercise(this.recordTarget!,within);this.detaches.push(exercise.close);return exercise.result;}
   async readRecord(within:number):Promise<unknown>{return recordRead(this.state.noted,within);}
   readonly state: CellState<T>;
@@ -223,7 +237,7 @@ class WireEndpoint<T> {
     if (type === 'connection.opened') this.allocations.peers++;
     if (type === 'channel.opened') this.allocations.channels++;
   } };
-  readonly owned: Wire[] = [];
+  readonly owned: Endpoint[] = [];
   readonly detaches: Array<() => void> = [];
   readonly carrier: string;
   readonly presentation: string;
@@ -352,7 +366,7 @@ class ModelBridge {
     if (type === 'connection.opened') this.allocations.peers++;
     if (type === 'channel.opened') this.allocations.channels++;
   } };
-  readonly owned: Wire[] = [];
+  readonly owned: Endpoint[] = [];
   readonly detaches: Array<() => void> = [];
   origin?: DuplexPeer;
   destination?: DuplexPeer;
@@ -363,7 +377,7 @@ class ModelBridge {
   setupAllocations: Allocations = { peers: 0, channels: 0 };
   viewAllocations: Allocations = { peers: 0, channels: 0 };
   released = false;
-  select(peer: DuplexPeer, presentation: string): Wire {
+  select(peer: DuplexPeer, presentation: string): Endpoint {
     const before = { ...this.allocations };
     const selected = carrierView(peer.wire(), presentation, this.observer, this.owned, this.detaches);
     this.viewAllocations.peers += this.allocations.peers - before.peers;

@@ -210,6 +210,52 @@ func TestWireAdaptersObserveTypedOperations(t *testing.T) {
 	}
 }
 
+func TestWireAdaptersShareOneReceivingDispatcher(t *testing.T) {
+	files, err := New(Config{Module: "example.test/m"}).Render(bothSides())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files[2:4] {
+		source := string(file.Data)
+		for _, want := range []string{
+			") (duplex.Endpoint, error)",
+			"PrepareFromWire(wire duplex.Endpoint,",
+			"FromWire(ctx context.Context, wire duplex.Endpoint,",
+			"registerIdentity(wire runtime.HandlerRegistry,",
+			"bindServer(wire runtime.HandlerRegistry,",
+			"bindClient(wire runtime.HandlerRegistry,",
+			"dispatcher, err := runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})",
+			"registerIdentity(dispatcher, identity)",
+			"accessServer(wire duplex.Wire,",
+			"accessClient(wire duplex.Wire,",
+			"Record(ctx context.Context, target duplex.Endpoint,",
+			"Follow(ctx context.Context, after uint64, target duplex.Wire)",
+		} {
+			if !strings.Contains(source, want) {
+				t.Errorf("%s lacks %q", file.Path, want)
+			}
+		}
+		_, local, _ := strings.Cut(source, "func ToWire(")
+		local, _, _ = strings.Cut(local, "func declarationIdentity(")
+		if got := strings.Count(local, "runtime.NewDispatcher(binding, runtime.DispatcherOptions{OwnEndpoint: true})"); got != 1 {
+			t.Errorf("%s attaches %d dispatchers to its binding endpoint, want one", file.Path, got)
+		}
+	}
+	for _, file := range files[4:6] {
+		source := string(file.Data)
+		for _, want := range []string{
+			"type Presentation func(context.Context, duplex.Endpoint) (duplex.Endpoint, func(), error)",
+			`root := duplex.Mount(map[string]duplex.Endpoint{"family": wire})`,
+			"dispatcher, err := runtime.NewDispatcher(root)",
+			`dispatcher.Select([]string{"family"})`,
+		} {
+			if !strings.Contains(source, want) {
+				t.Errorf("%s lacks %q", file.Path, want)
+			}
+		}
+	}
+}
+
 // TestReservedNamesAreWhatTheTargetEmits: every identifier the generated
 // packages declare of themselves is reserved, and nothing else is.
 func TestReservedNamesAreWhatTheTargetEmits(t *testing.T) {

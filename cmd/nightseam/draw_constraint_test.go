@@ -67,10 +67,10 @@ func TestBeforeModel(t *testing.T){
 import * as choices from '@example/choices-client/types';
 import {toWire} from '@example/holder-binding';
 import {fromWire} from '@example/holder-client';
-import type {Wire} from '@nightseam/duplex';
+import type {Endpoint} from '@nightseam/duplex';
 let calls=0;
 assert.throws(()=>toWire<choices.Family>(()=>{calls++;return {methods:{exchange(value){return value;},direct(value){return value;}},events:{}};},{},choices.family),/object/);
-await assert.rejects(fromWire<choices.Family>({} as Wire,{},choices.family),/object/);
+await assert.rejects(fromWire<choices.Family>({} as Endpoint,{},choices.family),/object/);
 assert.equal(calls,0);
 `))
 	config, err := json.Marshal(map[string]any{"compilerOptions": map[string]any{"target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true, "paths": fixtureTypeScriptPaths(t, directory), "typeRoots": []string{filepath.Join(root, "node_modules/@types")}, "types": []string{"node"}}, "include": []string{"api/ts/**/*.ts", "constraint.ts"}})

@@ -31,14 +31,14 @@ active invocation's ownership context. The
 describes their construction and validation.
 
 Nightseam implements the typed-access foundation and planned optional rooted-grant
-authentication. It will adopt the shared Wire contract from Bitwire when ready,
-as required [0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
+authentication. Its Go and TypeScript access surfaces use the public Bitwire
+v0.2.0 contract — send-only `Wire`, receiving and closing `Endpoint` — adopted in
+[0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
 runtime, generator and optional auth remain here. The
 [repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md)
-records the handover conditions and ownership: bare data and RPC remain independent
-of auth, and consumers choose trust and application policy. Wire adoption and
-auth delivery are planned work, not claims that those dependencies or packages
-are already available.
+records contract and implementation ownership: bare data and RPC remain independent
+of auth, and consumers choose trust and application policy. Optional authentication
+delivery remains planned work.
 
 ### Declare it
 
@@ -135,13 +135,13 @@ pairing.
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cpp` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `cpp` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | provisional |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `haskell` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `java` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `python` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `rust` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `swift` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `haskell` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | provisional |
+| `java` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | provisional |
+| `python` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | provisional |
+| `rust` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | provisional |
+| `swift` | 4 | ✗ 2 failed | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | provisional |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
 Planned, with no testee yet: `cpp`, `haskell`, `python`, `rust` at tier 2.
