@@ -59,7 +59,7 @@ type jsonRefusal struct {
 	Hop  int    `json:"hop"`
 }
 
-func loadTable(t *testing.T) table {
+func loadTable(t testing.TB) table {
 	t.Helper()
 	dir, err := os.Getwd()
 	if err != nil {
@@ -87,7 +87,7 @@ func loadTable(t *testing.T) table {
 	return tb
 }
 
-func unhex(t *testing.T, s string) []byte {
+func unhex(t testing.TB, s string) []byte {
 	t.Helper()
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -96,7 +96,7 @@ func unhex(t *testing.T, s string) []byte {
 	return b
 }
 
-func (tb table) seed(t *testing.T, name string) []byte {
+func (tb table) seed(t testing.TB, name string) []byte {
 	t.Helper()
 	k, ok := tb.Keys[name]
 	if !ok {
@@ -106,7 +106,7 @@ func (tb table) seed(t *testing.T, name string) []byte {
 }
 
 // pubkey resolves a key name, or 64 hex characters, to a public key.
-func (tb table) pubkey(t *testing.T, s string) [32]byte {
+func (tb table) pubkey(t testing.TB, s string) [32]byte {
 	t.Helper()
 	var out [32]byte
 	if k, ok := tb.Keys[s]; ok {
@@ -121,7 +121,7 @@ func (tb table) pubkey(t *testing.T, s string) [32]byte {
 	return out
 }
 
-func (tb table) envelope(t *testing.T, name string) []byte {
+func (tb table) envelope(t testing.TB, name string) []byte {
 	t.Helper()
 	e, ok := tb.Envelopes[name]
 	if !ok {
@@ -130,7 +130,7 @@ func (tb table) envelope(t *testing.T, name string) []byte {
 	return unhex(t, e)
 }
 
-func (tb table) chain(t *testing.T, names []string) [][]byte {
+func (tb table) chain(t testing.TB, names []string) [][]byte {
 	t.Helper()
 	chain := make([][]byte, 0, len(names))
 	for _, name := range names {
@@ -141,7 +141,7 @@ func (tb table) chain(t *testing.T, names []string) [][]byte {
 
 // digest resolves an envelope name, or 64 hex characters, to a parent
 // digest.
-func (tb table) digest(t *testing.T, s string) *[32]byte {
+func (tb table) digest(t testing.TB, s string) *[32]byte {
 	t.Helper()
 	var out [32]byte
 	if e, ok := tb.Envelopes[s]; ok {
@@ -156,14 +156,14 @@ func (tb table) digest(t *testing.T, s string) *[32]byte {
 	return &out
 }
 
-func (tb table) root(t *testing.T, r jsonRoot) grant.Root {
+func (tb table) root(t testing.TB, r jsonRoot) grant.Root {
 	t.Helper()
 	return grant.Root{Key: tb.pubkey(t, r.Key), Domain: r.Domain}
 }
 
 // validity reads "unbounded", {"expires_at": n} or "inherit"; inherit is
 // reported apart, since no Validity value carries it.
-func validity(t *testing.T, raw json.RawMessage) (v grant.Validity, inherit bool) {
+func validity(t testing.TB, raw json.RawMessage) (v grant.Validity, inherit bool) {
 	t.Helper()
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
@@ -184,7 +184,7 @@ func validity(t *testing.T, raw json.RawMessage) (v grant.Validity, inherit bool
 	return grant.Validity{Finite: true, ExpiresAt: finite.ExpiresAt}, false
 }
 
-func (tb table) grant(t *testing.T, jg jsonGrant) (g grant.Grant, inherit bool) {
+func (tb table) grant(t testing.TB, jg jsonGrant) (g grant.Grant, inherit bool) {
 	t.Helper()
 	g = grant.Grant{
 		Domain:    jg.Domain,
@@ -219,7 +219,7 @@ func describe(v grant.Validity) string {
 	return fmt.Sprintf("expires_at %d", v.ExpiresAt)
 }
 
-func (tb table) expectVerified(t *testing.T, want jsonVerified, got grant.Verified, refusal *grant.Refusal) {
+func (tb table) expectVerified(t testing.TB, want jsonVerified, got grant.Verified, refusal *grant.Refusal) {
 	t.Helper()
 	if refusal != nil {
 		t.Fatalf("refused %s at hop %d, want verified", refusal.Code, refusal.Hop)
@@ -232,7 +232,7 @@ func (tb table) expectVerified(t *testing.T, want jsonVerified, got grant.Verifi
 	}
 }
 
-func expectRefusal(t *testing.T, want jsonRefusal, refusal *grant.Refusal) {
+func expectRefusal(t testing.TB, want jsonRefusal, refusal *grant.Refusal) {
 	t.Helper()
 	if refusal == nil {
 		t.Fatalf("verified, want refused %s at hop %d", want.Code, want.Hop)
@@ -242,7 +242,7 @@ func expectRefusal(t *testing.T, want jsonRefusal, refusal *grant.Refusal) {
 	}
 }
 
-func expectGrant(t *testing.T, want, got grant.Grant) {
+func expectGrant(t testing.TB, want, got grant.Grant) {
 	t.Helper()
 	wantParent, gotParent := "none", "none"
 	if want.Parent != nil {
