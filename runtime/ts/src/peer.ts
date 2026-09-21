@@ -198,6 +198,7 @@ export class DuplexPeer {
     return (this.relativeWire ??= peerWire(this, {
       queueCapacity: this.limits.queueCapacity,
       maxPendingRequests: this.limits.maxPendingRequests,
+      maxFrameBytes: this.limits.maxFrameBytes,
       requestTimeoutMs: this.limits.requestTimeoutMs,
       fail: (error) => this.fail(error),
       pressure: (waiting) => {

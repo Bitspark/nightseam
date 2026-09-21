@@ -410,3 +410,122 @@ test('completed calls retain their budget until a reserved cancellation is drain
   await Promise.resolve();
   assert.equal(sent.length, 2, 'drained control did not release its request reservation');
 });
+
+test('root wire validates structured profile frames before admission without ending its carrier', async (t) => {
+  const pair = await paired({ queueCapacity: 1 });
+  t.after(pair.close);
+  let invoked = 0;
+  handleWire(pair.server.wire(), ['checked'], (value) => {
+    invoked++;
+    return value;
+  });
+  const root = pair.client.wire();
+  const request = { version: 1, kind: 'request', id: 'c:1', params: null };
+  const invalid: [string, unknown][] = [
+    ['version', { ...request, version: 2 }],
+    ['kind', { ...request, kind: 'unknown' }],
+    ['extra member', { ...request, extra: true }],
+    ['duplicate method source', { ...request, method: 'other' }],
+    ['missing params', { version: 1, kind: 'request', id: 'c:1' }],
+    ['id prefix', { ...request, id: 'x:1' }],
+    ['id zero', { ...request, id: 'c:0' }],
+    ['trace', { ...request, traceparent: 'invalid' }],
+    ['meta', { ...request, meta: { invalid: 1 } }],
+    ['reserved meta', { ...request, meta: { 'nightseam.reserved': 'no' } }],
+    ['missing event data', { version: 1, kind: 'event' }],
+    ['duplicate event source', { version: 1, kind: 'event', event: 'other', data: null }],
+    ['cancel extra member', { version: 1, kind: 'cancel', id: 'c:1', params: null }],
+    ['null frame', null],
+  ];
+  for (const [name, frame] of invalid) {
+    assert.throws(
+      () => root.send(['checked'], { frame, return: { wire: root } } as Message),
+      (error: unknown) => error instanceof DuplexError && error.code === 'invalid_message',
+      name,
+    );
+    assert.equal(pair.client.status, 'connected', name);
+  }
+  assert.equal(pair.writes(), 0);
+  assert.equal(invoked, 0);
+  // Local origins may use either logical prefix, independently of the carrier role.
+  for (const id of ['c:1', 's:1']) {
+    const reply = deferred<Message>();
+    const returning: Wire = {
+      send: (_path, message) => reply.resolve(message),
+      receive: () => () => {},
+      close: () => {},
+    };
+    root.send(['checked'], { frame: { version: 1, kind: 'request', id, params: id }, return: { wire: returning } });
+    const response = await reply.promise;
+    assert.equal(response.frame.kind, 'response');
+    assert.equal('result' in response.frame && response.frame.result, id);
+  }
+  assert.equal(invoked, 2);
+});
+
+test('root wire refuses oversized structured frames before accepting them', async (t) => {
+  const pair = await paired({ maxFrameBytes: 512, queueCapacity: 1 });
+  t.after(pair.close);
+  const root = pair.client.wire();
+  assert.throws(() => root.send(['large'], { frame: { version: 1, kind: 'event', data: '😀'.repeat(200) } }), {
+    code: 'frame_too_large',
+  });
+  assert.equal(pair.client.status, 'connected');
+  assert.equal(pair.writes(), 0);
+  handleWire(pair.server.wire(), ['small'], () => 'ok');
+  assert.equal(await callWire(root, ['small']), 'ok');
+});
+
+test('local wire return addresses validate responses before settling the call', async () => {
+  let address!: ReturnAddress;
+  const opaque: Wire = {
+    send: (_path, message) => {
+      address = message.return!;
+    },
+    receive: () => () => {},
+    close: () => {},
+  };
+  const pending = callWire(opaque, ['test']);
+  const response = { version: 1, kind: 'response', id: 'c:1', result: null };
+  const invalid: unknown[] = [
+    { ...response, version: 2 },
+    { ...response, extra: true },
+    { version: 1, kind: 'response', id: 'c:1' },
+    { ...response, error: { code: 'bad', message: 'Bad' } },
+    { ...response, traceparent: 'invalid' },
+    { version: 1, kind: 'response', id: 'c:1', error: { code: '', message: 'Bad' } },
+  ];
+  try {
+    for (const frame of invalid) {
+      assert.throws(() => address.wire.send([], { frame } as Message), { code: 'invalid_message' });
+    }
+    address.wire.send([], { frame: { version: 1, kind: 'response', id: 'c:1', result: 'ok' } });
+    assert.equal(await pending, 'ok');
+  } finally {
+    address.wire.close();
+    await pending.catch(() => {});
+  }
+});
+
+test('wire handlers sanitize empty public error fields without disconnecting', async (t) => {
+  const pair = await paired();
+  t.after(pair.close);
+  for (const [name, code, message] of [
+    ['code', '', 'No'],
+    ['message', 'denied', ''],
+  ] as const) {
+    handleWire(pair.server.wire(), [name], () => {
+      throw new DuplexError(code, message);
+    });
+    await assert.rejects(callWire(pair.client.wire(), [name]), { code: 'internal' });
+    assert.equal(pair.client.status, 'connected');
+  }
+});
+
+test('wire handler responses over the peer frame limit settle as internal errors', async (t) => {
+  const pair = await paired({ maxFrameBytes: 512 });
+  t.after(pair.close);
+  handleWire(pair.server.wire(), ['large'], () => 'x'.repeat(1_024));
+  await assert.rejects(callWire(pair.client.wire(), ['large'], {}, { timeoutMs: 100 }), { code: 'internal' });
+  assert.equal(pair.client.status, 'connected');
+});

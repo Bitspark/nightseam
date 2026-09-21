@@ -1,7 +1,7 @@
 import { encodePath, WireError } from '@nightseam/duplex';
 import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire } from '@nightseam/duplex';
 import { DuplexError, UnpublishedError } from './error.ts';
-import { carrying } from './envelope.ts';
+import { carrying, decodeEnvelope, isObject } from './envelope.ts';
 import { scalarJSON } from './unicode.ts';
 import { defaultPropagator, traceOf } from './trace.ts';
 import type { Trace, TraceContext } from './trace.ts';
@@ -10,6 +10,7 @@ import type { DuplexPeer, Meta, RequestContext } from './peer.ts';
 interface WireDispatchContext {
   context: RequestContext;
   panic: (error: unknown) => void;
+  maxFrameBytes: number;
 }
 // This is a local capability association, never a field a caller can serialize
 // or supply as ambient outgoing metadata. Keep non-enumerable verified values.
@@ -119,9 +120,37 @@ function snapshot<T>(value: T): T {
   }
 }
 
+function profileFrame(value: ProfileFrame, name: string, maxFrameBytes?: number): ProfileFrame {
+  const saved: unknown = snapshot(value);
+  if (!isObject(saved) || Object.hasOwn(saved, 'method') || Object.hasOwn(saved, 'event'))
+    throw new DuplexError('invalid_message', 'Invalid structured profile frame.');
+  // The path is the sole operation name. Reuse the physical profile validator
+  // after translating that name, without silently replacing an extra member.
+  const envelope = {
+    ...saved,
+    ...(saved.kind === 'request' ? { method: name } : saved.kind === 'event' ? { event: name } : {}),
+  };
+  const text = JSON.stringify(envelope);
+  if (maxFrameBytes !== undefined && new TextEncoder().encode(text).byteLength > maxFrameBytes)
+    throw new DuplexError('frame_too_large', 'Outgoing frame exceeds the size limit.');
+  // Logical request ids belong to local return addresses, not physical roles.
+  // Both accepted prefixes still use the existing canonical numeric grammar.
+  const prefix = typeof saved.id === 'string' && saved.id.startsWith('s:') ? 's:' : 'c:';
+  try {
+    decodeEnvelope(text, prefix, prefix);
+  } catch {
+    throw new DuplexError('invalid_message', 'Invalid structured profile frame.');
+  }
+  return saved as unknown as ProfileFrame;
+}
+
 function publicError(error: unknown): DuplexError {
   // Reconstructing public data strips local publication proof after dispatch.
-  return error instanceof DuplexError
+  return error instanceof DuplexError &&
+    typeof error.code === 'string' &&
+    error.code.length > 0 &&
+    typeof error.message === 'string' &&
+    error.message.length > 0
     ? new DuplexError(error.code, error.message, error.data)
     : new DuplexError('internal', 'Request handler failed.');
 }
@@ -151,7 +180,22 @@ function response(request: Message, result?: unknown, error?: unknown): void {
   };
   try {
     request.return.wire.send([], { frame });
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplexError && ['invalid_message', 'frame_too_large'].includes(error.code)) {
+      try {
+        request.return.wire.send([], {
+          frame: {
+            version: 1,
+            kind: 'response',
+            id: request.frame.id,
+            error: { code: 'internal', message: 'Response could not be encoded' },
+            ...traceOf(request.frame),
+          },
+        });
+      } catch {
+        /* The return address cannot admit even the bounded error response. */
+      }
+    }
     /* The caller may already have cancelled or ended. */
   }
 }
@@ -189,14 +233,12 @@ function callWireTraced<T>(
   const completion = requestCompletion<T>();
   const returning: Wire = {
     send: (suffix, message) => {
-      if (suffix.length || message.frame.kind !== 'response' || message.frame.id !== 'c:1')
+      const frame = profileFrame(message.frame, '', dispatch?.maxFrameBytes);
+      if (suffix.length || frame.kind !== 'response' || frame.id !== 'c:1')
         throw new DuplexError('invalid_message', 'Invalid wire response.');
       if (completion.settled) throw new WireError('closed');
-      if (message.frame.error)
-        completion.reject(
-          new DuplexError(message.frame.error.code, message.frame.error.message, message.frame.error.data),
-        );
-      else completion.resolve(message.frame.result as T);
+      if (frame.error) completion.reject(new DuplexError(frame.error.code, frame.error.message, frame.error.data));
+      else completion.resolve(frame.result as T);
     },
     receive: () => {
       throw new WireError('receiver_exists');
@@ -331,6 +373,7 @@ export function onWireEvent(wire: Wire, path: Path, listener: WireEventListener)
 export interface PeerWireOptions {
   queueCapacity: number;
   maxPendingRequests: number;
+  maxFrameBytes: number;
   requestTimeoutMs: number;
   fail: (error: DuplexError) => void;
   pressure: (waiting: number) => void;
@@ -440,7 +483,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
     send: (path, message) => {
       const name = encodePath(path);
       if (ended || peer.status !== 'connected') throw endError();
-      const frame = message.frame;
+      const frame = profileFrame(message.frame, name, options.maxFrameBytes);
       if (!name && (frame.kind === 'request' || frame.kind === 'event'))
         throw new DuplexError('invalid_message', 'A root wire operation requires a nonempty path.');
       if ((frame.kind === 'request' || frame.kind === 'cancel') && !message.return?.wire)
@@ -454,7 +497,6 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
         // reservation is bounded by the existing pending-request budget.
         if (!call || call.completed || call.cancelQueued || call.cancelled) return;
       }
-      const saved = snapshot(frame);
       if (ended || peer.status !== 'connected') throw endError();
       if (frame.kind !== 'cancel' && dataQueued >= options.queueCapacity) {
         const error = new DuplexError('busy', 'Output consumer is stalled; queue limit reached.');
@@ -493,7 +535,7 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
       }
       // Data and reserved control entries share one FIFO. A cancel cannot jump
       // ahead of an earlier event, request, or cancellation on this wire.
-      queued.push({ path: [...path], message: { frame: saved, return: message.return }, call, refusal });
+      queued.push({ path: [...path], message: { frame, return: message.return }, call, refusal });
       if (!scheduled) {
         scheduled = true;
         queueMicrotask(drain);
@@ -531,7 +573,11 @@ export function peerWire(peer: DuplexPeer, options: PeerWireOptions): Wire {
             meta: context.meta,
           },
           context.trace,
-          { context, panic: (error) => options.panic(name, error, context.trace) },
+          {
+            context,
+            panic: (error) => options.panic(name, error, context.trace),
+            maxFrameBytes: options.maxFrameBytes,
+          },
         ),
       );
       const removeListener = peer.onEvent(name, (data, context) =>
