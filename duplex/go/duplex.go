@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 )
 
 // Kind is what a frame carries: text, which the profile requires to be JSON,
@@ -53,7 +55,7 @@ type Frame struct {
 
 // Code is a close code. The numbers are the WebSocket registry's, kept on
 // every transport so that a close means the same thing whatever carried it.
-type Code int
+type Code = bitwire.Code
 
 const (
 	// CodeNormal is a close both sides meant.

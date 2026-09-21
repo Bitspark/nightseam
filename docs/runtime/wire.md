@@ -22,19 +22,23 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
 
-The duplex component defines the interface and path views. Runtime supplies
+The duplex component presents the shared Bitwire types and implements path views. Runtime supplies
 local endpoints, peer access and the request/event helpers used by generated
 adapters. A tunnel `Channel` already implements Wire. Its inner peer is
 prepared once during channel acquisition, before reads begin. Raw tunnel
 transport is available separately as `Connection`; one channel cannot be
 claimed by both presentations.
 
-These are the current Nightseam definitions. The approved
-[repository-home revision](../decisions/the-reusable-foundation-lives-in-nightseam.md)
-selects the shared Bitwire contract when ready, with adoption required in 0.6.0 by
-[#421](https://github.com/Bitspark/nightseam/issues/421). Runtime implementations
-remain here. This planned handover has not changed today's imports or introduced
-a private dependency.
+The underlying definitions are public
+[Bitwire v0.1.0](https://github.com/Bitspark/bitwire/releases/tag/v0.1.0):
+Go imports `github.com/Bitspark/bitwire/wire/go` from module
+`github.com/Bitspark/bitwire@v0.1.0`; TypeScript imports `@bitspark/bitwire@0.1.0`.
+Nightseam's duplex package deliberately aliases/re-exports the same types,
+including Go's close `Code`. Existing generated references therefore use the
+shared nominal contract directly, without a second definition or wrapper.
+Bitwire and Nightseam are maintained by Bitspark under Apache-2.0. The
+[adoption evidence](../../conformance/bitwire/README.md) pins provenance and
+distinguishes shared composition cases from Nightseam's profile/runtime suites.
 
 `Send` returns on admission or refusal. It never waits for a destination
 handler or a reply, and never executes application code on the sender's

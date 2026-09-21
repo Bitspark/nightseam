@@ -30,14 +30,13 @@ through family parameters remain unsupported; the
 distinguishes those limits.
 
 Nightseam implements the typed-access foundation and planned optional rooted-grant
-authentication. It will adopt the shared Wire contract from Bitwire when ready,
-as required [0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
+authentication. Its Go and TypeScript access surfaces use the public Bitwire
+v0.1.0 contract, adopted in [0.6.0 work](https://github.com/Bitspark/nightseam/issues/421); the
 runtime, generator and optional auth remain here. The
 [repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md)
-records the handover conditions and ownership: bare data and RPC remain independent
-of auth, and consumers choose trust and application policy. Wire adoption and
-auth delivery are planned work, not claims that those dependencies or packages
-are already available.
+records contract and implementation ownership: bare data and RPC remain independent
+of auth, and consumers choose trust and application policy. Optional authentication
+delivery remains planned work.
 
 ### Declare it
 

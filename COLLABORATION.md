@@ -23,13 +23,14 @@ existing, or owning no state of the consumer's is not the argument.
 
 This repository implements the typed-access foundation and optional rooted-grant
 authority profile. The shared Wire contract, supporting language declarations,
-composition laws and independent conformance criteria will be adopted from
-Bitwire when ready, as required 0.6.0 work in
+composition laws and independent conformance criteria come from the public
+Bitwire v0.1.0 contract, adopted as required 0.6.0 work in
 [#421](https://github.com/Bitspark/nightseam/issues/421). Runtime, generator,
 declaration/identity and optional-auth implementation remain here, as recorded in
 [the repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md).
-Until the public contract handover and behavioral evidence are ready, the current
-Nightseam definitions remain in use; a private scaffold is not a public dependency.
+Nightseam exposes aliases and re-exports of those shared types. Contract changes
+belong with their Bitwire definition and independent behavioral cases; runtime
+and profile obligations remain held by Nightseam's suites.
 The authority component checks evidence and preserves guards; consumers choose
 roots, issued authority, resource meaning and current policy. Its dependency
 direction keeps bare data and RPC independent of auth. Public contracts and

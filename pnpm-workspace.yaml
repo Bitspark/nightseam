@@ -1,2 +1,4 @@
 packages:
   - "*/ts"
+minimumReleaseAgeExclude:
+  - '@bitspark/bitwire@0.1.0'

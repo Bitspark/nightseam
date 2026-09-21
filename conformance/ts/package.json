@@ -9,6 +9,7 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@bitspark/bitwire": "0.1.0",
     "@nightseam/duplex": "workspace:*",
     "@nightseam/live": "workspace:*",
     "@nightseam/runtime": "workspace:*",
@@ -17,8 +18,8 @@
   "devDependencies": {
     "@types/node": "^26.6.1",
     "@types/ws": "^8.5.13",
-    "ws": "^8.18.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "ws": "^8.18.0"
   },
   "scripts": {
     "check": "tsc -p tsconfig.check.json"

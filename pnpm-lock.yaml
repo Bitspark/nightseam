@@ -190,6 +190,9 @@ importers:
 
   conformance/ts:
     dependencies:
+      '@bitspark/bitwire':
+        specifier: 0.1.0
+        version: 0.1.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
@@ -217,6 +220,10 @@ importers:
         version: 8.21.3
 
   duplex/ts:
+    dependencies:
+      '@bitspark/bitwire':
+        specifier: 0.1.0
+        version: 0.1.0
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -290,6 +297,9 @@ importers:
         version: 7.0.2
 
 packages:
+
+  '@bitspark/bitwire@0.1.0':
+    resolution: {integrity: sha512-jA0fWOZWCUp8B+gSzmAMh9KMgXq0whaRVdlNHY5DwW/1xbCWZkLEjgqrHGWK0GDc8n+N7D6skuyit3P+6tAu8g==}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -481,6 +491,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@bitspark/bitwire@0.1.0': {}
 
   '@opentelemetry/api@1.9.1': {}
 
