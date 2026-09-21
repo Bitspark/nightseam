@@ -92,7 +92,7 @@ for (const side of ['exporter', 'caller', 'both']) {
     for(let i=0;i<7;i++){
       let a=sa.owner().child(),b=sb.owner().child();
       const job:worker.Job={ticket:'job',cancel:async()=>{}};
-      const page=owners.importJobs(b,owners.exportJobs(a,{items:[job,job]}));
+      const page=owners.importJobsUnchecked(b,owners.exportJobsUnchecked(a,{items:[job,job]}));
       for(const job of page.items)await job.cancel();
       assert.equal(sa.counts().exports,2,'native identity must not deduplicate exports');assert.equal(sb.counts().imports,2);
       b.release();await assert.rejects(()=>page.items[0]!.cancel(),isCode('reference_released'));a.release();await zero(sa,sb);
