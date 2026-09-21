@@ -33,24 +33,25 @@ The check distinguishes wire contract names. What it does not reach — native
 assignment, and what the path says about a signature that changed under it —
 is below.
 
-**Why.** The identity is a **string the declaration already has**, so it is
-computed once, in rendering, and stamped into the wire descriptor every
-language's validator reads. No second spelling has to be kept in step across
-languages: Go does not derive it and TypeScript re-derive it; both read it. A
-structural digest — the alternative that would have let inline callables carry
-identities — would have had to be specified as a canonical grammar and
-implemented identically in every runtime, and every language added later would
-have had to reproduce it exactly.
+**Why.** A nongeneric callable's nominal path is a string the declaration
+already has, computed in rendering and stamped into the validator descriptor.
+A closed generic application's name is rendered from that same constructor's
+canonical declaration graph and ordered arguments. The shared byte and name
+fixtures hold every implementation to one spelling; structural signature
+equality never replaces the constructor's declared name.
 
 What it costs is anonymity. A record cannot say `{"name": "report", "type":
 {"callable": …}}`; the callable is lifted into the tier's types and named, and
 a callable written inline is refused with a diagnostic that says so. For a
-one-off callback that is a line of ceremony. Generic callables remain refused:
-their identities could still be nominal, with applied arguments, but that
-requires a canonical spelling of arguments shared by every language, which does
-not follow from nominal identity alone. The operator chose option C in
-[#247](https://github.com/Bitspark/nightseam/issues/247) — keep that refusal
-and support generic containers of live values. A *container* generic over a
+one-off callback that is a line of ceremony. The operator initially chose
+option C in [#247](https://github.com/Bitspark/nightseam/issues/247): defer generic
+callables until a shared canonical argument identity existed, while supporting
+generic containers of live values. That v0.5.0 deferral is replaced by
+[#366 A](https://github.com/Bitspark/nightseam/issues/366) and its paired
+implementation in [#369](https://github.com/Bitspark/nightseam/issues/369).
+Type arguments are fixed before export; no invocation chooses them. Pure
+aliases normalize to the same application, while a separately declared
+constructor remains distinct even with the same signature. A *container* generic over a
 live type, `Page<Job>`, needs no identity of its own: generated conversion
 helpers take converters for their parameters, and the live caller supplies
 converters closed over its scope, so the declaration of `Page` stays data-only
@@ -64,13 +65,31 @@ each of which would need its own admission argument under
 [the admission test](../admission.md).
 
 **Serves.** Declarative — the contract is stated once, in the declaration, and
-its identity is derived from it by one rule rather than computed separately
-wherever it is needed. Agnosticism — that identity is a string every language
-reads rather than an algorithm every language must reproduce.
+its identity is derived from it by one rule. Agnosticism — the shared canonical
+graph and fixtures hold each language to the same identity.
 
 **Since.** 0.5.0, [#201](https://github.com/Bitspark/nightseam/issues/201),
-with the generic refusal held by
-[#247](https://github.com/Bitspark/nightseam/issues/247).
+with the historical generic deferral in
+[#247](https://github.com/Bitspark/nightseam/issues/247) completed by #369 for 0.6.0.
+
+## Closed callable applications
+
+`runtime.CallableIdentity` in Go and `callableIdentity` in TypeScript select
+the existing canonical application graph. The printable name includes ordered
+arguments, such as `worker/Handler<worker/Job>`; its digest hashes that selected
+graph and the reachable argument declarations. An absent revision digest does
+not erase arguments from the nominal contract. Nongeneric callables retain
+their declaring-family revision guarantee described below.
+
+Generated argument adapters carry identity, validation and both conversion
+recipes. Exported implementations later import requests and export results;
+imported proxies do the reverse. Each invocation supplies its active owner and
+context, including for a returned callable used after its supplying call ends.
+A source alias emits a specialized conversion body while retaining the original
+constructor and argument graph, independently of the generic adapter route.
+The [generated API](../declaration/generated.md#parameterized-callable-helpers)
+and [shared identity cases](../../conformance/tables/callable-identities.json)
+hold these concrete projections.
 
 ## Native assignment and contract evolution
 

@@ -160,9 +160,37 @@ other callables. A generic operation drawing `S.Job` remains in
 `protocol.json`: its supplied interpretation decides whether a live context is
 needed. Its generated package imports neither a concrete provider nor live.
 Direct draws of aliases, callable declarations and generic members remain
-refused; a plain associated record can contain a callable. A callable
-declaration's own parameters remain separate work in
-[#369](https://github.com/Bitspark/nightseam/issues/369).
+refused; a plain associated record can contain a callable.
+
+## Declared callable applications
+
+A callable declares its type parameters in `live.json` and uses the ordinary
+application syntax to fix them before export:
+
+```json
+"Function": {"kind":"callable","parameters":[{"name":"A"},{"name":"B"}],
+             "request":"A","result":"B"},
+"IntToText": {"kind":"alias","type":{"apply":"Function",
+              "with":{"A":"integer","B":"string"}}}
+```
+
+Its native type is `Function[A, B]` in Go and `Function<A, B>` in TypeScript.
+`AdapterFunction(a, b)` / `adapterFunction(a, b)` composes complete value
+adapters for its arguments. Either argument may itself be a closed callable
+application or a container containing one. An exported implementation imports
+its request and exports its result; an imported proxy does the reverse, so
+both recipes are required even by a helper used initially in only one direction.
+
+The closed alias above has the same nominal application as those supplied
+adapters. Its generated conversion body is specialized directly from the
+source signature and does not delegate to the generic callable helper. Neither
+route invents a new callable constructor. A separately declared callable with
+an identical signature remains a different contract.
+
+Call arguments do not choose type arguments. Anonymous callables, higher-rank
+polymorphism and unfilled applications remain outside this grammar. A returned
+callable may outlive the call that supplied it, within its owner's lifetime;
+each later invocation supplies its own context and acquisition batch.
 
 ## Identity of a bound application
 
@@ -191,6 +219,15 @@ while retaining its binding scope. These use the shared canonical graph,
 so supplying bindings at runtime produces the same identity in either
 language. Identity grants no authority and performs no compatibility
 negotiation between distinct declarations.
+
+`CallableIdentity(binding)` / `callableIdentity(binding)` selects a closed
+callable's printable path and digest from that same graph. An applied path
+includes its ordered arguments, such as `worker/Function<integer,string>`;
+reversing those arguments changes the path even when a reference omits its
+optional digest. Its digest covers the selected application and reachable
+argument content. A nongeneric declared callable retains its declaring
+family's digest. Pure aliases preserve both identities. The exact spellings
+are held by the shared [callable identity fixtures](../../conformance/tables/callable-identities.json).
 
 ## The diagram commutes
 

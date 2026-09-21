@@ -32,6 +32,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Declared Go and TypeScript callables accept fixed type arguments, including
+  nested callables and live values. Complete adapters compose both conversion
+  directions under each invocation's context. Applied names and digests retain
+  nominal origin and argument revisions; source aliases emit independent
+  specialized conversion bodies with the same identity.
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.

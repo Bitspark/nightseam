@@ -450,6 +450,41 @@ binding, so a live value has no scope-free encoding. The refusal names the pair
 that does have a scope. TypeScript needs no such refusal — its generated adapter
 never hands a live value to the peer unconverted — but the same rule holds.
 
+### Parameterized callable helpers
+
+A declared `Function<A,B>` is a native generic function type. Its complete
+argument adapters are supplied once, before a live reference is exported or
+imported:
+
+```go
+func AdapterFunction[A, B any](a runtime.ValueAdapter[A], b runtime.ValueAdapter[B]) runtime.ValueAdapter[Function[A, B]]
+func ContractFunction[A, B any](a runtime.ValueAdapter[A], b runtime.ValueAdapter[B]) (runtime.DeclarationIdentity, error)
+func ExportFunction[A, B any](owner *live.Owner, value Function[A, B], a runtime.ValueAdapter[A], b runtime.ValueAdapter[B]) (json.RawMessage, error)
+func ImportFunction[A, B any](owner *live.Owner, raw json.RawMessage, a runtime.ValueAdapter[A], b runtime.ValueAdapter[B]) (Function[A, B], error)
+```
+
+```ts
+function adapterFunction<A, B>(a: ValueAdapter<A>, b: ValueAdapter<B>): ValueAdapter<Function<A, B>>;
+function contractFunction<A, B>(a: ValueAdapter<A>, b: ValueAdapter<B>): DeclarationIdentity;
+function exportFunction<A, B>(owner: LiveOwner, value: Function<A, B>, a: ValueAdapter<A>, b: ValueAdapter<B>): unknown;
+function importFunction<A, B>(owner: LiveOwner, raw: unknown, a: ValueAdapter<A>, b: ValueAdapter<B>): Function<A, B>;
+```
+
+Captured family slots use the coherent associated interpretations described
+above. The contract function checks closure and returns the canonical applied
+path and digest; missing recipes or inconsistent interpretations fail before
+acquisition. The ordinary nongeneric declared callable still has its constant
+contract name. A source alias of a callable has its own `ContractAlias` /
+`contractAlias` function and specialized conversion body, with the same nominal
+identity as the original application. Callable alias helpers perform full
+callable validation and have no `Unchecked` suffix.
+
+Every callback invocation uses its current context. Reusable argument adapters
+retain neither the connection nor the owner of the call that supplied a
+callback. In Go, use `AdapterFunction(...).Export(ctx, value)` and the matching
+import recipe under the explicit environment batch when the recipes need
+additional context values; the owner-only lower helper supplies the owner.
+
 ### Generic boundary helpers
 
 A generic data declaration can contain live values when applied in the live
@@ -480,8 +515,8 @@ the corresponding `exportX`/`importX` names. Each forwards the supplied
 converters through the declared container structure. Go pairs each converter
 with a `runtime.TypeBinding`, whose `Schema` and `Type` retain the argument's
 declaration context for validation. TypeScript's record, union and alias helpers
-carry the `Unchecked` suffix: they take no binding argument and do not validate
-the whole value. The generated
+carry the `Unchecked` suffix when they only convert: the data-only helpers take
+no binding argument and do not validate the whole value. The generated
 operation validates before import and after export. A direct TypeScript
 caller must perform that validation with the appropriate `TypeBinding`
 slots too; conversion alone is not a validation API.
@@ -535,21 +570,21 @@ The `combinator` family's `Bundle<T>` has a fixed `Unary` member beside its
 generic metadata and emits:
 
 ```go
-func ExportBundle[T any](owner *live.Owner, v Bundle[T], convertT func(*live.Owner, T) (json.RawMessage, error), typeT runtime.TypeBinding) (json.RawMessage, error)
-func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, convertT func(*live.Owner, json.RawMessage) (T, error), typeT runtime.TypeBinding) (Bundle[T], error)
+func ExportBundle[T any](owner *live.Owner, v Bundle[T], adapterT runtime.ValueAdapter[T]) (json.RawMessage, error)
+func ImportBundle[T any](owner *live.Owner, raw json.RawMessage, adapterT runtime.ValueAdapter[T]) (Bundle[T], error)
 ```
 
 ```ts
-export function exportBundleUnchecked<T = unknown>(owner: LiveOwner, value: Bundle<T>, convert_T_: (owner: LiveOwner, value: T) => unknown): unknown;
-export function importBundleUnchecked<T = unknown>(owner: LiveOwner, raw: unknown, convert_T_: (owner: LiveOwner, value: unknown) => T): Bundle<T>;
+export function exportBundleUnchecked<T = unknown>(owner: LiveOwner, value: Bundle<T>, slot_T: ValueAdapter<T>): unknown;
+export function importBundleUnchecked<T = unknown>(owner: LiveOwner, raw: unknown, slot_T: ValueAdapter<T>): Bundle<T>;
 ```
 
-The live helper passes its active owner view to each import and export
-converter. Use that argument for nested acquisitions, rather than closing over
-the original owner: conversion of the generic member and the fixed callable
-then belongs to one batch. A failure unwinds its fresh allocations and leaves
-borrowed aliases intact. Pure-data generic helpers retain the value-only
-converter signatures shown for `Page<T>` above.
+The live helper receives complete adapters because a generic callable nested
+inside the value needs both conversion directions when invoked later. Each
+recipe receives the active owner view for nested acquisitions. Conversion of
+the generic member and the fixed callable belongs to one batch; failure unwinds
+fresh allocations and leaves borrowed aliases intact. Pure-data generic helpers
+retain the value-only converter signatures shown for `Page<T>` above.
 
 The [generic-live scenario](../../conformance/scenarios/generated/live-generic-containers.json)
 executes the generated operation with an imported generic record containing
@@ -563,7 +598,7 @@ keeps three cases separate:
 | Form | Current support |
 | --- | --- |
 | A generic container applied to a live type, such as `Page<Job>` | Supported in the live tier; argument converters carry the owner dependency. |
-| A callable declaration with its own parameters | Temporarily refused as [`callable_parameters`](../../cmd/nightseam/testdata/invalid/callable-parameters/diagnostics.txt); applied callable identities are not defined by the current contract. This does not rule out future generic callables. |
+| A callable declaration with its own parameters | Supported as a closed nominal application through complete argument adapters. Type arguments are fixed before export; an [unapplied callable](../../cmd/nightseam/testdata/invalid/unapplied-callable/diagnostics.txt) is refused. |
 | A plain associated record containing live values, such as `S.Job` | Supported through complete family-supplied value adapters, with coherent declaration identity and operation-local ownership. Direct callable, alias and generic-member draws remain refused. |
 
 ## Errors
