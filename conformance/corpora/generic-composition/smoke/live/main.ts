@@ -57,7 +57,7 @@ switch (selected) {
       value: { kind: 'value', value: { job: { run: async n => { effects++; return seed + n; } }, progress: { label: 'numbers', notify: { run: async n => { effects++; return seed * 10 + n; } } } } },
       empty: { kind: 'empty' },
     }];
-    await exercise(holder.adapterBatch(numbers.family), specimen, async value => {
+    await exercise(holder.adapterBatch<numbers.Family>(numbers.family), specimen, async value => {
       assert.equal(value[0], null); assert.equal(value[1]!.empty!.kind, 'empty');
       const choice = value[1]!.value!; assert.equal(choice.kind, 'value');
       if (choice.kind !== 'value') throw new Error('missing nested live draw');
@@ -72,7 +72,7 @@ switch (selected) {
       value: { kind: 'value', value: { job: { run: async n => { effects++; return `${n}:${seed}`; } }, progress: { label: 'texts', notify: { run: async n => { effects++; return `${n}:${seed * 10}`; } } } } },
       empty: { kind: 'empty' },
     }];
-    await exercise(holder.adapterBatch(texts.family), specimen, async value => {
+    await exercise(holder.adapterBatch<texts.Family>(texts.family), specimen, async value => {
       assert.equal(value[0], null); assert.equal(value[1]!.empty!.kind, 'empty');
       const choice = value[1]!.value!; assert.equal(choice.kind, 'value');
       if (choice.kind !== 'value') throw new Error('missing nested live draw');
