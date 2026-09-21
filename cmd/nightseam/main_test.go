@@ -261,7 +261,7 @@ const peer=new DuplexPeer({observer:{observe:event=>{if(('method' in event)&&eve
 let client,observed;
 const wire=toWire(remote=>{client=remote;return {methods:{reverse:params=>({...params,text:'typescript:'+params.text})},events:{changed:data=>{observed=data;}}};},{options:{observer}});
 forwardWire(peer.wire(),wire);
-await peer.dial(process.argv[2]);
+await peer.connect(process.argv[2]);
 const result = await client.methods.echo({ text: 'value', count: 7, note: null });
 assert.equal(result.text, 'typescript:value');
 assert.equal(result.note, null);

@@ -28,7 +28,7 @@ func TestEventsBeforeReading(t *testing.T) {
     bind,err:=binding.FromWire(ctx,p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
     if _,err=bind(protocol.Client{Methods:clientHandler{},Events:initialEvents{func(p protocol.Payload){received<-p}}});err!=nil{return err}
     // The generated callback is installed before the rest of host preparation.
-    if _,err=p.Wire().Receive([]string{"changed"},duplex.Receiver{});err==nil{return errors.New("typed event was not installed before host preparation")}
+    if _,err=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return errors.New("typed event was not installed before host preparation")}
     prepared = true
     return nil
    }}
@@ -61,7 +61,7 @@ func TestEventPreparationErrors(t *testing.T) {
   near,far := duplex.Pipe(1<<20); defer far.Abort()
   sentinel := errors.New("prepare failed")
   options := runtime.Options{Prepare:func(p *runtime.Peer)error{
-   if duplicate { if _,err:=p.Wire().Receive([]string{"changed"},duplex.Receiver{});err!=nil{return err} }
+   if duplicate { if _,err:=p.Wire().Receive([]string{"changed"},duplex.Receiver{Message:func([]string,duplex.Message){}});err!=nil{return err} }
    bind,err:=binding.FromWire(ctx,p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
    if _,err=bind(protocol.Client{Methods:clientHandler{},Events:initialEvents{func(protocol.Payload){}}});err!=nil{return err}
    return sentinel
@@ -85,7 +85,7 @@ for (const mounted of [false,true]) {
   return () => {};
  }};
  const peer = new DuplexPeer();
- const wire=mounted?at(mount({view:peer.wire()}),['view']):peer.wire();
+ const wire=mounted?at(mount(new Map([['view',peer.wire()]])),['view']):peer.wire();
  const bind=await fromWire(wire,{});
  bind({methods:{reverse:p=>p},events:{changed:data=>{seen=data;}}});
  await peer.attach(connection);

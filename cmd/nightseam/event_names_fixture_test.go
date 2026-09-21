@@ -47,7 +47,7 @@ for (const mounted of [false,true]) {
  let receive!: (value: string) => void;
  const delivered = new Promise<string>(resolve => { receive = resolve; });
  const events: ClientEvents = {textChanged: receive};
- const wire=mounted?at(mount({nested:peer.wire()}),['nested']):peer.wire();
+ const wire=mounted?at(mount(new Map([['nested',peer.wire()]])),['nested']):peer.wire();
  const bind=await fromWire(wire,{});
  bind({methods:{},events});
  const connection: FrameConnection = {state:'open', buffered:0, send() {}, close() {}, listen(listener) {
@@ -83,7 +83,7 @@ func TestEventWireName(t *testing.T) {
     wire:=peer.Wire();if mounted{wire=duplex.At(duplex.Mount(map[string]duplex.Wire{"nested":wire}),[]string{"nested"})}
     bind,err:=binding.FromWire(ctx,wire,runtime.AdapterContext{});if err!=nil{return err}
     if _,err=bind(protocol.Client{Methods:struct{}{},Events:events{received}});err!=nil{return err}
-    if _,err=wire.Receive([]string{"to_string"},duplex.Receiver{});err==nil{return fmt.Errorf("typed event was not installed")}
+    if _,err=wire.Receive([]string{"to_string"},duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return fmt.Errorf("typed event was not installed")}
     return nil
    }}
    if err := far.Send(ctx,duplex.Frame{Kind:duplex.Text,Data:[]byte("{\"version\":1,\"kind\":\"event\",\"event\":\"9:to_string\",\"data\":\"first\"}")}); err != nil { t.Fatal(err) }
