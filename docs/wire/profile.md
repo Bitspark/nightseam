@@ -176,7 +176,8 @@ handshake 30. Each bound is one option under one name in both languages,
 the way the observer's events are one name in both — [the
 peer](../runtime/peer.md#options-and-limits) tables them.
 
-A physical carrier write and an inbound event consumer are **paced for one
+A public Peer sender waiting for output capacity, a physical carrier write
+and an inbound event consumer are **paced for one
 write deadline** (10 seconds); a consumer that still has not drained is
 disconnected ([queues are paced for one
 deadline](../decisions/queues-are-paced-for-one-deadline.md)). Structured
