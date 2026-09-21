@@ -132,6 +132,7 @@ pairing.
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
+| `python` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `swift` | 4 | ✓ | — 64 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 

@@ -93,6 +93,7 @@ The input side: the tier files, the tool, and what comes out.
 | --- | --- |
 | [tiers.md](languages/tiers.md) | languages, profiles and tiers: the four promises, the profiles the conformance suite holds them to, which tier guarantees what and when, how the suite enforces it |
 | [onboarding.md](languages/onboarding.md) | how a language joins: the lanes in order, the testee, what a language promises before it is in the table |
+| [python.md](languages/python.md) | Python 3.11+, installing the source or wheel, using an asyncio peer and checking the installed distribution |
 
 ## Why it is this way — `decisions/`
 
