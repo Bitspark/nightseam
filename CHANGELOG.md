@@ -8,14 +8,22 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
-- Give each language testee build its own bounded deadline.
+- Conformance build commands own their process trees and stop descendants on
+  cancellation or parent exit, retaining failure output without an unbounded
+  wait for inherited output pipes.
 - The Java WebSocket transport finishes its bounded close handshake before
   publishing closure, and the peer's terminal winner owns the transport action.
+- The Java peer preserves a transport's explicit close when its read or write
+  waiter resumes before the separate closure notification is published.
+- Give each language testee build its own bounded deadline.
 - The generated composition fixture waits for worker completion before
   asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
+- Go and TypeScript peer Wires retain canceled handlers in their concurrency
+  budget until their application bodies finish, including caller and receiver
+  deadlines. Caller cancellation still returns promptly and reaches the handler.
 
 ### Clarified
 
@@ -72,6 +80,9 @@ are one number. Entries are in the words of the commits that landed them.
   with validated document examples, pipe pairs and smoke checks of method
   inputs, results and public errors across local and carrier presentations.
 
+- Haskell enters at tier 4 with bounded pipes and WebSockets, the native peer,
+  relative-path Wires and strict shared-table validation, held against Go in
+  both roles and by an outside source-distribution consumer.
 - Rust enters at tier 4 with bounded pipe and WebSocket connections, the
   duplex peer, schema validation, declaration identity, and relative-path
   Wire composition. Its private testee runs the shared core scenarios in

@@ -60,6 +60,14 @@ type wireDispatchContext struct {
 	frame         frame
 	panic         func(any)
 	maxFrameBytes int64
+	completion    *wireCompletion
+}
+
+// Only a local handler can supply the cause of its cancellation. Serialized
+// public errors, even one named cancelled, retain their ordinary error outcome.
+type wireCompletion struct {
+	mu           sync.Mutex
+	cancellation error
 }
 
 // An event has no reply or request lifetime. Its local capability only retains
@@ -517,6 +525,14 @@ func (w *replyWire) Send(path []string, message duplex.Message) error {
 	r := pendingResult{result: message.Frame.Result}
 	if f := message.Frame.Error; f != nil {
 		r.err = &PublicError{Code: f.Code, Message: f.Message, Data: f.Data}
+		if f.Code == "cancelled" && w.dispatch != nil && w.dispatch.ctx.Err() != nil && w.dispatch.completion != nil {
+			completion := w.dispatch.completion
+			completion.mu.Lock()
+			if completion.cancellation != nil {
+				r.err = completion.cancellation
+			}
+			completion.mu.Unlock()
+		}
 	}
 	select {
 	case <-w.done:
@@ -572,6 +588,11 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
+	if dispatch != nil {
+		copied := *dispatch
+		copied.completion = &wireCompletion{}
+		dispatch = &copied
+	}
 	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch}
 	defer returning.Close(duplex.CodeNormal, "")
 	address := &duplex.ReturnAddress{Wire: returning}
@@ -595,6 +616,12 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	finish(err)
 	if cancelRemote {
 		_ = wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: returning.id, Traceparent: trace.Parent, Tracestate: trace.State}, Return: address})
+		if dispatch != nil {
+			// This waiter is the carrier's admitted handler, not the outgoing
+			// caller. Cancellation reaches the body immediately, but its slot
+			// remains occupied until the receiver actually finishes its work.
+			_, err = awaitReply(context.WithoutCancel(ctx), returning.reply, returning.done, func() error { return ErrClosed }, result)
+		}
 	}
 	return err
 }
@@ -745,6 +772,11 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 				data, marshalErr := MarshalJSON(result)
 				if err == nil {
 					err = marshalErr
+				}
+				if dispatch != nil && dispatch.completion != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+					dispatch.completion.mu.Lock()
+					dispatch.completion.cancellation = err
+					dispatch.completion.mu.Unlock()
 				}
 				finish(sendWireResponse(message, data, WithoutUnpublishedProof(err)))
 			}()

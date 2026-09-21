@@ -13,6 +13,10 @@ conformance/.out/
 conformance/*/.generated/
 secrets/
 .worktrees/
+.stack-work/
+dist-newstyle/
+*.hi
+*.o
 target/
 .build/
 .venv/
