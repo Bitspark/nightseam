@@ -96,10 +96,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("shift",input);
   const before=seen.get("shift")??0;
-  const actual = await outcome(() => remote.methods.shift(input as Parameters<typeof remote.methods.shift>[0], options.callContext as Parameters<typeof remote.methods.shift>[1]));
+  const actual = await outcome(() => remote.methods.shift(input as Protocol.Shift, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("shift")??0)<=before)throw new Error("shift: model was not reached");
-  const expected = await outcome(() => direct.methods.shift(input as Parameters<typeof remote.methods.shift>[0], options.callContext as Parameters<typeof remote.methods.shift>[1]));
+  const expected = await outcome(() => direct.methods.shift(input as Protocol.Shift, options.callContext as WireModelContext));
   await compare("shift", expected, actual, options.equal);
   }
   {
@@ -111,10 +111,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("relieve: requires an equal observer for live values");
   inputs.set("relieve",input);
   const before=seen.get("relieve")??0;
-  const actual = await outcome(() => remote.methods.relieve(input as Parameters<typeof remote.methods.relieve>[0], options.callContext as Parameters<typeof remote.methods.relieve>[1]));
+  const actual = await outcome(() => remote.methods.relieve(input as Protocol.RelieveRequest, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("relieve")??0)<=before)throw new Error("relieve: model was not reached");
-  const expected = await outcome(() => direct.methods.relieve(input as Parameters<typeof remote.methods.relieve>[0], options.callContext as Parameters<typeof remote.methods.relieve>[1]));
+  const expected = await outcome(() => direct.methods.relieve(input as Protocol.RelieveRequest, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("relieve", expected, actual, options.equal);
   }
   {
@@ -126,10 +126,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("watch: requires an equal observer for live values");
   inputs.set("watch",input);
   const before=seen.get("watch")??0;
-  const actual = await outcome(() => remote.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));
+  const actual = await outcome(() => remote.methods.watch(input as Protocol.Watch, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("watch")??0)<=before)throw new Error("watch: model was not reached");
-  const expected = await outcome(() => direct.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));
+  const expected = await outcome(() => direct.methods.watch(input as Protocol.Watch, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("watch", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

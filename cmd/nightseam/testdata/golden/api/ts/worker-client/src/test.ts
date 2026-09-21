@@ -101,10 +101,10 @@ export async function smoke(model: Protocol.ClientModel, opposite: Protocol.Serv
   if (!options.equal) throw new Error("supervise: requires an equal observer for live values");
   inputs.set("supervise",input);
   const before=seen.get("supervise")??0;
-  const actual = await outcome(() => remote.methods.supervise(input as Parameters<typeof remote.methods.supervise>[0], options.callContext as Parameters<typeof remote.methods.supervise>[1]));
+  const actual = await outcome(() => remote.methods.supervise(input as Protocol.Supervise, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("supervise")??0)<=before)throw new Error("supervise: model was not reached");
-  const expected = await outcome(() => direct.methods.supervise(input as Parameters<typeof remote.methods.supervise>[0], options.callContext as Parameters<typeof remote.methods.supervise>[1]));
+  const expected = await outcome(() => direct.methods.supervise(input as Protocol.Supervise, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("supervise", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

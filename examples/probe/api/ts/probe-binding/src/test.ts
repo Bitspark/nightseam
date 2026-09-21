@@ -96,10 +96,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("echo",input);
   const before=seen.get("echo")??0;
-  const actual = await outcome(() => remote.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const actual = await outcome(() => remote.methods.echo(input as Protocol.Payload, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("echo")??0)<=before)throw new Error("echo: model was not reached");
-  const expected = await outcome(() => direct.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const expected = await outcome(() => direct.methods.echo(input as Protocol.Payload, options.callContext as WireModelContext));
   await compare("echo", expected, actual, options.equal);
   }
   {
@@ -111,10 +111,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("watch: requires an equal observer for live values");
   inputs.set("watch",input);
   const before=seen.get("watch")??0;
-  const actual = await outcome(() => remote.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));
+  const actual = await outcome(() => remote.methods.watch(input as Protocol.Watch, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("watch")??0)<=before)throw new Error("watch: model was not reached");
-  const expected = await outcome(() => direct.methods.watch(input as Parameters<typeof remote.methods.watch>[0], options.callContext as Parameters<typeof remote.methods.watch>[1]));
+  const expected = await outcome(() => direct.methods.watch(input as Protocol.Watch, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("watch", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

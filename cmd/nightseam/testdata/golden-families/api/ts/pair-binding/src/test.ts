@@ -54,13 +54,13 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<S, T>, options: Options, s: FamilyBinding<S>, t: FamilyBinding<T>): Promise<{ model: Protocol.ServerModel<S, T>; close(): void }> {
-  const wire = toWire<S, T>(model, options.context ?? {}, s, t);
+export async function pair<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<S, T>, options: Options, binding_s: FamilyBinding<S>, binding_t: FamilyBinding<T>): Promise<{ model: Protocol.ServerModel<S, T>; close(): void }> {
+  const wire = toWire<S, T>(model, options.context ?? {}, binding_s, binding_t);
   let close = once(() => wire.close(1000, ''));
   try {
   const view = await (options.presentation ?? pipe)(wire);
   const rootClose = close; close = once(() => { try { view.close(); } finally { rootClose(); } });
-  const prepared = prepareFromWire<S, T>(view.wire, options.remoteContext ?? {}, s, t);
+  const prepared = prepareFromWire<S, T>(view.wire, options.remoteContext ?? {}, binding_s, binding_t);
   const viewClose = close; close = once(() => { try { prepared.close(); } finally { viewClose(); } });
   return { model: await prepared.complete(options.callContext), close };
   } catch (error) { close(); throw error; }
@@ -74,8 +74,8 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<S, T>, opposite: Protocol.Client<S, T>, options: Options, s: FamilyBinding<S>, t: FamilyBinding<T>): Promise<void> {
-  const bindings = {s, t};
+export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<S, T>, opposite: Protocol.Client<S, T>, options: Options, binding_s: FamilyBinding<S>, binding_t: FamilyBinding<T>): Promise<void> {
+  const bindings = {s: binding_s, t: binding_t};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ServerModel<S, T> = remote => { const value=model(remote);
   if(!hasMethod(value?.methods,"named"))throw new Error("model method named is required");
@@ -84,7 +84,7 @@ export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily
   async named(input,context) { const key="named"; seen.set(key,(seen.get(key)??0)+1); const tracked=inputs.has(key),expected=inputs.get(key);inputs.delete(key); if(tracked)try { await compare("named.request",{ok:true,value:expected},{ok:true,value:input},options.equal); } catch(error){inputError=error;throw error;} return value.methods.named(input,context); },
   async relay(input,context) { const key="relay"; seen.set(key,(seen.get(key)??0)+1); const tracked=inputs.has(key),expected=inputs.get(key);inputs.delete(key); if(tracked)try { await compare("relay.request",{ok:true,value:expected},{ok:true,value:input},options.equal); } catch(error){inputError=error;throw error;} return value.methods.relay(input,context); },
   } }; };
-  const prepared = await pair<S, T>(observed, options, s, t);
+  const prepared = await pair<S, T>(observed, options, binding_s, binding_t);
   try {
   const remote = prepared.model(opposite); const direct = model(opposite);
   {
@@ -95,10 +95,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily
   }
   inputs.set("named",input);
   const before=seen.get("named")??0;
-  const actual = await outcome(() => remote.methods.named(input as Parameters<typeof remote.methods.named>[0], options.callContext as Parameters<typeof remote.methods.named>[1]));
+  const actual = await outcome(() => remote.methods.named(input as Protocol.Named, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("named")??0)<=before)throw new Error("named: model was not reached");
-  const expected = await outcome(() => direct.methods.named(input as Parameters<typeof remote.methods.named>[0], options.callContext as Parameters<typeof remote.methods.named>[1]));
+  const expected = await outcome(() => direct.methods.named(input as Protocol.Named, options.callContext as WireModelContext));
   await compare("named", expected, actual, options.equal);
   }
   {
@@ -109,10 +109,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, T extends AnyFamily
   }
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
-  const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
+  const actual = await outcome(() => remote.methods.relay(input as T["Envelope"], options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("relay")??0)<=before)throw new Error("relay: model was not reached");
-  const expected = await outcome(() => direct.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
+  const expected = await outcome(() => direct.methods.relay(input as T["Envelope"], options.callContext as WireModelContext));
   await compare("relay", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

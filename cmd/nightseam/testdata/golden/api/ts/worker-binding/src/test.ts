@@ -102,10 +102,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("describe",input);
   const before=seen.get("describe")??0;
-  const actual = await outcome(() => remote.methods.describe(input as Parameters<typeof remote.methods.describe>[0], options.callContext as Parameters<typeof remote.methods.describe>[1]));
+  const actual = await outcome(() => remote.methods.describe(input as Protocol.Ticket, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("describe")??0)<=before)throw new Error("describe: model was not reached");
-  const expected = await outcome(() => direct.methods.describe(input as Parameters<typeof remote.methods.describe>[0], options.callContext as Parameters<typeof remote.methods.describe>[1]));
+  const expected = await outcome(() => direct.methods.describe(input as Protocol.Ticket, options.callContext as WireModelContext));
   await compare("describe", expected, actual, options.equal);
   }
   {
@@ -117,10 +117,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("start: requires an equal observer for live values");
   inputs.set("start",input);
   const before=seen.get("start")??0;
-  const actual = await outcome(() => remote.methods.start(input as Parameters<typeof remote.methods.start>[0], options.callContext as Parameters<typeof remote.methods.start>[1]));
+  const actual = await outcome(() => remote.methods.start(input as Protocol.Start, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("start")??0)<=before)throw new Error("start: model was not reached");
-  const expected = await outcome(() => direct.methods.start(input as Parameters<typeof remote.methods.start>[0], options.callContext as Parameters<typeof remote.methods.start>[1]));
+  const expected = await outcome(() => direct.methods.start(input as Protocol.Start, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("start", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

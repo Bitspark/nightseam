@@ -95,10 +95,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("echo",input);
   const before=seen.get("echo")??0;
-  const actual = await outcome(() => remote.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const actual = await outcome(() => remote.methods.echo(input as Protocol.Payload, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("echo")??0)<=before)throw new Error("echo: model was not reached");
-  const expected = await outcome(() => direct.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const expected = await outcome(() => direct.methods.echo(input as Protocol.Payload, options.callContext as WireModelContext));
   await compare("echo", expected, actual, options.equal);
   }
   {
@@ -108,10 +108,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("no_args",input);
   const before=seen.get("no_args")??0;
-  const actual = await outcome(() => remote.methods.noArgs(input as Parameters<typeof remote.methods.noArgs>[0], options.callContext as Parameters<typeof remote.methods.noArgs>[1]));
+  const actual = await outcome(() => remote.methods.noArgs(input as Record<string, never>, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("no_args")??0)<=before)throw new Error("no_args: model was not reached");
-  const expected = await outcome(() => direct.methods.noArgs(input as Parameters<typeof remote.methods.noArgs>[0], options.callContext as Parameters<typeof remote.methods.noArgs>[1]));
+  const expected = await outcome(() => direct.methods.noArgs(input as Record<string, never>, options.callContext as WireModelContext));
   await compare("no_args", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

@@ -101,10 +101,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("name",input);
   const before=seen.get("name")??0;
-  const actual = await outcome(() => remote.methods.name(input as Parameters<typeof remote.methods.name>[0], options.callContext as Parameters<typeof remote.methods.name>[1]));
+  const actual = await outcome(() => remote.methods.name(input as Record<string, never>, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("name")??0)<=before)throw new Error("name: model was not reached");
-  const expected = await outcome(() => direct.methods.name(input as Parameters<typeof remote.methods.name>[0], options.callContext as Parameters<typeof remote.methods.name>[1]));
+  const expected = await outcome(() => direct.methods.name(input as Record<string, never>, options.callContext as WireModelContext));
   await compare("name", expected, actual, options.equal);
   }
   {
@@ -116,10 +116,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("pack: requires an equal observer for live values");
   inputs.set("pack",input);
   const before=seen.get("pack")??0;
-  const actual = await outcome(() => remote.methods.pack(input as Parameters<typeof remote.methods.pack>[0], options.callContext as Parameters<typeof remote.methods.pack>[1]));
+  const actual = await outcome(() => remote.methods.pack(input as boxes.Box<Protocol.Unary>, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("pack")??0)<=before)throw new Error("pack: model was not reached");
-  const expected = await outcome(() => direct.methods.pack(input as Parameters<typeof remote.methods.pack>[0], options.callContext as Parameters<typeof remote.methods.pack>[1]));
+  const expected = await outcome(() => direct.methods.pack(input as boxes.Box<Protocol.Unary>, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("pack", expected, actual, options.equal);
   }
   {
@@ -131,10 +131,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   if (!options.equal) throw new Error("toolkit: requires an equal observer for live values");
   inputs.set("toolkit",input);
   const before=seen.get("toolkit")??0;
-  const actual = await outcome(() => remote.methods.toolkit(input as Parameters<typeof remote.methods.toolkit>[0], options.callContext as Parameters<typeof remote.methods.toolkit>[1]));
+  const actual = await outcome(() => remote.methods.toolkit(input as Protocol.ToolkitRequest, options.callContext as WireModelContext & { valueContext: unknown }));
   if(inputError!==undefined)throw inputError;
   if((seen.get("toolkit")??0)<=before)throw new Error("toolkit: model was not reached");
-  const expected = await outcome(() => direct.methods.toolkit(input as Parameters<typeof remote.methods.toolkit>[0], options.callContext as Parameters<typeof remote.methods.toolkit>[1]));
+  const expected = await outcome(() => direct.methods.toolkit(input as Protocol.ToolkitRequest, options.callContext as WireModelContext & { valueContext: unknown }));
   await compare("toolkit", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

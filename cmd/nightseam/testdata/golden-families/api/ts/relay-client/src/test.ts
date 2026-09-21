@@ -53,13 +53,13 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<S extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S>, options: Options, s: FamilyBinding<S>): Promise<{ model: Protocol.ClientModel<S>; close(): void }> {
-  const wire = toWire<S>(model, options.context ?? {}, s);
+export async function pair<S extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S>, options: Options, binding_s: FamilyBinding<S>): Promise<{ model: Protocol.ClientModel<S>; close(): void }> {
+  const wire = toWire<S>(model, options.context ?? {}, binding_s);
   let close = once(() => wire.close(1000, ''));
   try {
   const view = await (options.presentation ?? pipe)(wire);
   const rootClose = close; close = once(() => { try { view.close(); } finally { rootClose(); } });
-  const prepared = prepareFromWire<S>(view.wire, options.remoteContext ?? {}, s);
+  const prepared = prepareFromWire<S>(view.wire, options.remoteContext ?? {}, binding_s);
   const viewClose = close; close = once(() => { try { prepared.close(); } finally { viewClose(); } });
   return { model: await prepared.complete(options.callContext), close };
   } catch (error) { close(); throw error; }
@@ -70,13 +70,13 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<S extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S>, opposite: Protocol.Server<S>, options: Options, s: FamilyBinding<S>): Promise<void> {
-  const bindings = {s};
+export async function smoke<S extends AnyFamily = AnyFamily>(model: Protocol.ClientModel<S>, opposite: Protocol.Server<S>, options: Options, binding_s: FamilyBinding<S>): Promise<void> {
+  const bindings = {s: binding_s};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ClientModel<S> = remote => { const value=model(remote);
   return { ...value, methods: {
   } }; };
-  const prepared = await pair<S>(observed, options, s);
+  const prepared = await pair<S>(observed, options, binding_s);
   try {
   const remote = prepared.model(opposite); const direct = model(opposite);
   } finally { prepared.close(); }

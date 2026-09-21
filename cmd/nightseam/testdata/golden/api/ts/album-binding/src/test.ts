@@ -55,13 +55,13 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, options: Options, a: FamilyBinding<A>, b: FamilyBinding<B>): Promise<{ model: Protocol.ServerModel<A, B>; close(): void }> {
-  const wire = toWire<A, B>(model, options.context ?? {}, a, b);
+export async function pair<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<{ model: Protocol.ServerModel<A, B>; close(): void }> {
+  const wire = toWire<A, B>(model, options.context ?? {}, binding_a, binding_b);
   let close = once(() => wire.close(1000, ''));
   try {
   const view = await (options.presentation ?? pipe)(wire);
   const rootClose = close; close = once(() => { try { view.close(); } finally { rootClose(); } });
-  const prepared = prepareFromWire<A, B>(view.wire, options.remoteContext ?? {}, a, b);
+  const prepared = prepareFromWire<A, B>(view.wire, options.remoteContext ?? {}, binding_a, binding_b);
   const viewClose = close; close = once(() => { try { prepared.close(); } finally { viewClose(); } });
   return { model: await prepared.complete(options.callContext), close };
   } catch (error) { close(); throw error; }
@@ -75,15 +75,15 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, opposite: Protocol.Client<A, B>, options: Options, a: FamilyBinding<A>, b: FamilyBinding<B>): Promise<void> {
-  const bindings = {a, b};
+export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily = AnyFamily>(model: Protocol.ServerModel<A, B>, opposite: Protocol.Client<A, B>, options: Options, binding_a: FamilyBinding<A>, binding_b: FamilyBinding<B>): Promise<void> {
+  const bindings = {a: binding_a, b: binding_b};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ServerModel<A, B> = remote => { const value=model(remote);
   if(!hasMethod(value?.methods,"look"))throw new Error("model method look is required");
   return { ...value, methods: {
   async look(input,context) { const key="look"; seen.set(key,(seen.get(key)??0)+1); const tracked=inputs.has(key),expected=inputs.get(key);inputs.delete(key); if(tracked)try { await compare("look.request",{ok:true,value:expected},{ok:true,value:input},options.equal); } catch(error){inputError=error;throw error;} return value.methods.look(input,context); },
   } }; };
-  const prepared = await pair<A, B>(observed, options, a, b);
+  const prepared = await pair<A, B>(observed, options, binding_a, binding_b);
   try {
   const remote = prepared.model(opposite); const direct = model(opposite);
   {
@@ -94,10 +94,10 @@ export async function smoke<A extends AnyFamily = AnyFamily, B extends AnyFamily
   }
   inputs.set("look",input);
   const before=seen.get("look")??0;
-  const actual = await outcome(() => remote.methods.look(input as Parameters<typeof remote.methods.look>[0], options.callContext as Parameters<typeof remote.methods.look>[1]));
+  const actual = await outcome(() => remote.methods.look(input as Protocol.Mine<A>, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("look")??0)<=before)throw new Error("look: model was not reached");
-  const expected = await outcome(() => direct.methods.look(input as Parameters<typeof remote.methods.look>[0], options.callContext as Parameters<typeof remote.methods.look>[1]));
+  const expected = await outcome(() => direct.methods.look(input as Protocol.Mine<A>, options.callContext as WireModelContext));
   await compare("look", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

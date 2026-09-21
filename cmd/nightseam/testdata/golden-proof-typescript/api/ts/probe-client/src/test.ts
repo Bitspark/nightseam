@@ -93,10 +93,10 @@ export async function smoke(model: Protocol.ClientModel, opposite: Protocol.Serv
   }
   inputs.set("reverse",input);
   const before=seen.get("reverse")??0;
-  const actual = await outcome(() => remote.methods.reverse(input as Parameters<typeof remote.methods.reverse>[0], options.callContext as Parameters<typeof remote.methods.reverse>[1]));
+  const actual = await outcome(() => remote.methods.reverse(input as Protocol.Payload, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("reverse")??0)<=before)throw new Error("reverse: model was not reached");
-  const expected = await outcome(() => direct.methods.reverse(input as Parameters<typeof remote.methods.reverse>[0], options.callContext as Parameters<typeof remote.methods.reverse>[1]));
+  const expected = await outcome(() => direct.methods.reverse(input as Protocol.Payload, options.callContext as WireModelContext));
   await compare("reverse", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

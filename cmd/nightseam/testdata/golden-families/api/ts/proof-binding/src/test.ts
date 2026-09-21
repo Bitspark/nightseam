@@ -54,13 +54,13 @@ async function compare(method:string,expected:Outcome,actual:Outcome,equal:Optio
  if(canonical(expected.value)!==canonical(actual.value))throw new Error(method+': direct and round-trip results differ');
 }
 
-export async function pair<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, options: Options, s: FamilyBinding<S>, item: ValueAdapter<Item>): Promise<{ model: Protocol.ServerModel<S, Item>; close(): void }> {
-  const wire = toWire<S, Item>(model, options.context ?? {}, s, item);
+export async function pair<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, options: Options, binding_s: FamilyBinding<S>, binding_item: ValueAdapter<Item>): Promise<{ model: Protocol.ServerModel<S, Item>; close(): void }> {
+  const wire = toWire<S, Item>(model, options.context ?? {}, binding_s, binding_item);
   let close = once(() => wire.close(1000, ''));
   try {
   const view = await (options.presentation ?? pipe)(wire);
   const rootClose = close; close = once(() => { try { view.close(); } finally { rootClose(); } });
-  const prepared = prepareFromWire<S, Item>(view.wire, options.remoteContext ?? {}, s, item);
+  const prepared = prepareFromWire<S, Item>(view.wire, options.remoteContext ?? {}, binding_s, binding_item);
   const viewClose = close; close = once(() => { try { prepared.close(); } finally { viewClose(); } });
   return { model: await prepared.complete(options.callContext), close };
   } catch (error) { close(); throw error; }
@@ -82,8 +82,8 @@ const examples: Readonly<Record<string, { raw?: string; reason?: string }>> = {
 /** A fresh documented data witness, validated by the caller's exact value adapter. */
 export function example<T>(name: string, adapter: ValueAdapter<T>): T { const value = Object.prototype.hasOwnProperty.call(examples,name) ? examples[name] : undefined; if (!value) throw new Error('unknown example '+name); if (value.reason || adapter.needsContext) throw new Error('example '+name+' unavailable: '+(value.reason || 'an acquiring adapter needs a native witness')); return adapter.import(undefined, JSON.parse(value.raw!)); }
 /** Exercise every method on two fresh equivalent models; missing evidence is an error. */
-export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, opposite: Protocol.Client<S, Item>, options: Options, s: FamilyBinding<S>, item: ValueAdapter<Item>): Promise<void> {
-  const bindings = {s, item};
+export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(model: Protocol.ServerModel<S, Item>, opposite: Protocol.Client<S, Item>, options: Options, binding_s: FamilyBinding<S>, binding_item: ValueAdapter<Item>): Promise<void> {
+  const bindings = {s: binding_s, item: binding_item};
   const inputs = new Map<string,unknown>(); const seen = new Map<string,number>(); let inputError: unknown;
   const observed: Protocol.ServerModel<S, Item> = remote => { const value=model(remote);
   if(!hasMethod(value?.methods,"echo"))throw new Error("model method echo is required");
@@ -100,7 +100,7 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   async parts(input,context) { const key="parts"; seen.set(key,(seen.get(key)??0)+1); const tracked=inputs.has(key),expected=inputs.get(key);inputs.delete(key); if(tracked)try { await compare("parts.request",{ok:true,value:expected},{ok:true,value:input},options.equal); } catch(error){inputError=error;throw error;} return value.methods.parts(input,context); },
   async relay(input,context) { const key="relay"; seen.set(key,(seen.get(key)??0)+1); const tracked=inputs.has(key),expected=inputs.get(key);inputs.delete(key); if(tracked)try { await compare("relay.request",{ok:true,value:expected},{ok:true,value:input},options.equal); } catch(error){inputError=error;throw error;} return value.methods.relay(input,context); },
   } }; };
-  const prepared = await pair<S, Item>(observed, options, s, item);
+  const prepared = await pair<S, Item>(observed, options, binding_s, binding_item);
   try {
   const remote = prepared.model(opposite); const direct = model(opposite);
   {
@@ -111,10 +111,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   }
   inputs.set("echo",input);
   const before=seen.get("echo")??0;
-  const actual = await outcome(() => remote.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const actual = await outcome(() => remote.methods.echo(input as probe.Payload, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("echo")??0)<=before)throw new Error("echo: model was not reached");
-  const expected = await outcome(() => direct.methods.echo(input as Parameters<typeof remote.methods.echo>[0], options.callContext as Parameters<typeof remote.methods.echo>[1]));
+  const expected = await outcome(() => direct.methods.echo(input as probe.Payload, options.callContext as WireModelContext));
   await compare("echo", expected, actual, options.equal);
   }
   {
@@ -124,10 +124,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   }
   inputs.set("no_args",input);
   const before=seen.get("no_args")??0;
-  const actual = await outcome(() => remote.methods.noArgs(input as Parameters<typeof remote.methods.noArgs>[0], options.callContext as Parameters<typeof remote.methods.noArgs>[1]));
+  const actual = await outcome(() => remote.methods.noArgs(input as Record<string, never>, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("no_args")??0)<=before)throw new Error("no_args: model was not reached");
-  const expected = await outcome(() => direct.methods.noArgs(input as Parameters<typeof remote.methods.noArgs>[0], options.callContext as Parameters<typeof remote.methods.noArgs>[1]));
+  const expected = await outcome(() => direct.methods.noArgs(input as Record<string, never>, options.callContext as WireModelContext));
   await compare("no_args", expected, actual, options.equal);
   }
   {
@@ -138,10 +138,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   }
   inputs.set("classify",input);
   const before=seen.get("classify")??0;
-  const actual = await outcome(() => remote.methods.classify(input as Parameters<typeof remote.methods.classify>[0], options.callContext as Parameters<typeof remote.methods.classify>[1]));
+  const actual = await outcome(() => remote.methods.classify(input as Protocol.Part, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("classify")??0)<=before)throw new Error("classify: model was not reached");
-  const expected = await outcome(() => direct.methods.classify(input as Parameters<typeof remote.methods.classify>[0], options.callContext as Parameters<typeof remote.methods.classify>[1]));
+  const expected = await outcome(() => direct.methods.classify(input as Protocol.Part, options.callContext as WireModelContext));
   await compare("classify", expected, actual, options.equal);
   }
   {
@@ -152,10 +152,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   }
   inputs.set("classify_rich",input);
   const before=seen.get("classify_rich")??0;
-  const actual = await outcome(() => remote.methods.classifyRich(input as Parameters<typeof remote.methods.classifyRich>[0], options.callContext as Parameters<typeof remote.methods.classifyRich>[1]));
+  const actual = await outcome(() => remote.methods.classifyRich(input as Protocol.RichPart, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("classify_rich")??0)<=before)throw new Error("classify_rich: model was not reached");
-  const expected = await outcome(() => direct.methods.classifyRich(input as Parameters<typeof remote.methods.classifyRich>[0], options.callContext as Parameters<typeof remote.methods.classifyRich>[1]));
+  const expected = await outcome(() => direct.methods.classifyRich(input as Protocol.RichPart, options.callContext as WireModelContext));
   await compare("classify_rich", expected, actual, options.equal);
   }
   {
@@ -166,10 +166,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   }
   inputs.set("parts",input);
   const before=seen.get("parts")??0;
-  const actual = await outcome(() => remote.methods.parts(input as Parameters<typeof remote.methods.parts>[0], options.callContext as Parameters<typeof remote.methods.parts>[1]));
+  const actual = await outcome(() => remote.methods.parts(input as Protocol.PartsRequest, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("parts")??0)<=before)throw new Error("parts: model was not reached");
-  const expected = await outcome(() => direct.methods.parts(input as Parameters<typeof remote.methods.parts>[0], options.callContext as Parameters<typeof remote.methods.parts>[1]));
+  const expected = await outcome(() => direct.methods.parts(input as Protocol.PartsRequest, options.callContext as WireModelContext));
   await compare("parts", expected, actual, options.equal);
   }
   {
@@ -181,10 +181,10 @@ export async function smoke<S extends AnyFamily = AnyFamily, Item = unknown>(mod
   if (!options.equal && ((bindings.item.needsContext))) throw new Error("relay: requires an equal observer for live values");
   inputs.set("relay",input);
   const before=seen.get("relay")??0;
-  const actual = await outcome(() => remote.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
+  const actual = await outcome(() => remote.methods.relay(input as Protocol.Carried<S, Item>, options.callContext as ValueContext<Protocol.Carried<S, Item> | Protocol.Option<Protocol.Envelope>, WireModelContext>));
   if(inputError!==undefined)throw inputError;
   if((seen.get("relay")??0)<=before)throw new Error("relay: model was not reached");
-  const expected = await outcome(() => direct.methods.relay(input as Parameters<typeof remote.methods.relay>[0], options.callContext as Parameters<typeof remote.methods.relay>[1]));
+  const expected = await outcome(() => direct.methods.relay(input as Protocol.Carried<S, Item>, options.callContext as ValueContext<Protocol.Carried<S, Item> | Protocol.Option<Protocol.Envelope>, WireModelContext>));
   await compare("relay", expected, actual, options.equal);
   }
   } finally { prepared.close(); }

@@ -139,10 +139,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("events.list",input);
   const before=seen.get("events.list")??0;
-  const actual = await outcome(() => remote.methods.listEvents(input as Parameters<typeof remote.methods.listEvents>[0], options.callContext as Parameters<typeof remote.methods.listEvents>[1]));
+  const actual = await outcome(() => remote.methods.listEvents(input as Protocol.ListEventsParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("events.list")??0)<=before)throw new Error("events.list: model was not reached");
-  const expected = await outcome(() => direct.methods.listEvents(input as Parameters<typeof remote.methods.listEvents>[0], options.callContext as Parameters<typeof remote.methods.listEvents>[1]));
+  const expected = await outcome(() => direct.methods.listEvents(input as Protocol.ListEventsParams, options.callContext as WireModelContext));
   await compare("events.list", expected, actual, options.equal);
   }
   {
@@ -152,10 +152,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("me",input);
   const before=seen.get("me")??0;
-  const actual = await outcome(() => remote.methods.me(input as Parameters<typeof remote.methods.me>[0], options.callContext as Parameters<typeof remote.methods.me>[1]));
+  const actual = await outcome(() => remote.methods.me(input as Record<string, never>, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("me")??0)<=before)throw new Error("me: model was not reached");
-  const expected = await outcome(() => direct.methods.me(input as Parameters<typeof remote.methods.me>[0], options.callContext as Parameters<typeof remote.methods.me>[1]));
+  const expected = await outcome(() => direct.methods.me(input as Record<string, never>, options.callContext as WireModelContext));
   await compare("me", expected, actual, options.equal);
   }
   {
@@ -166,10 +166,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("projects.create",input);
   const before=seen.get("projects.create")??0;
-  const actual = await outcome(() => remote.methods.createProject(input as Parameters<typeof remote.methods.createProject>[0], options.callContext as Parameters<typeof remote.methods.createProject>[1]));
+  const actual = await outcome(() => remote.methods.createProject(input as Protocol.CreateProjectParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("projects.create")??0)<=before)throw new Error("projects.create: model was not reached");
-  const expected = await outcome(() => direct.methods.createProject(input as Parameters<typeof remote.methods.createProject>[0], options.callContext as Parameters<typeof remote.methods.createProject>[1]));
+  const expected = await outcome(() => direct.methods.createProject(input as Protocol.CreateProjectParams, options.callContext as WireModelContext));
   await compare("projects.create", expected, actual, options.equal);
   }
   {
@@ -180,10 +180,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("projects.list",input);
   const before=seen.get("projects.list")??0;
-  const actual = await outcome(() => remote.methods.listProjects(input as Parameters<typeof remote.methods.listProjects>[0], options.callContext as Parameters<typeof remote.methods.listProjects>[1]));
+  const actual = await outcome(() => remote.methods.listProjects(input as Protocol.ListProjectsParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("projects.list")??0)<=before)throw new Error("projects.list: model was not reached");
-  const expected = await outcome(() => direct.methods.listProjects(input as Parameters<typeof remote.methods.listProjects>[0], options.callContext as Parameters<typeof remote.methods.listProjects>[1]));
+  const expected = await outcome(() => direct.methods.listProjects(input as Protocol.ListProjectsParams, options.callContext as WireModelContext));
   await compare("projects.list", expected, actual, options.equal);
   }
   {
@@ -194,10 +194,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("projects.update",input);
   const before=seen.get("projects.update")??0;
-  const actual = await outcome(() => remote.methods.updateProject(input as Parameters<typeof remote.methods.updateProject>[0], options.callContext as Parameters<typeof remote.methods.updateProject>[1]));
+  const actual = await outcome(() => remote.methods.updateProject(input as Protocol.UpdateProjectParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("projects.update")??0)<=before)throw new Error("projects.update: model was not reached");
-  const expected = await outcome(() => direct.methods.updateProject(input as Parameters<typeof remote.methods.updateProject>[0], options.callContext as Parameters<typeof remote.methods.updateProject>[1]));
+  const expected = await outcome(() => direct.methods.updateProject(input as Protocol.UpdateProjectParams, options.callContext as WireModelContext));
   await compare("projects.update", expected, actual, options.equal);
   }
   {
@@ -208,10 +208,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("subscribe",input);
   const before=seen.get("subscribe")??0;
-  const actual = await outcome(() => remote.methods.subscribe(input as Parameters<typeof remote.methods.subscribe>[0], options.callContext as Parameters<typeof remote.methods.subscribe>[1]));
+  const actual = await outcome(() => remote.methods.subscribe(input as Protocol.SubscribeParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("subscribe")??0)<=before)throw new Error("subscribe: model was not reached");
-  const expected = await outcome(() => direct.methods.subscribe(input as Parameters<typeof remote.methods.subscribe>[0], options.callContext as Parameters<typeof remote.methods.subscribe>[1]));
+  const expected = await outcome(() => direct.methods.subscribe(input as Protocol.SubscribeParams, options.callContext as WireModelContext));
   await compare("subscribe", expected, actual, options.equal);
   }
   {
@@ -222,10 +222,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.cancel",input);
   const before=seen.get("work.cancel")??0;
-  const actual = await outcome(() => remote.methods.cancelWorkItem(input as Parameters<typeof remote.methods.cancelWorkItem>[0], options.callContext as Parameters<typeof remote.methods.cancelWorkItem>[1]));
+  const actual = await outcome(() => remote.methods.cancelWorkItem(input as Protocol.CancelWorkItemParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.cancel")??0)<=before)throw new Error("work.cancel: model was not reached");
-  const expected = await outcome(() => direct.methods.cancelWorkItem(input as Parameters<typeof remote.methods.cancelWorkItem>[0], options.callContext as Parameters<typeof remote.methods.cancelWorkItem>[1]));
+  const expected = await outcome(() => direct.methods.cancelWorkItem(input as Protocol.CancelWorkItemParams, options.callContext as WireModelContext));
   await compare("work.cancel", expected, actual, options.equal);
   }
   {
@@ -236,10 +236,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.create",input);
   const before=seen.get("work.create")??0;
-  const actual = await outcome(() => remote.methods.createWorkItem(input as Parameters<typeof remote.methods.createWorkItem>[0], options.callContext as Parameters<typeof remote.methods.createWorkItem>[1]));
+  const actual = await outcome(() => remote.methods.createWorkItem(input as Protocol.CreateWorkItemParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.create")??0)<=before)throw new Error("work.create: model was not reached");
-  const expected = await outcome(() => direct.methods.createWorkItem(input as Parameters<typeof remote.methods.createWorkItem>[0], options.callContext as Parameters<typeof remote.methods.createWorkItem>[1]));
+  const expected = await outcome(() => direct.methods.createWorkItem(input as Protocol.CreateWorkItemParams, options.callContext as WireModelContext));
   await compare("work.create", expected, actual, options.equal);
   }
   {
@@ -250,10 +250,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.dependencies",input);
   const before=seen.get("work.dependencies")??0;
-  const actual = await outcome(() => remote.methods.setDependencies(input as Parameters<typeof remote.methods.setDependencies>[0], options.callContext as Parameters<typeof remote.methods.setDependencies>[1]));
+  const actual = await outcome(() => remote.methods.setDependencies(input as Protocol.SetDependenciesParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.dependencies")??0)<=before)throw new Error("work.dependencies: model was not reached");
-  const expected = await outcome(() => direct.methods.setDependencies(input as Parameters<typeof remote.methods.setDependencies>[0], options.callContext as Parameters<typeof remote.methods.setDependencies>[1]));
+  const expected = await outcome(() => direct.methods.setDependencies(input as Protocol.SetDependenciesParams, options.callContext as WireModelContext));
   await compare("work.dependencies", expected, actual, options.equal);
   }
   {
@@ -264,10 +264,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.get",input);
   const before=seen.get("work.get")??0;
-  const actual = await outcome(() => remote.methods.getWorkItem(input as Parameters<typeof remote.methods.getWorkItem>[0], options.callContext as Parameters<typeof remote.methods.getWorkItem>[1]));
+  const actual = await outcome(() => remote.methods.getWorkItem(input as Protocol.GetWorkItemParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.get")??0)<=before)throw new Error("work.get: model was not reached");
-  const expected = await outcome(() => direct.methods.getWorkItem(input as Parameters<typeof remote.methods.getWorkItem>[0], options.callContext as Parameters<typeof remote.methods.getWorkItem>[1]));
+  const expected = await outcome(() => direct.methods.getWorkItem(input as Protocol.GetWorkItemParams, options.callContext as WireModelContext));
   await compare("work.get", expected, actual, options.equal);
   }
   {
@@ -278,10 +278,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.list",input);
   const before=seen.get("work.list")??0;
-  const actual = await outcome(() => remote.methods.listWorkItems(input as Parameters<typeof remote.methods.listWorkItems>[0], options.callContext as Parameters<typeof remote.methods.listWorkItems>[1]));
+  const actual = await outcome(() => remote.methods.listWorkItems(input as Protocol.ListWorkItemsParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.list")??0)<=before)throw new Error("work.list: model was not reached");
-  const expected = await outcome(() => direct.methods.listWorkItems(input as Parameters<typeof remote.methods.listWorkItems>[0], options.callContext as Parameters<typeof remote.methods.listWorkItems>[1]));
+  const expected = await outcome(() => direct.methods.listWorkItems(input as Protocol.ListWorkItemsParams, options.callContext as WireModelContext));
   await compare("work.list", expected, actual, options.equal);
   }
   {
@@ -292,10 +292,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.publish",input);
   const before=seen.get("work.publish")??0;
-  const actual = await outcome(() => remote.methods.publishSpecification(input as Parameters<typeof remote.methods.publishSpecification>[0], options.callContext as Parameters<typeof remote.methods.publishSpecification>[1]));
+  const actual = await outcome(() => remote.methods.publishSpecification(input as Protocol.PublishSpecificationParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.publish")??0)<=before)throw new Error("work.publish: model was not reached");
-  const expected = await outcome(() => direct.methods.publishSpecification(input as Parameters<typeof remote.methods.publishSpecification>[0], options.callContext as Parameters<typeof remote.methods.publishSpecification>[1]));
+  const expected = await outcome(() => direct.methods.publishSpecification(input as Protocol.PublishSpecificationParams, options.callContext as WireModelContext));
   await compare("work.publish", expected, actual, options.equal);
   }
   {
@@ -306,10 +306,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.reopen",input);
   const before=seen.get("work.reopen")??0;
-  const actual = await outcome(() => remote.methods.reopenWorkItem(input as Parameters<typeof remote.methods.reopenWorkItem>[0], options.callContext as Parameters<typeof remote.methods.reopenWorkItem>[1]));
+  const actual = await outcome(() => remote.methods.reopenWorkItem(input as Protocol.ReopenWorkItemParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.reopen")??0)<=before)throw new Error("work.reopen: model was not reached");
-  const expected = await outcome(() => direct.methods.reopenWorkItem(input as Parameters<typeof remote.methods.reopenWorkItem>[0], options.callContext as Parameters<typeof remote.methods.reopenWorkItem>[1]));
+  const expected = await outcome(() => direct.methods.reopenWorkItem(input as Protocol.ReopenWorkItemParams, options.callContext as WireModelContext));
   await compare("work.reopen", expected, actual, options.equal);
   }
   {
@@ -320,10 +320,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.steps",input);
   const before=seen.get("work.steps")??0;
-  const actual = await outcome(() => remote.methods.setSteps(input as Parameters<typeof remote.methods.setSteps>[0], options.callContext as Parameters<typeof remote.methods.setSteps>[1]));
+  const actual = await outcome(() => remote.methods.setSteps(input as Protocol.SetStepsParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.steps")??0)<=before)throw new Error("work.steps: model was not reached");
-  const expected = await outcome(() => direct.methods.setSteps(input as Parameters<typeof remote.methods.setSteps>[0], options.callContext as Parameters<typeof remote.methods.setSteps>[1]));
+  const expected = await outcome(() => direct.methods.setSteps(input as Protocol.SetStepsParams, options.callContext as WireModelContext));
   await compare("work.steps", expected, actual, options.equal);
   }
   {
@@ -334,10 +334,10 @@ export async function smoke(model: Protocol.ServerModel, opposite: Protocol.Clie
   }
   inputs.set("work.update",input);
   const before=seen.get("work.update")??0;
-  const actual = await outcome(() => remote.methods.updateWorkItem(input as Parameters<typeof remote.methods.updateWorkItem>[0], options.callContext as Parameters<typeof remote.methods.updateWorkItem>[1]));
+  const actual = await outcome(() => remote.methods.updateWorkItem(input as Protocol.UpdateWorkItemParams, options.callContext as WireModelContext));
   if(inputError!==undefined)throw inputError;
   if((seen.get("work.update")??0)<=before)throw new Error("work.update: model was not reached");
-  const expected = await outcome(() => direct.methods.updateWorkItem(input as Parameters<typeof remote.methods.updateWorkItem>[0], options.callContext as Parameters<typeof remote.methods.updateWorkItem>[1]));
+  const expected = await outcome(() => direct.methods.updateWorkItem(input as Protocol.UpdateWorkItemParams, options.callContext as WireModelContext));
   await compare("work.update", expected, actual, options.equal);
   }
   } finally { prepared.close(); }
