@@ -1,0 +1,189 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	cellbinding "example.test/generated/api/go/cell-binding"
+	cell "example.test/generated/api/go/cell-protocol"
+	"fmt"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"github.com/Bitspark/nightseam/tunnel/go"
+	"sync"
+)
+
+// One model implementation serves every value slot and every presentation.
+// Carrier construction is outside this state machine and its generated adapter.
+type wireCell[T any] struct {
+	mu     sync.Mutex
+	value  T
+	puts   int64
+	remote cell.Client[T]
+	noted  chan T
+}
+
+func (c *wireCell[T]) Put(_ context.Context, params cell.PutParams[T]) (int64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.value = params.Value
+	c.puts++
+	return c.puts, nil
+}
+func (c *wireCell[T]) Get(context.Context) (T, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.value, nil
+}
+func (c *wireCell[T]) RoundTrip(ctx context.Context, params cell.PutParams[T]) (T, error) {
+	value, err := c.remote.Methods.Mirror(ctx, params)
+	if err == nil {
+		err = c.remote.Events.Changed(ctx, cell.PutParams[T]{Value: value})
+	}
+	return value, err
+}
+
+type wireNoted[T any] struct{ values chan T }
+
+func (e wireNoted[T]) Noted(_ context.Context, params cell.PutParams[T]) error {
+	e.values <- params.Value
+	return nil
+}
+
+type wireChanged[T any] struct{ values chan T }
+
+func (e wireChanged[T]) Changed(_ context.Context, params cell.PutParams[T]) error {
+	e.values <- params.Value
+	return nil
+}
+
+type wireMirror[T any] struct{}
+
+func (wireMirror[T]) Mirror(_ context.Context, params cell.PutParams[T]) (T, error) {
+	return params.Value, nil
+}
+
+type wireAllocations struct {
+	Peers    int `json:"peers"`
+	Channels int `json:"channels"`
+}
+type wireAllocationObserver struct {
+	mu     sync.Mutex
+	counts wireAllocations
+}
+
+func (o *wireAllocationObserver) Observe(event runtime.ObserverEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	switch event.(type) {
+	case runtime.ConnectionOpened:
+		o.counts.Peers++
+	case tunnel.ChannelOpened:
+		o.counts.Channels++
+	}
+}
+func (o *wireAllocationObserver) snapshot() wireAllocations {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.counts
+}
+func (a wireAllocations) since(before wireAllocations) wireAllocations {
+	return wireAllocations{a.Peers - before.Peers, a.Channels - before.Channels}
+}
+
+func wirePresentation(root duplex.Wire, presentation string, options runtime.Options) (duplex.Wire, func(), error) {
+	switch presentation {
+	case "local":
+		return root, func() {}, nil
+	case "mounted":
+		mounted := duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"leaf": root})})
+		return duplex.At(mounted, []string{"outer", "leaf"}), func() { _ = mounted.Close(1000, "") }, nil
+	case "forwarded":
+		left, right, err := runtime.NewWirePair(options)
+		if err != nil {
+			return nil, nil, err
+		}
+		presented := duplex.At(duplex.Mount(map[string]duplex.Wire{"outer": duplex.Mount(map[string]duplex.Wire{"leaf": root})}), []string{"outer", "leaf"})
+		detach, err := runtime.ForwardWire(left, presented)
+		if err != nil {
+			_ = left.Close(1000, "")
+			_ = right.Close(1000, "")
+			return nil, nil, err
+		}
+		return right, func() { detach(); _ = left.Close(1000, ""); _ = right.Close(1000, "") }, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown wire presentation %s", presentation)
+	}
+}
+
+func wireScalar(ctx context.Context, presentation string) (any, error) {
+	observer := &wireAllocationObserver{}
+	options := runtime.Options{Observer: observer}
+	environment := live.AdapterContext{AdapterContext: runtime.AdapterContext{Options: options}}
+	implementation := &wireCell[string]{noted: make(chan string, 4)}
+	adapter := live.JSONAdapter[string]()
+	wire, err := cellbinding.ToWire(func(remote cell.Client[string]) (cell.Server[string], error) {
+		implementation.remote = remote
+		return cell.Server[string]{Methods: implementation, Events: wireNoted[string]{implementation.noted}}, nil
+	}, environment, adapter)
+	if err != nil {
+		return nil, err
+	}
+	defer wire.Close(1000, "")
+	baseline := observer.snapshot()
+	selected, cleanup, err := wirePresentation(wire, presentation, options)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	model, err := cellbinding.FromWire(ctx, selected, environment, adapter)
+	if err != nil {
+		return nil, err
+	}
+	changed := make(chan string, 4)
+	access, err := model(cell.Client[string]{Methods: wireMirror[string]{}, Events: wireChanged[string]{changed}})
+	if err != nil {
+		return nil, err
+	}
+	views := observer.snapshot()
+	first, err := access.Methods.Put(ctx, cell.PutParams[string]{Value: "first"})
+	if err != nil {
+		return nil, err
+	}
+	second, err := access.Methods.Put(ctx, cell.PutParams[string]{Value: "second"})
+	if err != nil {
+		return nil, err
+	}
+	value, err := access.Methods.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reverse, err := access.Methods.RoundTrip(ctx, cell.PutParams[string]{Value: value})
+	if err != nil {
+		return nil, err
+	}
+	if err = access.Events.Noted(ctx, cell.PutParams[string]{Value: "first"}); err != nil {
+		return nil, err
+	}
+	var change, note string
+	select {
+	case change = <-changed:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	select {
+	case note = <-implementation.noted:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return map[string]any{"revisions": []int64{first, second}, "value": value, "reverse": reverse, "changed": change, "noted": note, "view_allocations": views.since(baseline), "use_allocations": observer.snapshot().since(views)}, nil
+}
+func (t *testee) wireDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	switch op {
+	case "gen.wire_local":
+		return wireScalar(ctx, str(raw, "presentation"))
+	}
+	return nil, fail("unsupported", "no wire operation %s", op)
+}
