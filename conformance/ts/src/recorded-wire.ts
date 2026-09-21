@@ -249,7 +249,7 @@ async function headCase(wait: Wait, before: boolean): Promise<unknown> {
   const late = new Presentation(store);
   const followers: Follower[] = [];
   try {
-    const source = at(mount(new Map([['record', store]])), ['record']);
+    const source = at(store, []);
     for (let value = 1; value <= 3; value++) source.send(['tick'], message(value));
     if (before) source.send(['tick'], message(4));
     const attached = store.attach(0, first.wire, 2, true);

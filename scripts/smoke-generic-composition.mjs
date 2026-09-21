@@ -64,7 +64,7 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
     const directory = realpathSync(join(search, "node_modules", name));
     assert(directory.startsWith(realpathSync(consumer) + (process.platform === "win32" ? "\\" : "/")), `${name}: dependency resolved outside the packed consumer`);
     const installed = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
-    if (name === "@bitspark/bitwire") assert.equal(installed.version, "0.1.0");
+    if (name === "@bitspark/bitwire") assert.equal(installed.version, "0.2.0");
     pending.push(...Object.keys(installed.dependencies ?? {}).map(name => ({ name, from: directory })));
   }
   assert.deepEqual(visited, allowed, "scalar generic dependency closure omitted a required package");
@@ -82,7 +82,7 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   assert.equal(resolved.Replace, undefined, "generic consumer resolved through a Go replace");
   assert(resolved.Dir.startsWith(go.GOMODCACHE), "generic consumer resolved outside its isolated Go module cache");
   const shared = JSON.parse(run("go", ["list", "-m", "-json", "github.com/Bitspark/bitwire"], { cwd: consumer, env: go }));
-  assert.equal(shared.Version, "v0.1.0");
+  assert.equal(shared.Version, "v0.2.0");
   assert.equal(shared.Replace, undefined, "shared contract resolved through a Go replace");
   assert(shared.Dir.startsWith(go.GOMODCACHE), "shared contract resolved outside the isolated public module cache");
 
