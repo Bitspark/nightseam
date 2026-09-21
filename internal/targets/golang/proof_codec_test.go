@@ -73,6 +73,7 @@ func TestProofAndBuiltinGoFamiliesCompileAndCommunicate(t *testing.T) {
 const proofGoProgram = `package proof_test
 import (
  "context"
+ "errors"
  "testing"
  "time"
  binding "example.test/proof/api/go/proof-binding"
@@ -109,11 +110,17 @@ func TestMixedParametersAndInheritedOperations(t *testing.T) {
  relayed,err:=c.Methods.Relay(ctx,protocol.Carried[probe.Envelope,probe.Handle,string]{Message:probe.Envelope{Version:1,Kind:"event"},Back:runtime.Null[probe.Handle](),Page:protocol.Page[string]{Items:[]string{"item"}}})
  if err!=nil || relayed.Some==nil || relayed.Some.Value.Kind!="event" { t.Fatalf("relay: %#v %v",relayed,err) }
 }
-func TestBaseClientSpeaksExtendedBinding(t *testing.T) {
+func TestBaseClientRefusesExtendedBinding(t *testing.T) {
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel()
  wire,err:=binding.ToWire[probe.Envelope,probe.Handle,string](model,runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
- factory,err:=probebinding.FromWire(ctx,wire,runtime.AdapterContext{});if err!=nil{t.Fatal(err)}
- c,err:=factory(probe.Client{Methods:reverse{}});if err!=nil{t.Fatal(err)}
- result,err:=c.Methods.Echo(ctx,probe.Payload{Text:"base"}); if err!=nil || result.Text!="base" { t.Fatalf("base client: %#v %v",result,err) }
+ base,err:=probebinding.FromWire(ctx,wire,runtime.AdapterContext{})
+ var public *runtime.PublicError
+ if base!=nil || !errors.As(err,&public) || public.Code!="contract_mismatch" { t.Fatalf("cross-family interpretation: %v",err) }
+ // A refused interpretation leaves the wire available to its own family.
+ factory,err:=binding.FromWire[probe.Envelope,probe.Handle,string](ctx,wire,runtime.AdapterContext{},runtime.JSONAdapter[string]());if err!=nil{t.Fatal(err)}
+ events:=make(chan probe.Payload,1)
+ c,err:=factory(protocol.Client[probe.Envelope,probe.Handle,string]{Methods:reverse{},Events:receiver{values:events}});if err!=nil{t.Fatal(err)}
+ result,err:=c.Methods.Echo(ctx,probe.Payload{Text:"inherited"}); if err!=nil || result.Text!="inherited" { t.Fatalf("inherited method: %#v %v",result,err) }
+ select {case event:=<-events: if event.Text!="inherited" { t.Fatal(event) }; case <-ctx.Done(): t.Fatal(ctx.Err())}
 }
 `
