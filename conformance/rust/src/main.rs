@@ -1,6 +1,9 @@
 //! Private driver: control the public Rust components, retaining payload bytes.
+mod recorded_wire;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use nightseam::{Call, Context, Options, Payload, Peer, PublicError, Role, Subscription};
+use nightseam::{
+    Call, Context, DeclarationIdentity, Options, Payload, Peer, PublicError, Role, Subscription,
+};
 use nightseam_duplex::{Close, Frame, SharedConnection, pipe, ws};
 use serde::Deserialize;
 use serde_json::{Value, json, value::RawValue};
@@ -289,6 +292,11 @@ impl Driver {
                 self.objects.clear();
                 Ok(json!({}))
             }
+            "peer.recorded_wire_witness" => {
+                recorded_wire::witness(Duration::from_millis(r.number("within_ms", 5000)?))
+                    .await
+                    .map_err(public)
+            }
             "conn.pipe" => {
                 let (a, b) = pipe(r.number("limit", 1 << 20)? as usize);
                 let lazy = r.get::<String>("consume")?.as_deref() == Some("lazy");
@@ -435,6 +443,26 @@ impl Driver {
                 };
                 let peer = Peer::over(conn.conn.clone(), role, options(r)?).map_err(public)?;
                 Ok(json!({"handle":self.mint(Object::Peer(ControlledPeer::new(peer)))}))
+            }
+            "peer.identity" => {
+                let identity = DeclarationIdentity {
+                    path: r.string("path")?,
+                    digest: r.get("digest")?,
+                };
+                self.peer(r)?.peer.identity(identity).map_err(public)?;
+                Ok(json!({}))
+            }
+            "peer.check_identity" => {
+                let identity = DeclarationIdentity {
+                    path: r.string("path")?,
+                    digest: r.get("digest")?,
+                };
+                self.peer(r)?
+                    .peer
+                    .check_identity(Context::default(), identity)
+                    .await
+                    .map_err(public)?;
+                Ok(json!({}))
             }
             "peer.handle" => {
                 let peer = self.peer(r)?;

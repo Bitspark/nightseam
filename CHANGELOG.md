@@ -29,6 +29,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Rust enters at tier 4 with bounded pipe and WebSocket connections, the
+  duplex peer, schema validation, declaration identity, and relative-path
+  Wire composition. Its private testee runs the shared core scenarios in
+  both roles against Go; packaged crates are held by an outside WebSocket
+  consumer, with Cargo checks and version lockstep in the release gates.
 - Generated Go and TypeScript families expose the canonical declaration and its
   SHA-256 digest, covering operations, events, errors and reachable imported
   declarations. Bound arguments retain their own declaration content and scope.
