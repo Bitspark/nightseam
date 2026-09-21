@@ -96,7 +96,9 @@ export function importFrame<S extends AnyFamily = AnyFamily>(raw: unknown, conve
 }
 
 const contractTypes = {"types":{"Both":{"kind":"record","fields":[{"name":"frame","type":"Frame","required":true},{"name":"echoes","type":{"array":"Echo"},"required":true}]},"Echo":{"kind":"record","fields":[{"name":"heard","type":"T.Envelope","required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Frame":{"kind":"record","fields":[{"name":"message","type":"S.Envelope","required":true},{"name":"back","type":"S.Handle","required":true}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Named":{"kind":"record","fields":[{"name":"held","type":"probe.Envelope","required":true}]}},"parameters":[{"name":"S","of":"protocol"},{"name":"T","of":"protocol"}]} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "e7fd983e8e8ae7b35ee962f69a83b8f8e37ef1cfc65afa5fd31de14c7f14f8c6";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, { "probe": validate_probe });
+export const validateWire = createValidator(contractTypes, wireDigest, { "probe": validate_probe });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "pair", validate: validateWire } as const;

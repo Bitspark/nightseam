@@ -268,7 +268,7 @@ func ExportCancel(owner *live.Owner, v Cancel) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Cancel: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractCancel, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractCancel, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			return nil, v(ctx)
@@ -289,7 +289,7 @@ func ImportCancel(owner *live.Owner, raw json.RawMessage) (Cancel, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractCancel)
+	invoke, err := owner.Import(reference, ContractCancel, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -555,7 +555,7 @@ func ExportRename(owner *live.Owner, v Rename) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Rename: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractRename, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractRename, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Ticket\""), request); err != nil {
@@ -601,7 +601,7 @@ func ImportRename(owner *live.Owner, raw json.RawMessage) (Rename, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractRename)
+	invoke, err := owner.Import(reference, ContractRename, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -652,7 +652,7 @@ func ExportReport(owner *live.Owner, v Report) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Report: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractReport, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractReport, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Percent\""), request); err != nil {
@@ -687,7 +687,7 @@ func ImportReport(owner *live.Owner, raw json.RawMessage) (Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractReport)
+	invoke, err := owner.Import(reference, ContractReport, WireDigest())
 	if err != nil {
 		return nil, err
 	}

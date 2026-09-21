@@ -29,7 +29,7 @@ export function install<S extends AnyFamily = AnyFamily>(peer: DuplexPeer, s: Fa
   if (!handler) throw new Error('handler is required');
   if (typeof handler.relay !== 'function') throw new Error("handler for relay is required");
   const remote = new Remote<S>(peer, s);
-  peer.handle("relay", async (params, context) => { try { validateWire("Carried", params, '$', remote.slots); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.relay(params as Protocol.Carried<S>, remote, context); validateWire("S.Envelope", result, '$', remote.slots); return result; });
+  peer.handle("relay", async (params, context) => { try { validateWire("Carried", params, '$', remote.slots); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.relay(params as Protocol.Carried<S>, remote, context); validateWire("S.Envelope", result, '$', remote.slots); return result; });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

@@ -198,7 +198,7 @@ func ExportNotice(owner *live.Owner, v Notice) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Notice: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractNotice, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractNotice, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Payload\""), request); err != nil {
@@ -233,7 +233,7 @@ func ImportNotice(owner *live.Owner, raw json.RawMessage) (Notice, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractNotice)
+	invoke, err := owner.Import(reference, ContractNotice, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func ExportStop(owner *live.Owner, v Stop) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Stop: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractStop, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractStop, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			return nil, v(ctx)
@@ -291,7 +291,7 @@ func ImportStop(owner *live.Owner, raw json.RawMessage) (Stop, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractStop)
+	invoke, err := owner.Import(reference, ContractStop, WireDigest())
 	if err != nil {
 		return nil, err
 	}

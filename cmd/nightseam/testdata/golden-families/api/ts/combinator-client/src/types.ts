@@ -107,7 +107,7 @@ export const contractFactory = "combinator/Factory";
 export function exportFactory(owner: LiveOwner, value: Factory): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractFactory, async (request, options) => {
+    const reference = owner.export(contractFactory, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Unary", request);
@@ -120,7 +120,7 @@ export function exportFactory(owner: LiveOwner, value: Factory): unknown {
 }
 /** A Factory that calls the binding a reference names. */
 export function importFactory(owner: LiveOwner, raw: unknown): Factory {
-  const invoke = owner.import(owner.scope.decode(raw), contractFactory);
+  const invoke = owner.import(owner.scope.decode(raw), contractFactory, wireDigest);
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -135,7 +135,7 @@ export const contractProducer = "combinator/Producer";
 export function exportProducer(owner: LiveOwner, value: Producer): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractProducer, async (request, options) => {
+    const reference = owner.export(contractProducer, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       const result = await value(context);
@@ -146,7 +146,7 @@ export function exportProducer(owner: LiveOwner, value: Producer): unknown {
 }
 /** A Producer that calls the binding a reference names. */
 export function importProducer(owner: LiveOwner, raw: unknown): Producer {
-  const invoke = owner.import(owner.scope.decode(raw), contractProducer);
+  const invoke = owner.import(owner.scope.decode(raw), contractProducer, wireDigest);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -161,7 +161,7 @@ export const contractSink = "combinator/Sink";
 export function exportSink(owner: LiveOwner, value: Sink): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractSink, async (request, options) => {
+    const reference = owner.export(contractSink, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Unary", request);
@@ -174,7 +174,7 @@ export function exportSink(owner: LiveOwner, value: Sink): unknown {
 }
 /** A Sink that calls the binding a reference names. */
 export function importSink(owner: LiveOwner, raw: unknown): Sink {
-  const invoke = owner.import(owner.scope.decode(raw), contractSink);
+  const invoke = owner.import(owner.scope.decode(raw), contractSink, wireDigest);
   const scope = owner.scope;
   return async (request: Unary, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -209,7 +209,7 @@ export const contractUnary = "combinator/Unary";
 export function exportUnary(owner: LiveOwner, value: Unary): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractUnary, async (request, options) => {
+    const reference = owner.export(contractUnary, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Count", request);
@@ -222,7 +222,7 @@ export function exportUnary(owner: LiveOwner, value: Unary): unknown {
 }
 /** A Unary that calls the binding a reference names. */
 export function importUnary(owner: LiveOwner, raw: unknown): Unary {
-  const invoke = owner.import(owner.scope.decode(raw), contractUnary);
+  const invoke = owner.import(owner.scope.decode(raw), contractUnary, wireDigest);
   const scope = owner.scope;
   return async (request: Count, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -233,7 +233,9 @@ export function importUnary(owner: LiveOwner, raw: unknown): Unary {
 }
 
 const contractTypes = {"types":{"Bundle":{"kind":"record","fields":[{"name":"metadata","type":{"kind":"record","fields":[{"name":"seed","type":"T","required":true}]},"required":true},{"name":"run","type":"Unary","required":true}],"parameters":[{"name":"T"}]},"Count":{"kind":"alias","type":"integer"},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Factory":{"kind":"callable","contract":"combinator/Factory","request":"Unary","result":"Unary"},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Producer":{"kind":"callable","contract":"combinator/Producer","result":"Unary"},"Sink":{"kind":"callable","contract":"combinator/Sink","request":"Unary"},"Toolkit":{"kind":"record","fields":[{"name":"twice","type":"Factory","required":true},{"name":"identity","type":"Producer","required":true},{"name":"apply","type":"Sink","required":true}]},"Unary":{"kind":"callable","contract":"combinator/Unary","request":"Count","result":"Count"}}} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "be0900855e894625d265fa3b6fb6fc2e0b750a0223394996ca7a21f475beb9c7";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, { "boxes": validate_boxes });
+export const validateWire = createValidator(contractTypes, wireDigest, { "boxes": validate_boxes });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "combinator", validate: validateWire } as const;

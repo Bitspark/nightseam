@@ -33,7 +33,7 @@ export function install<A extends AnyFamily = AnyFamily, B extends AnyFamily = A
   if (!handler) throw new Error('handler is required');
   if (typeof handler.look !== 'function') throw new Error("handler for look is required");
   const remote = new Remote<A, B>(peer, a, b);
-  peer.handle("look", async (params, context) => { try { validateWire("Mine", params, '$', remote.slots); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.look(params as Protocol.Mine<A>, remote, context); validateWire("Both", result, '$', remote.slots); return result; });
+  peer.handle("look", async (params, context) => { try { validateWire("Mine", params, '$', remote.slots); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.look(params as Protocol.Mine<A>, remote, context); validateWire("Both", result, '$', remote.slots); return result; });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

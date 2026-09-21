@@ -4,6 +4,7 @@ package albumbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/album-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -32,9 +33,17 @@ func install[AEnvelope, BEnvelope any](handler Handler[AEnvelope, BEnvelope], op
 	handlers["look"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Mine[AEnvelope]
 		if err := protocol.WireSchema().Bind(map[string]any{"A.Envelope": runtime.TypeArgument[AEnvelope](), "B.Envelope": runtime.TypeArgument[BEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Mine\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Look(ctx, &Remote[AEnvelope, BEnvelope]{Peer: peer}, params)

@@ -4,6 +4,7 @@ package pairbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/pair-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -33,9 +34,17 @@ func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHand
 	handlers["named"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Named
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Named\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Named(ctx, &Remote[SEnvelope, SHandle, TEnvelope]{Peer: peer}, params)
@@ -53,9 +62,17 @@ func install[SEnvelope, SHandle, TEnvelope any](handler Handler[SEnvelope, SHand
 	handlers["relay"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params TEnvelope
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "T.Envelope": runtime.TypeArgument[TEnvelope]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"T.Envelope\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Relay(ctx, &Remote[SEnvelope, SHandle, TEnvelope]{Peer: peer}, params)

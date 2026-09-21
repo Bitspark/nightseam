@@ -28,8 +28,8 @@ export function install(peer: DuplexPeer, handler: Handler, events: Events = {})
   if (typeof handler.echo !== 'function') throw new Error("handler for echo is required");
   if (typeof handler.noArgs !== 'function') throw new Error("handler for no_args is required");
   const remote = new Remote(peer);
-  peer.handle("echo", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.echo(params as Protocol.Payload, remote, context); validateWire("Payload", result); return result; });
-  peer.handle("no_args", async (params, context) => { try { validateWire({ empty: true }, params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.noArgs(params as Record<string, never>, remote, context); validateWire("string", result); return result; });
+  peer.handle("echo", async (params, context) => { try { validateWire("Payload", params); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.echo(params as Protocol.Payload, remote, context); validateWire("Payload", result); return result; });
+  peer.handle("no_args", async (params, context) => { try { validateWire({ empty: true }, params); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.noArgs(params as Record<string, never>, remote, context); validateWire("string", result); return result; });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

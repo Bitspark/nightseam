@@ -4,6 +4,7 @@ package codexbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/codex-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -51,9 +52,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["echo"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Payload
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"Payload\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Echo(ctx, &Remote{Peer: peer}, params)
@@ -70,6 +79,10 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["no_args"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.NoArgs(ctx, &Remote{Peer: peer})

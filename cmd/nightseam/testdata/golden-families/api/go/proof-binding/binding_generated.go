@@ -4,6 +4,7 @@ package proofbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	probeprotocol "example.test/generated/api/go/probe-protocol"
 	protocol "example.test/generated/api/go/proof-protocol"
 	fmt "fmt"
@@ -42,9 +43,17 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	handlers["echo"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params probeprotocol.Payload
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"probe.Payload\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Echo(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer}, params)
@@ -61,6 +70,10 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	}
 	handlers["no_args"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.NoArgs(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer})
@@ -78,9 +91,17 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	handlers["classify"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Part
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Part\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Classify(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer}, params)
@@ -98,9 +119,17 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	handlers["classify_rich"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.RichPart
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"RichPart\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.ClassifyRich(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer}, params)
@@ -118,9 +147,17 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	handlers["parts"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.PartsRequest
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"after\",\"type\":{\"nullable\":\"string\"},\"required\":false}]}"), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Parts(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer}, params)
@@ -138,9 +175,17 @@ func install[SEnvelope, SHandle, Item any](handler Handler[SEnvelope, SHandle, I
 	handlers["relay"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.Carried[SEnvelope, SHandle, Item]
 		if err := protocol.WireSchema().Bind(map[string]any{"S.Envelope": runtime.TypeArgument[SEnvelope](), "S.Handle": runtime.TypeArgument[SHandle](), "Item": runtime.TypeArgument[Item]()}, nil).ValidateExpressionRaw(protocol.MustTypeExpression("\"Carried\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Relay(ctx, &Remote[SEnvelope, SHandle, Item]{Peer: peer}, params)

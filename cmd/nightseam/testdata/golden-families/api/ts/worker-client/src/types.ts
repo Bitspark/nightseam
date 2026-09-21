@@ -83,7 +83,7 @@ export const contractCancel = "worker/Cancel";
 export function exportCancel(owner: LiveOwner, value: Cancel): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractCancel, async (request, options) => {
+    const reference = owner.export(contractCancel, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       await value(context);
@@ -94,7 +94,7 @@ export function exportCancel(owner: LiveOwner, value: Cancel): unknown {
 }
 /** A Cancel that calls the binding a reference names. */
 export function importCancel(owner: LiveOwner, raw: unknown): Cancel {
-  const invoke = owner.import(owner.scope.decode(raw), contractCancel);
+  const invoke = owner.import(owner.scope.decode(raw), contractCancel, wireDigest);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -168,7 +168,7 @@ export const contractRename = "worker/Rename";
 export function exportRename(owner: LiveOwner, value: Rename): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractRename, async (request, options) => {
+    const reference = owner.export(contractRename, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Ticket", request);
@@ -181,7 +181,7 @@ export function exportRename(owner: LiveOwner, value: Rename): unknown {
 }
 /** A Rename that calls the binding a reference names. */
 export function importRename(owner: LiveOwner, raw: unknown): Rename {
-  const invoke = owner.import(owner.scope.decode(raw), contractRename);
+  const invoke = owner.import(owner.scope.decode(raw), contractRename, wireDigest);
   const scope = owner.scope;
   return async (request: Ticket, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -196,7 +196,7 @@ export const contractReport = "worker/Report";
 export function exportReport(owner: LiveOwner, value: Report): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractReport, async (request, options) => {
+    const reference = owner.export(contractReport, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Percent", request);
@@ -209,7 +209,7 @@ export function exportReport(owner: LiveOwner, value: Report): unknown {
 }
 /** A Report that calls the binding a reference names. */
 export function importReport(owner: LiveOwner, raw: unknown): Report {
-  const invoke = owner.import(owner.scope.decode(raw), contractReport);
+  const invoke = owner.import(owner.scope.decode(raw), contractReport, wireDigest);
   const scope = owner.scope;
   return async (request: Percent, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -281,7 +281,9 @@ export function importWatchers(owner: LiveOwner, raw: unknown): Watchers {
 }
 
 const contractTypes = {"types":{"Cancel":{"kind":"callable","contract":"worker/Cancel"},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Job":{"kind":"record","fields":[{"name":"ticket","type":{"ref":"Ticket"},"required":true},{"name":"cancel","type":"Cancel","required":true},{"name":"rename","type":"Rename","required":false}]},"Outcome":{"kind":"union","tag":"state","variants":{"finished":{"empty":true},"running":"Job"}},"Percent":{"kind":"alias","type":"integer"},"ProgressSink":{"kind":"record","fields":[{"name":"report","type":"Report","required":true}]},"Rename":{"kind":"callable","contract":"worker/Rename","request":"Ticket","result":"Ticket","errors":["gone"]},"Report":{"kind":"callable","contract":"worker/Report","request":"Percent"},"Sinks":{"kind":"alias","type":{"map":"ProgressSink"}},"Start":{"kind":"record","fields":[{"name":"ticket","type":"Ticket","required":true},{"name":"progress","type":"ProgressSink","required":true},{"name":"watchers","type":"Watchers","required":false}]},"Supervise":{"kind":"record","fields":[{"name":"sinks","type":"Sinks","required":true}]},"Ticket":{"kind":"entity","key":"id","fields":[{"name":"id","type":"string","required":true},{"name":"label","type":"string","required":true}]},"Watchers":{"kind":"alias","type":{"array":{"nullable":"Report"}}}}} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "4d47db78adbf50b36bc70d8a951b78cf41185f5f11a9854f572e7ecb8f17f077";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, {  });
+export const validateWire = createValidator(contractTypes, wireDigest, {  });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "worker", validate: validateWire } as const;

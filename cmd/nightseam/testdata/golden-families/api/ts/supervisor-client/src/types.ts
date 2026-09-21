@@ -95,7 +95,9 @@ export function importWatch(owner: LiveOwner, raw: unknown): Watch {
 }
 
 const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Shift":{"kind":"record","fields":[{"name":"name","type":"string","required":true}]},"Watch":{"kind":"record","fields":[{"name":"shift","type":"Shift","required":true},{"name":"sink","type":"worker.ProgressSink","required":true},{"name":"spares","type":{"array":"worker.ProgressSink"},"required":false}]}}} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "1a6675c586988b8fd34c91a5eef591d806533e49042b0b8eae99f4143ec4a75a";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, { "worker": validate_worker });
+export const validateWire = createValidator(contractTypes, wireDigest, { "worker": validate_worker });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "supervisor", validate: validateWire } as const;

@@ -90,7 +90,9 @@ export function importResult<T = unknown>(raw: unknown, convert_T_: (value: unkn
 }
 
 const contractTypes = {"types":{"Batch":{"kind":"alias","type":{"apply":"Page","with":{"T":{"apply":"Result","with":{"T":{"apply":"Box","with":{"T":{"map":{"nullable":"T"}}}}}}}},"parameters":[{"name":"T"}]},"Box":{"kind":"record","fields":[{"name":"item","type":"T","required":true}],"parameters":[{"name":"T"}]},"Choice":{"kind":"union","parameters":[{"name":"T"}],"tag":"kind","variants":{"none":{"empty":true},"some":"T"}},"Page":{"kind":"record","fields":[{"name":"items","type":{"array":"T"},"required":true},{"name":"next","type":{"nullable":"T"},"required":false}],"open":true,"parameters":[{"name":"T"}]},"Result":{"kind":"union","extends":[{"apply":"Choice","with":{"T":"T"}}],"parameters":[{"name":"T"}],"tag":"kind","variants":{"error":"string"}}}} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "3e923c591d603dece044a53281e2612f83259c8c46f41f4a64493a4b84a141d2";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, {  });
+export const validateWire = createValidator(contractTypes, wireDigest, {  });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "boxes", validate: validateWire } as const;

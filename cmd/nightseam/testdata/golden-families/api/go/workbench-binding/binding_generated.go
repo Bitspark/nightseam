@@ -4,6 +4,7 @@ package workbenchbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	protocol "example.test/generated/api/go/workbench-protocol"
 	fmt "fmt"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
@@ -46,9 +47,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["events.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListEventsParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListEventsParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.ListEvents(ctx, &Remote{Peer: peer}, params)
@@ -65,6 +74,10 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["me"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Me(ctx, &Remote{Peer: peer})
@@ -82,9 +95,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["projects.create"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CreateProjectParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateProjectParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.CreateProject(ctx, &Remote{Peer: peer}, params)
@@ -102,9 +123,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["projects.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListProjectsParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListProjectsParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.ListProjects(ctx, &Remote{Peer: peer}, params)
@@ -122,9 +151,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["projects.update"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.UpdateProjectParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateProjectParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.UpdateProject(ctx, &Remote{Peer: peer}, params)
@@ -142,9 +179,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["subscribe"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SubscribeParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SubscribeParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Subscribe(ctx, &Remote{Peer: peer}, params)
@@ -162,9 +207,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.cancel"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CancelWorkItemParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CancelWorkItemParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.CancelWorkItem(ctx, &Remote{Peer: peer}, params)
@@ -182,9 +235,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.create"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.CreateWorkItemParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"CreateWorkItemParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.CreateWorkItem(ctx, &Remote{Peer: peer}, params)
@@ -202,9 +263,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.dependencies"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SetDependenciesParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetDependenciesParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.SetDependencies(ctx, &Remote{Peer: peer}, params)
@@ -222,9 +291,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.get"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.GetWorkItemParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"GetWorkItemParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.GetWorkItem(ctx, &Remote{Peer: peer}, params)
@@ -242,9 +319,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.list"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ListWorkItemsParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ListWorkItemsParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.ListWorkItems(ctx, &Remote{Peer: peer}, params)
@@ -262,9 +347,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.publish"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.PublishSpecificationParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"PublishSpecificationParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.PublishSpecification(ctx, &Remote{Peer: peer}, params)
@@ -282,9 +375,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.reopen"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.ReopenWorkItemParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"ReopenWorkItemParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.ReopenWorkItem(ctx, &Remote{Peer: peer}, params)
@@ -302,9 +403,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.steps"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.SetStepsParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"SetStepsParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.SetSteps(ctx, &Remote{Peer: peer}, params)
@@ -322,9 +431,17 @@ func install(handler Handler, options *runtime.Options) error {
 	handlers["work.update"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		var params protocol.UpdateWorkItemParams
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("\"UpdateWorkItemParams\""), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.UpdateWorkItem(ctx, &Remote{Peer: peer}, params)

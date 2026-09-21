@@ -35,8 +35,8 @@ export function install<S extends AnyFamily = AnyFamily, T extends AnyFamily = A
   if (typeof handler.named !== 'function') throw new Error("handler for named is required");
   if (typeof handler.relay !== 'function') throw new Error("handler for relay is required");
   const remote = new Remote<S, T>(peer, s, t);
-  peer.handle("named", async (params, context) => { try { validateWire("Named", params, '$', remote.slots); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.named(params as Protocol.Named, remote, context); validateWire("Named", result, '$', remote.slots); return result; });
-  peer.handle("relay", async (params, context) => { try { validateWire("T.Envelope", params, '$', remote.slots); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.relay(params as T["Envelope"], remote, context); validateWire("Both", result, '$', remote.slots); return result; });
+  peer.handle("named", async (params, context) => { try { validateWire("Named", params, '$', remote.slots); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.named(params as Protocol.Named, remote, context); validateWire("Named", result, '$', remote.slots); return result; });
+  peer.handle("relay", async (params, context) => { try { validateWire("T.Envelope", params, '$', remote.slots); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.relay(params as T["Envelope"], remote, context); validateWire("Both", result, '$', remote.slots); return result; });
   return remote;
 }
 /** Serves an externally authenticated accepted connection. The returned peer is the caller's to close. */

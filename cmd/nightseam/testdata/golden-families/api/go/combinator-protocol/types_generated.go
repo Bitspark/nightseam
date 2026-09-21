@@ -350,7 +350,7 @@ func ExportFactory(owner *live.Owner, v Factory) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Factory: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractFactory, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractFactory, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
@@ -418,7 +418,7 @@ func ImportFactory(owner *live.Owner, raw json.RawMessage) (Factory, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractFactory)
+	invoke, err := owner.Import(reference, ContractFactory, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +500,7 @@ func ExportProducer(owner *live.Owner, v Producer) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Producer: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractProducer, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractProducer, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			result, err := v(ctx)
@@ -539,7 +539,7 @@ func ImportProducer(owner *live.Owner, raw json.RawMessage) (Producer, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractProducer)
+	invoke, err := owner.Import(reference, ContractProducer, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +603,7 @@ func ExportSink(owner *live.Owner, v Sink) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Sink: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractSink, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractSink, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Unary\""), request); err != nil {
@@ -653,7 +653,7 @@ func ImportSink(owner *live.Owner, raw json.RawMessage) (Sink, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractSink)
+	invoke, err := owner.Import(reference, ContractSink, WireDigest())
 	if err != nil {
 		return nil, err
 	}
@@ -800,7 +800,7 @@ func ExportUnary(owner *live.Owner, v Unary) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Unary: no implementation to export")
 	}
 	return owner.ExportValue(func(owner *live.Owner) (json.RawMessage, error) {
-		reference, err := owner.Export(ContractUnary, func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
+		reference, err := owner.Export(ContractUnary, WireDigest(), func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 			owner := owner.Child()
 			ctx = live.WithOwner(ctx, owner)
 			if err := schema.ValidateExpressionRaw(MustTypeExpression("\"Count\""), request); err != nil {
@@ -846,7 +846,7 @@ func ImportUnary(owner *live.Owner, raw json.RawMessage) (Unary, error) {
 	if err != nil {
 		return nil, err
 	}
-	invoke, err := owner.Import(reference, ContractUnary)
+	invoke, err := owner.Import(reference, ContractUnary, WireDigest())
 	if err != nil {
 		return nil, err
 	}

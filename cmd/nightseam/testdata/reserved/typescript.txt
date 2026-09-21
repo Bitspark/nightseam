@@ -14,6 +14,7 @@ ErrorCode
 errors
 family
 validateWire
+wireDigest
 Protocol
 DuplexPeer
 DuplexError

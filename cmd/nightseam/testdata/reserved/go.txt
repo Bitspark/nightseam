@@ -9,6 +9,7 @@ ValidateExpressionRaw
 ValidateValue
 MustTypeExpression
 WireSchema
+WireDigest
 Errors
 IsError
 Remote

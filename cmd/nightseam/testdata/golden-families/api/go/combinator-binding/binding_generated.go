@@ -4,6 +4,7 @@ package combinatorbinding
 import (
 	context "context"
 	json "encoding/json"
+	errors "errors"
 	boxesprotocol "example.test/generated/api/go/boxes-protocol"
 	protocol "example.test/generated/api/go/combinator-protocol"
 	fmt "fmt"
@@ -38,6 +39,10 @@ func install(handler Handler, options *runtime.Options) error {
 	}
 	handlers["name"] = func(ctx context.Context, peer *runtime.Peer, raw json.RawMessage) (any, error) {
 		if err := protocol.WireSchema().ValidateExpressionRaw(map[string]any{"empty": true}, raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Name(ctx, &Remote{Peer: peer})
@@ -91,6 +96,10 @@ func install(handler Handler, options *runtime.Options) error {
 			return value, nil
 		}()
 		if err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Pack(ctx, &Remote{Peer: peer}, params)
@@ -136,9 +145,17 @@ func install(handler Handler, options *runtime.Options) error {
 		ctx = live.WithOwner(ctx, owner)
 		var params protocol.ToolkitRequest
 		if err := protocol.WireSchema().ValidateExpressionRaw(protocol.MustTypeExpression("{\"kind\":\"record\",\"fields\":[{\"name\":\"seed\",\"type\":\"Count\",\"required\":true}]}"), raw); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		if err := json.Unmarshal(raw, &params); err != nil {
+			var public *runtime.PublicError
+			if errors.As(err, &public) && public.Code == "contract_mismatch" {
+				return nil, err
+			}
 			return nil, &runtime.PublicError{Code: "invalid_params", Message: err.Error()}
 		}
 		result, err := handler.Toolkit(ctx, &Remote{Peer: peer}, params)

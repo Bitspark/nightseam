@@ -57,7 +57,9 @@ export function importCarried<S extends AnyFamily = AnyFamily>(raw: unknown, con
 }
 
 const contractTypes = {"types":{"Carried":{"kind":"record","fields":[{"name":"message","type":"S.Envelope","required":true},{"name":"back","type":{"nullable":"S.Handle"},"required":true}]},"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]}},"parameters":[{"name":"S","of":"live"}]} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "59ac92d6babf0ceac938d0a140d37a76f3dfa323aae61da509b0577c9fd4901d";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, {  });
+export const validateWire = createValidator(contractTypes, wireDigest, {  });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "relay", validate: validateWire } as const;

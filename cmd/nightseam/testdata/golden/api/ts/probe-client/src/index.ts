@@ -27,7 +27,7 @@ export class Client implements Caller {
   constructor(peer: DuplexPeer, handler: Handler | undefined, events: Events) {
     this.peer = peer;
     if (!handler) throw new Error('reverse-call handler is required');
-    peer.handle("reverse", async (params, context) => { try { validateWire("Payload", params); } catch(error) { throw new DuplexError('invalid_params', String(error)); } const result = await handler.reverse(params as Protocol.Payload, context); validateWire("Payload", result); return result; });
+    peer.handle("reverse", async (params, context) => { try { validateWire("Payload", params); } catch(error) { if (error instanceof DuplexError && error.code === 'contract_mismatch') throw error; throw new DuplexError('invalid_params', String(error)); } const result = await handler.reverse(params as Protocol.Payload, context); validateWire("Payload", result); return result; });
     if (events.changed) this.onChanged(events.changed);
   }
   /** Connects to a WebSocket endpoint and speaks the family over it. */

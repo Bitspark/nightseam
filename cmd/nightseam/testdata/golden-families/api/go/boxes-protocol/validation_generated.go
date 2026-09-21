@@ -6,10 +6,13 @@ import (
 )
 
 // schema is the family's wire description, as the runtime validates it; a type of another family is validated by that family's own validator.
-var schema = runtime.MustSchema("{\"types\":{\"Batch\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Page\",\"with\":{\"T\":{\"apply\":\"Result\",\"with\":{\"T\":{\"apply\":\"Box\",\"with\":{\"T\":{\"map\":{\"nullable\":\"T\"}}}}}}}},\"parameters\":[{\"name\":\"T\"}]},\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"item\",\"type\":\"T\",\"required\":true}],\"parameters\":[{\"name\":\"T\"}]},\"Choice\":{\"kind\":\"union\",\"parameters\":[{\"name\":\"T\"}],\"tag\":\"kind\",\"variants\":{\"none\":{\"empty\":true},\"some\":\"T\"}},\"Page\":{\"kind\":\"record\",\"fields\":[{\"name\":\"items\",\"type\":{\"array\":\"T\"},\"required\":true},{\"name\":\"next\",\"type\":{\"nullable\":\"T\"},\"required\":false}],\"open\":true,\"parameters\":[{\"name\":\"T\"}]},\"Result\":{\"kind\":\"union\",\"extends\":[{\"apply\":\"Choice\",\"with\":{\"T\":\"T\"}}],\"parameters\":[{\"name\":\"T\"}],\"tag\":\"kind\",\"variants\":{\"error\":\"string\"}}}}", map[string]*runtime.Schema{})
+var schema = runtime.MustSchema("{\"types\":{\"Batch\":{\"kind\":\"alias\",\"type\":{\"apply\":\"Page\",\"with\":{\"T\":{\"apply\":\"Result\",\"with\":{\"T\":{\"apply\":\"Box\",\"with\":{\"T\":{\"map\":{\"nullable\":\"T\"}}}}}}}},\"parameters\":[{\"name\":\"T\"}]},\"Box\":{\"kind\":\"record\",\"fields\":[{\"name\":\"item\",\"type\":\"T\",\"required\":true}],\"parameters\":[{\"name\":\"T\"}]},\"Choice\":{\"kind\":\"union\",\"parameters\":[{\"name\":\"T\"}],\"tag\":\"kind\",\"variants\":{\"none\":{\"empty\":true},\"some\":\"T\"}},\"Page\":{\"kind\":\"record\",\"fields\":[{\"name\":\"items\",\"type\":{\"array\":\"T\"},\"required\":true},{\"name\":\"next\",\"type\":{\"nullable\":\"T\"},\"required\":false}],\"open\":true,\"parameters\":[{\"name\":\"T\"}]},\"Result\":{\"kind\":\"union\",\"extends\":[{\"apply\":\"Choice\",\"with\":{\"T\":\"T\"}}],\"parameters\":[{\"name\":\"T\"}],\"tag\":\"kind\",\"variants\":{\"error\":\"string\"}}}}", WireDigest(), map[string]*runtime.Schema{})
 
 // WireSchema supplies the family's descriptor and imports for scoped validation.
 func WireSchema() *runtime.Schema { return schema }
+
+// WireDigest is the SHA-256 digest of the family's exact wire description.
+func WireDigest() string { return "3e923c591d603dece044a53281e2612f83259c8c46f41f4a64493a4b84a141d2" }
 
 // ValidateRaw verifies a named contract value, including null and field presence; at roots the diagnostic where a family that imports this one holds the value.
 func ValidateRaw(name string, data []byte, at ...string) error {

@@ -72,7 +72,7 @@ export const contractNotice = "probe/Notice";
 export function exportNotice(owner: LiveOwner, value: Notice): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractNotice, async (request, options) => {
+    const reference = owner.export(contractNotice, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       validateWire("Payload", request);
@@ -85,7 +85,7 @@ export function exportNotice(owner: LiveOwner, value: Notice): unknown {
 }
 /** A Notice that calls the binding a reference names. */
 export function importNotice(owner: LiveOwner, raw: unknown): Notice {
-  const invoke = owner.import(owner.scope.decode(raw), contractNotice);
+  const invoke = owner.import(owner.scope.decode(raw), contractNotice, wireDigest);
   const scope = owner.scope;
   return async (request: Payload, options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -99,7 +99,7 @@ export const contractStop = "probe/Stop";
 export function exportStop(owner: LiveOwner, value: Stop): unknown {
   return owner.exportValue((owner) => {
     const parent = owner;
-    const reference = owner.export(contractStop, async (request, options) => {
+    const reference = owner.export(contractStop, wireDigest, async (request, options) => {
       const owner = parent.child();
       const context = { ...options, owner };
       await value(context);
@@ -110,7 +110,7 @@ export function exportStop(owner: LiveOwner, value: Stop): unknown {
 }
 /** A Stop that calls the binding a reference names. */
 export function importStop(owner: LiveOwner, raw: unknown): Stop {
-  const invoke = owner.import(owner.scope.decode(raw), contractStop);
+  const invoke = owner.import(owner.scope.decode(raw), contractStop, wireDigest);
   const scope = owner.scope;
   return async (options?: { signal?: AbortSignal; owner?: LiveOwner }) => {
     const owner = options?.owner?.scope === scope ? options.owner : scope.owner();
@@ -173,7 +173,9 @@ export function importWatcher(owner: LiveOwner, raw: unknown): Watcher {
 }
 
 const contractTypes = {"types":{"Envelope":{"kind":"record","fields":[{"name":"version","type":"integer","required":true},{"name":"kind","type":"string","required":true},{"name":"id","type":"string","required":false},{"name":"method","type":"string","required":false},{"name":"params","type":"json","required":false},{"name":"result","type":"json","required":false},{"name":"error","type":"json","required":false},{"name":"event","type":"string","required":false},{"name":"data","type":"json","required":false},{"name":"traceparent","type":"string","required":false},{"name":"tracestate","type":"string","required":false},{"name":"meta","type":{"map":"string"},"required":false}]},"Handle":{"kind":"record","fields":[{"name":"channel","type":"integer","required":true}]},"Notice":{"kind":"callable","contract":"probe/Notice","request":"Payload"},"Payload":{"kind":"record","fields":[{"name":"text","type":"string","required":true},{"name":"count","type":"integer","required":true}]},"Stop":{"kind":"callable","contract":"probe/Stop"},"Subscription":{"kind":"record","fields":[{"name":"stop","type":"Stop","required":true}]},"Watch":{"kind":"record","fields":[{"name":"label","type":"string","required":true},{"name":"watcher","type":"Watcher","required":true}]},"Watcher":{"kind":"record","fields":[{"name":"notice","type":"Notice","required":true}]}}} as unknown as WireFamily;
+/** The SHA-256 digest of the family's exact wire description. */
+export const wireDigest = "bba4dcb55ccd40f65017a5d5b7f39ab83b7cb14426e293f2f47f129867ef5672";
 /** Runtime validation applies equally to calls, replies, reverse calls and events; what fills a slot of a parameter is validated by the binding of the family that fills it. */
-export const validateWire = createValidator(contractTypes, {  });
+export const validateWire = createValidator(contractTypes, wireDigest, {  });
 /** This family bound: its name and its validator, to fill a family slot in another family's client. */
 export const family = { name: "probe", validate: validateWire } as const;

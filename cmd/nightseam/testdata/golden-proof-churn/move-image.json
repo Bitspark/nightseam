@@ -44,12 +44,14 @@
     {
       "path": "api/ts/proof-client/src/types.ts",
       "removed_public_declarations": [
+        "export const wireDigest = \"c707012387e56828117d67518f558250b1abc502f15721c3d55a820f717645f1\";",
         "export interface Family { readonly name: \"proof\"; Envelope: Envelope; Handle: Handle; OptionNone: OptionNone; Part: Part; PartImage: PartImage; Parts: Parts; PartsRequest: PartsRequest; RichPart: RichPart; RichPartTable: RichPartTable; TextPart: TextPart }",
         "export interface PartImage {",
         "export type Part = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart };",
         "export type RichPart = { \"type\": \"count\"; \"value\": number } | { \"type\": \"image\"; \"value\": PartImage } | { \"type\": \"text\"; \"value\": TextPart } | { \"type\": \"table\"; \"value\": RichPartTable };"
       ],
       "added_public_declarations": [
+        "export const wireDigest = \"463496e99772db248261881d0dddb9f2746343e4575f9fb305ea05c2a995cf43\";",
         "export interface Family { readonly name: \"proof\"; Envelope: Envelope; Handle: Handle; OptionNone: OptionNone; Part: Part; Parts: Parts; PartsRequest: PartsRequest; RichPart: RichPart; RichPartImage: RichPartImage; RichPartTable: RichPartTable; TextPart: TextPart }",
         "export interface RichPartImage {",
         "export type Part = { \"type\": \"count\"; \"value\": number } | { \"type\": \"text\"; \"value\": TextPart };",
