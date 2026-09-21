@@ -1,0 +1,1 @@
+{"types":{"Callback":{"kind":"callable","request":"integer","result":"integer"}},"server":{"events":{"handle":{"type":"Callback"}}}}

@@ -69,8 +69,20 @@ func (p *plan) planRecordedEvents() {
 			p.declare(ns, "Recorded"+p.operations[e.Name], e.At, "recorded event variant")
 		}
 		for _, use := range p.family.Uses {
-			if what, taken := ns.Reserved(parameterName(use)); taken {
-				p.Addf(diag.Location{}, "generated_name_collision", "Generated Go type parameter %s collides with the %s in an entry-point package.", parameterName(use), what)
+			at := diag.Location{}
+			for _, parameter := range p.family.Parameters {
+				if parameter.Name == use.Parameter {
+					at = parameter.At.Sub("name")
+				}
+			}
+			names := []string{parameterName(use)}
+			if use.Type != "" {
+				names = append(names, tagName(use.Parameter))
+			}
+			for _, name := range names {
+				if what, taken := ns.Reserved(name); taken {
+					p.Addf(at, "generated_name_collision", "Generated Go type parameter %s collides with the %s in an entry-point package.", name, what)
+				}
 			}
 		}
 	}

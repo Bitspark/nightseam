@@ -1,0 +1,367 @@
+{
+  "name": "generated recording preserves typed generic events through replay and live delivery across presentations",
+  "layer": "generated",
+  "needs": [
+    "generated"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.record_local",
+      "args": {
+        "presentation": "local"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ],
+        "replayed": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_local",
+      "args": {
+        "presentation": "mounted"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ],
+        "replayed": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_local",
+      "args": {
+        "presentation": "forwarded"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ],
+        "replayed": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "local",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "local",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "mounted",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "mounted",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "socket",
+        "presentation": "forwarded",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "socket",
+        "presentation": "forwarded",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "local",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "local",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "mounted",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "mounted",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "channel",
+        "presentation": "forwarded",
+        "slot": "string"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_dial",
+      "args": {
+        "carrier": "channel",
+        "presentation": "forwarded",
+        "slot": "string",
+        "url": "$url"
+      },
+      "bind": "client"
+    },
+    {
+      "on": "b",
+      "op": "gen.record_exercise",
+      "args": {
+        "on": "$client"
+      },
+      "expect": {
+        "follower_head": 1,
+        "head": 2,
+        "original": [
+          "first",
+          "second"
+        ]
+      }
+    },
+    {
+      "on": "a",
+      "op": "gen.record_read",
+      "args": {
+        "on": "$server"
+      },
+      "expect": [
+        "first",
+        "second"
+      ]
+    }
+  ]
+}

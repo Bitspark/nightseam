@@ -60,6 +60,13 @@ a declaration, not a principal or permission.
 
 ## Go: three packages
 
+Both side packages also derive [typed event recording](../runtime/record.md#typed-family-events):
+`RecordedEvent`, `Recorder`, and `Record` / `record`. The binding package's
+union contains server-declared events, and the client package's contains
+client-declared events. Native payloads use the same conversion and explicit
+generic bindings as ordinary event sends. Setup and each follower check the
+closed declaration identity before history can reach application handlers.
+
 `api/go/<f>-protocol`, `-binding` and `-client`, each owned wholesale. A
 consumer imports the protocol package for its types and side models, and uses
 either side's adapter to interpret a Wire. A family with only
