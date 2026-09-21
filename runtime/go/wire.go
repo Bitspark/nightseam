@@ -690,8 +690,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 				Trace{Parent: message.Frame.Traceparent, State: message.Frame.Tracestate})
 			if handlers.Request == nil {
 				err := &PublicError{Code: "method_not_found", Message: "Unknown method"}
-				finish(err)
-				sendWireResponse(message, nil, err)
+				finish(sendWireResponse(message, nil, err))
 				return
 			}
 			var dispatch *wireDispatchContext
@@ -711,8 +710,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 				mu.Unlock()
 				cancel()
 				err := &PublicError{Code: "invalid_message", Message: "Duplicate active request identifier"}
-				finish(err)
-				sendWireResponse(message, nil, err)
+				finish(sendWireResponse(message, nil, err))
 				return
 			}
 			incoming[key] = cancel
@@ -727,8 +725,7 @@ func RegisterWire(wire duplex.Wire, path []string, handlers WireHandlers) (func(
 				if err == nil {
 					err = marshalErr
 				}
-				finish(err)
-				sendWireResponse(message, data, WithoutUnpublishedProof(err))
+				finish(sendWireResponse(message, data, WithoutUnpublishedProof(err)))
 			}()
 		},
 	})
@@ -759,9 +756,9 @@ func invokeWireHandler(ctx context.Context, handler WireHandler, params json.Raw
 	return handler(ctx, params)
 }
 
-func sendWireResponse(request duplex.Message, result json.RawMessage, err error) {
+func sendWireResponse(request duplex.Message, result json.RawMessage, err error) error {
 	if request.Return == nil || request.Return.Wire == nil {
-		return
+		return ErrClosed
 	}
 	f := duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: request.Frame.ID, Result: result, Traceparent: request.Frame.Traceparent, Tracestate: request.Frame.Tracestate}
 	if err != nil {
@@ -777,14 +774,27 @@ func sendWireResponse(request duplex.Message, result json.RawMessage, err error)
 			f.Error = &duplex.ProfileError{Code: "internal", Message: "Internal error"}
 		}
 		f.Result = nil
+		// Preserve the local cancellation cause, but otherwise observe exactly
+		// the normalized public error selected for this response.
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			err = &PublicError{Code: f.Error.Code, Message: f.Error.Message, Data: f.Error.Data}
+		}
 	}
-	if err := request.Return.Wire.Send(nil, duplex.Message{Frame: f}); err != nil {
+	if sendErr := request.Return.Wire.Send(nil, duplex.Message{Frame: f}); sendErr != nil {
 		// A malformed or oversized public result must settle as a bounded
 		// refusal, just as the carrier peer's respond does.
 		f.Result = nil
 		f.Error = &duplex.ProfileError{Code: "internal", Message: "Response could not be encoded"}
-		_ = request.Return.Wire.Send(nil, duplex.Message{Frame: f})
+		if fallbackErr := request.Return.Wire.Send(nil, duplex.Message{Frame: f}); fallbackErr == nil {
+			return &PublicError{Code: f.Error.Code, Message: f.Error.Message}
+		}
+		// A caller that already withdrew cannot receive either response. Its
+		// selected refusal remains that refusal; a failed success is no success.
+		if err == nil {
+			return WithoutUnpublishedProof(sendErr)
+		}
 	}
+	return err
 }
 
 // The structured boundary uses the profile's existing validator. A logical

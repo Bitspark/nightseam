@@ -249,12 +249,20 @@ export function publicError(error: unknown): DuplexError {
     : new DuplexError('internal', 'Request handler failed.');
 }
 /** @internal Return a validated public result or a bounded internal-error fallback. */
-export function response(request: Message, result?: unknown, error?: unknown): void {
-  if (request.frame.kind !== 'request' || !request.return) return;
+export function response(request: Message, result?: unknown, error?: unknown): DuplexError | undefined {
+  if (request.frame.kind !== 'request' || !request.return)
+    return new DuplexError('disconnected', 'The request has no return address.');
+  let outcome: DuplexError | undefined;
   let payload: { result: unknown } | { error: { code: string; message: string; data?: unknown } };
   try {
     if (error !== undefined) {
       const refused = publicError(error);
+      // Retain a valid local cancellation identity for the helper's outcome;
+      // only normalized public fields below enter the response frame.
+      outcome =
+        error instanceof DuplexError && error.code === refused.code && error.message === refused.message
+          ? error
+          : refused;
       payload = snapshot({
         error: {
           code: refused.code,
@@ -264,6 +272,7 @@ export function response(request: Message, result?: unknown, error?: unknown): v
       });
     } else payload = { result: snapshot(result === undefined ? null : result) };
   } catch {
+    outcome = new DuplexError('internal', 'Response could not be encoded');
     payload = { error: { code: 'internal', message: 'Response could not be encoded' } };
   }
   const frame: ProfileFrame = {
@@ -277,6 +286,7 @@ export function response(request: Message, result?: unknown, error?: unknown): v
     request.return.wire.send([], { frame });
   } catch (error) {
     if (error instanceof DuplexError && ['invalid_message', 'frame_too_large'].includes(error.code)) {
+      outcome = new DuplexError('internal', 'Response could not be encoded');
       try {
         request.return.wire.send([], {
           frame: {
@@ -290,9 +300,10 @@ export function response(request: Message, result?: unknown, error?: unknown): v
       } catch {
         /* The return address cannot admit even the bounded error response. */
       }
-    }
+    } else outcome ??= publicError(error);
     /* The caller may already have cancelled or ended. */
   }
+  return outcome;
 }
 
 /** Calls through the shared request primitive; no new peer or channel is made. */
@@ -427,14 +438,12 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
       const finish = observeWireRequest(handlers.observer, handlers.family, encodePath(path), true, traceOf(frame));
       if (!handlers.request) {
         const error = new DuplexError('method_not_found', 'An event has no request handler.');
-        finish(error);
-        response(message, undefined, error);
+        finish(response(message, undefined, error));
         return;
       }
       if (calls?.has(frame.id)) {
         const error = new DuplexError('invalid_message', 'Duplicate active request identifier.');
-        finish(error);
-        response(message, undefined, error);
+        finish(response(message, undefined, error));
         return;
       }
       if (!calls) {
@@ -470,15 +479,15 @@ export function registerWire(wire: Wire, path: Path, handlers: WireHandlers): ()
         .then(
           (result) => {
             const error = context.signal.aborted ? new DuplexError('cancelled', 'Request was cancelled.') : undefined;
-            finish(error, error ? 'cancelled' : 'ok');
-            response(message, result, error);
+            const outcome = response(message, result, error);
+            finish(outcome, error && outcome === error ? 'cancelled' : undefined);
           },
           (error: unknown) => {
             if (!(error instanceof DuplexError)) dispatch?.panic(error);
             // A public handler refusal stays an error even if cancellation
             // raced its completion. Only this helper's withdrawal is local.
-            finish(error, cancelledBeforeHandler ? 'cancelled' : 'error');
-            response(message, undefined, publicError(error));
+            const outcome = response(message, undefined, error);
+            finish(outcome, cancelledBeforeHandler && outcome === error ? 'cancelled' : 'error');
           },
         )
         .finally(() => {

@@ -240,3 +240,38 @@ test('concurrent model lifetimes have distinct observer identities without chang
     left.close();
   }
 });
+
+test('incoming model observation reports the bounded refusal selected for an unencodable response', async (t) => {
+  for (const kind of ['oversized result', 'oversized public refusal', 'unencodable result']) {
+    await t.test(kind, async () => {
+      const [left, right] = wirePair({ maxFrameBytes: 512 });
+      const ended = deferred();
+      let incoming: ObserverEvent | undefined;
+      const observer: Observer = {
+        observe: (event) => {
+          if (event.type === 'request.ended' && event.incoming) {
+            incoming = event;
+            ended.resolve();
+          }
+        },
+      };
+      try {
+        registerWire(right, ['response'], {
+          observer,
+          family: 'probe',
+          request: () => {
+            if (kind === 'oversized public refusal') throw new DuplexError('denied', 'Refused.', 'x'.repeat(2048));
+            return kind === 'oversized result' ? 'x'.repeat(2048) : () => {};
+          },
+        });
+        await assert.rejects(callWire(left, ['response']), { code: 'internal' });
+        await ended.promise;
+        assert.ok(incoming?.type === 'request.ended');
+        assert.equal(incoming.outcome, 'error');
+        assert.equal(incoming.errorCode, 'internal');
+      } finally {
+        left.close();
+      }
+    });
+  }
+});

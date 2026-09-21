@@ -323,3 +323,39 @@ func TestWireHelperConcurrentObserverIdentitiesDoNotCollide(t *testing.T) {
 		}
 	}
 }
+
+func TestWireHelperObservesSelectedBoundedResponseRefusal(t *testing.T) {
+	for _, kind := range []string{"oversized result", "oversized public refusal", "unencodable result"} {
+		t.Run(kind, func(t *testing.T) {
+			a, b := localPair(t, Options{MaxFrameBytes: 512})
+			model := &wireObservations{ended: make(chan struct{}, 1)}
+			_, err := RegisterWire(b, []string{"response"}, WireHandlers{Observer: model, Family: "probe", Request: func(context.Context, json.RawMessage) (any, error) {
+				switch kind {
+				case "oversized result":
+					return strings.Repeat("x", 2048), nil
+				case "oversized public refusal":
+					return nil, &PublicError{Code: "denied", Message: "Refused", Data: json.RawMessage(`"` + strings.Repeat("x", 2048) + `"`)}
+				default:
+					return func() {}, nil
+				}
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var public *PublicError
+			if err := CallWire(context.Background(), a, []string{"response"}, nil, nil); !errors.As(err, &public) || public.Code != "internal" {
+				t.Fatalf("reply %v", err)
+			}
+			<-model.ended
+			for _, event := range model.snapshot() {
+				if event, ok := event.(RequestEnded); ok {
+					if event.Outcome != OutcomeErrored || event.ErrorCode != "internal" {
+						t.Fatalf("observed reply %#v", event)
+					}
+					return
+				}
+			}
+			t.Fatal("missing completion")
+		})
+	}
+}
