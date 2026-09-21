@@ -31,6 +31,7 @@ const (
 	identErrors        = "errors"
 	identFamilyValue   = "family"
 	identValidateWire  = "validateWire"
+	identWireDigest    = "wireDigest"
 	identProtocol      = "Protocol"
 	identPeer          = "peer"
 	identSlotsField    = "slots"
@@ -59,7 +60,7 @@ var eventObjectMembers = []string{
 // Reserved is every identifier the generated module declares of itself,
 // imports, or uses of the language.
 func Reserved() []string {
-	names := []string{identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol}
+	names := []string{identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identProtocol}
 	names = append(names, imported...)
 	names = append(names, globals...)
 	names = append(names, identPeer, identSlotsField, identClose, identConstructor, identThen)
@@ -91,7 +92,7 @@ type plan struct {
 
 func newPlan(f *render.Family) (*plan, []diag.Diagnostic) {
 	p := &plan{family: f, module: emit.NewNamespace("module"), client: emit.NewNamespace("client"), remote: emit.NewNamespace("remote"), types: map[string]string{}, operations: map[string]string{}, errors: map[string]string{}, List: diag.List{Family: f.Name}}
-	p.module.Fix("generated declaration", identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identProtocol)
+	p.module.Fix("generated declaration", identClient, identRemote, identServe, identInstall, identCaller, identHandler, identEvents, identFamily, identAnyFamily, identFamilyBinding, identTypeBinding, identSlots, identErrorCode, identErrors, identFamilyValue, identValidateWire, identWireDigest, identProtocol)
 	p.module.Fix("generated import", imported...)
 	p.module.Fix("generated use of a global", globals...)
 	p.client.Fix("generated client field", identPeer, identSlotsField)

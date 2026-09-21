@@ -164,6 +164,8 @@ func emitValidation(f *file) {
 	f.linef("var schema = %s.MustSchema(%s, map[string]*%s.Schema{%s})", runtime, quote(f.family.Wire), runtime, strings.Join(imported, ", "))
 	f.linef("// %s supplies the family's descriptor and imports for scoped validation.", identWireSchema)
 	f.linef("func %s() *%s.Schema { return schema }", identWireSchema, runtime)
+	f.linef("// %s is the SHA-256 digest of the family's exact wire description.", identWireDigest)
+	f.linef("func %s() string { return %q }", identWireDigest, f.family.WireDigest)
 	f.line("")
 	f.linef("// %s verifies a named contract value, including null and field presence; at roots the diagnostic where a family that imports this one holds the value.", identValidateRaw)
 	f.linef("func %s(name string, data []byte, at ...string) error { return schema.%s(name, data, at...) }", identValidateRaw, identValidateRaw)

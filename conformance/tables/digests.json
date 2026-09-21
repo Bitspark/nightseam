@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "empty family",
+      "wire": "{\"types\":{}}",
+      "digest": "f53a4bbe4f4138a7e6e636b4d556dc2626fccd32a4f62b0203301dd49204b069"
+    },
+    {
+      "name": "UTF-8 enum",
+      "wire": "{\"types\":{\"Greeting\":{\"kind\":\"enum\",\"values\":[\"Grüße\",\"你好\"]}}}",
+      "digest": "931cccc8b0c9f3c98d73b63eedc70bdf64d1fab631926a683d86179de27e60d6"
+    },
+    {
+      "name": "record revision one",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true}]}}}",
+      "digest": "68025e009ca0e1d178ab57548a507c65dcaefb7b62f3867207b26fdbe5739cb0"
+    },
+    {
+      "name": "record revision two adds an optional member",
+      "wire": "{\"types\":{\"Payload\":{\"kind\":\"record\",\"fields\":[{\"name\":\"text\",\"type\":\"string\",\"required\":true},{\"name\":\"hint\",\"type\":\"string\",\"required\":false}]}}}",
+      "digest": "ccc90bf9332f9595615ec1c0c34627a7cc52779378f7ca00e56d6de7e89955fb"
+    }
+  ]
+}
