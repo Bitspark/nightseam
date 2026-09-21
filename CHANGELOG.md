@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The generated composition fixture waits for worker completion before
+  asserting finished cancellation, preserving the final callback race.
 - The TypeScript OpenTelemetry adapter retains connection and event-only
   telemetry with the Go reference's connection lifecycle, producer/consumer
   spans and fallback routing, without copying connection events onto requests.
@@ -271,6 +273,10 @@ are one number. Entries are in the words of the commits that landed them.
   invocation results, closure, release, cancellation and reference checks.
 
 ### Changed
+
+- The CI conformance star follows the language tiers' blocking verdicts and
+  reports provisional cells in its matrix and job summary; nightly remains
+  strict about every red cell.
 
 - Callable documentation separates named declarations from nominal wire
   identity and states the limits of native function assignment and contract
