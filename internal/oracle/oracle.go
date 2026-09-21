@@ -54,6 +54,14 @@ func Substitute(f *model.Family, bindings map[string]string) *model.Family {
 			copied.Fields[i] = field
 		}
 		copied.Alias = fill(t.Alias)
+		copied.Request = fill(t.Request)
+		copied.Result = fill(t.Result)
+		copied.Variants = make([]model.Variant, len(t.Variants))
+		for i, variant := range t.Variants {
+			variant.Type = fill(variant.Type)
+			copied.Variants[i] = variant
+		}
+		copied.Extends = substituteInheritance(t.Extends, fill)
 		out.Types[name] = &copied
 	}
 	if f.Protocol != nil {
@@ -68,6 +76,12 @@ func Substitute(f *model.Family, bindings map[string]string) *model.Family {
 		p.Client = substituteSide(f.Protocol.Client, fill)
 		out.Protocol = &p
 	}
+	if f.Live != nil {
+		live := *f.Live
+		live.Server = substituteSide(f.Live.Server, fill)
+		live.Client = substituteSide(f.Live.Client, fill)
+		out.Live = &live
+	}
 	out.Imports = nil
 	for name := range imports {
 		if name != f.Name {
@@ -80,6 +94,7 @@ func Substitute(f *model.Family, bindings map[string]string) *model.Family {
 
 func substituteSide(s model.Side, fill func(model.TypeExpr) model.TypeExpr) model.Side {
 	out := s
+	out.Extends = substituteInheritance(s.Extends, fill)
 	out.Methods = make([]model.Method, len(s.Methods))
 	for i, m := range s.Methods {
 		m.Request = fill(m.Request)
@@ -90,6 +105,19 @@ func substituteSide(s model.Side, fill func(model.TypeExpr) model.TypeExpr) mode
 	for i, e := range s.Events {
 		e.Type = fill(e.Type)
 		out.Events[i] = e
+	}
+	return out
+}
+
+func substituteInheritance(edges []model.Inheritance, fill func(model.TypeExpr) model.TypeExpr) []model.Inheritance {
+	out := make([]model.Inheritance, len(edges))
+	for i, edge := range edges {
+		if edge.With != nil {
+			// Reuse expression traversal for nested type and family fillers;
+			// the inherited declaration's nominal name stays unchanged.
+			edge.With = fill(model.Apply{With: edge.With}).(model.Apply).With
+		}
+		out[i] = edge
 	}
 	return out
 }
