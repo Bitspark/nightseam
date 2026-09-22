@@ -165,14 +165,17 @@ func (r *Results) Write(run Provenance, file string) error {
 // names as HEAD, whether a tracked file differs from it, and the CI run
 // when the environment names one. Untracked files are not counted: the
 // toolchains a run builds with leave their own beside the tree in every CI
-// checkout, and a flag that is always set says nothing. A checkout git
-// cannot read is recorded as such rather than refusing the record.
+// checkout, and a flag that is always set says nothing. Nor is the matrix
+// a run writes, which an earlier run in the same checkout may have
+// rewritten: provenance is of what the run read, not what it wrote. A
+// checkout git cannot read is recorded as such rather than refusing the
+// record.
 func runProvenance(checkout string) Provenance {
 	run := Provenance{Commit: "unknown", Date: time.Now().UTC().Format(time.RFC3339)}
 	if out, err := exec.Command("git", "-C", checkout, "rev-parse", "HEAD").Output(); err == nil {
 		run.Commit = strings.TrimSpace(string(out))
 	}
-	if out, err := exec.Command("git", "-C", checkout, "status", "--porcelain", "--untracked-files=no").Output(); err == nil {
+	if out, err := exec.Command("git", "-C", checkout, "status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)conformance/matrix.json").Output(); err == nil {
 		run.Dirty = strings.TrimSpace(string(out)) != ""
 	}
 	server, repository, id := os.Getenv("GITHUB_SERVER_URL"), os.Getenv("GITHUB_REPOSITORY"), os.Getenv("GITHUB_RUN_ID")

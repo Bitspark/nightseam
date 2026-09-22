@@ -12,7 +12,7 @@
       "required": ["commit", "date"],
       "properties": {
         "commit": {"type": "string", "minLength": 1, "description": "The commit the run held, as git names HEAD, or \"unknown\" where git could not say."},
-        "dirty": {"type": "boolean", "description": "True where a tracked file differed from the commit when the run was written; untracked files are not counted."},
+        "dirty": {"type": "boolean", "description": "True where a tracked file differed from the commit when the run was written; untracked files and the matrix a run writes are not counted."},
         "url": {"type": "string", "description": "The CI run, where the environment named one."},
         "date": {"type": "string", "format": "date-time"}
       }
