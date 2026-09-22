@@ -33,6 +33,19 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The release workflow refuses in its first two minutes what it can — the
+  tag against the checkout, every spelling of the version and the matrix
+  against the tag, which names are a first publish, whether provenance can
+  be minted, whether every script a workflow runs loads, the script tests
+  and the format, table, link and documentation checks — in a `preflight`
+  job that waits on no reviewer, so that a doomed run fails with nothing to
+  approve; the release job's first step asks `npm whoami` whether a
+  credential it was given is live; the GitHub release follows a green round
+  trip and is left in place by a re-run, so a red round trip is re-run
+  rather than left; and CI's fast job, on both platforms and before any
+  tier, loads every script, runs the script tests and the link,
+  documentation and table checks, and names on the pull request a package
+  the tree would publish for the first time.
 - The registry round trip waits for the abbreviated document an install
   reads, which npm serves from an index that lags the full one for a name it
   has never served; installs the outsider consumer with no credential and no

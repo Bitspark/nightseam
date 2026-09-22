@@ -25,6 +25,50 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      # No pnpm cache here: the install below runs on Linux alone, and the
+      # post step of a cached setup fails on a runner with no store to save.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      # The scripts before the tiers that run them, on both platforms and in
+      # the first minute: every one loads, the script tests hold — the
+      # release gate and the round trip on fixture registries and matrices
+      # no run has produced yet — and every link, every documented page and
+      # the README's table hold. A script that does not load, or a step
+      # nothing exercised, is otherwise found by the run that needs it,
+      # which for the round trip is after the upload (#611, #613).
+      - name: Every script a workflow runs loads
+        shell: bash
+        run: |
+          for script in scripts/*.mjs; do node --check "$script"; done
+          for script in $(grep -ho 'scripts/[A-Za-z0-9_-]*\.mjs' .github/workflows/*.yml | sort -u); do
+            test -f "$script" || { echo "::error::$script is named by a workflow and is not in the tree" >&2; exit 1; }
+          done
+      # On Linux: four script tests do not hold on the Windows runner yet —
+      # the import smokes' tsc invocation and a temp directory the worktree
+      # test cannot remove (#624) — and the fast tier is what Windows is for.
+      - run: pnpm install --frozen-lockfile
+        if: runner.os == 'Linux'
+      - run: node --test 'scripts/*.test.mjs'
+        if: runner.os == 'Linux'
+      - run: node scripts/matrix-table.mjs --check
+        if: runner.os == 'Linux'
+      - run: node scripts/links.mjs
+        if: runner.os == 'Linux'
+      - run: node scripts/docs.mjs
+        if: runner.os == 'Linux'
+      # A name this tree would publish for the first time is said on the
+      # pull request, where the lane that added it reads it, rather than
+      # found by the release lane (RELEASING.md, *A name npm has not
+      # served*). It asks the public registry and decides nothing, so a
+      # registry that does not answer does not fail the change.
+      - name: Name a first publish on the pull request
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          node scripts/first-publish.mjs | tee first-publish.txt
+          grep '^first publish:' first-publish.txt | sed 's/^/::notice title=first publish::/' || true
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -90,7 +134,7 @@ jobs:
         with:
           node-version-file: package.json
       - name: Import Swift signing keys
-        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+        run: curl --fail --silent --show-error --location --compressed --retry 3 --retry-delay 5 https://www.swift.org/keys/all-keys.asc | gpg --import -
       - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
         with:
           swift-version: "6.1.3"
@@ -135,7 +179,7 @@ jobs:
           node-version-file: package.json
           cache: pnpm
       - name: Import Swift signing keys
-        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+        run: curl --fail --silent --show-error --location --compressed --retry 3 --retry-delay 5 https://www.swift.org/keys/all-keys.asc | gpg --import -
       - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
         with:
           swift-version: "6.1.3"
@@ -196,23 +240,13 @@ jobs:
         with:
           name: conformance-matrix
           path: conformance/matrix.json
-      # The scripts that read the matrix — the README's table and the release
-      # gate — hold themselves first, on fixture matrices no run has produced
-      # yet, since a gate first exercised by the release it refuses is a gate
-      # nobody has run.
-      - run: node --test 'scripts/*.test.mjs'
-      # Every link in every tracked Markdown page resolves to the tree — a
-      # file, a directory, a heading — including the repository's own
-      # absolute URLs, which the package READMEs use so as to render on npm.
-      # A page moved without its inbound links fails the pull request that
-      # moved it, rather than a reader some weeks later.
-      - run: node scripts/links.mjs
-      # Every page of a documented set is linked from that set's index, and
-      # every decision carries the five parts decisions/README.md promises.
-      # links.mjs holds that a row points at a page that exists; this holds
-      # that a page has a row, which is the direction a page added without one
-      # slips through — as the Unicode decision did from #182 until #303.
-      - run: node scripts/docs.mjs
+      # The script tests, every link in every tracked Markdown page — a
+      # file, a directory, a heading, the repository's own absolute URLs the
+      # package READMEs use so as to render on npm — and every documented
+      # page's row in its set's index run in the fast job above, on both
+      # platforms and before any tier, where a page moved without its
+      # inbound links or a page added without a row (as the Unicode decision
+      # was from #182 until #303) fails the pull request in its first minute.
       # The getting-started example's checked-in generated output, held the
       # way a consumer's is. The example is a Go module and a pnpm project
       # of its own, so neither `go test ./...` above nor `pnpm -r` enters it.

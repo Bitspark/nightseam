@@ -3,11 +3,11 @@
 # packages, publishes them to the @nightseam organization with provenance —
 # through the `release` environment, whose required reviewer approves every
 # run, and with the NPM_TOKEN secret only while a name has no trusted
-# publisher yet, which is its first publish — and creates the GitHub
-# release with the tag's changelog section as its notes. The Go module needs
-# no upload: the tag is its release, and so is the second tag that releases
-# the nested module. Nothing here runs on a push to a branch. RELEASING.md
-# says how a release is cut.
+# publisher yet, which is its first publish — makes the round trip against
+# what it published, and creates the GitHub release with the tag's changelog
+# section as its notes. The Go module needs no upload: the tag is its
+# release, and so is the tag that releases each nested module. Nothing here
+# runs on a push to a branch. RELEASING.md says how a release is cut.
 #
 # The same steps run on demand without publishing anything, so that a release
 # is rehearsed rather than attempted: everything that can fail — the versions
@@ -15,6 +15,15 @@
 # publish itself as a dry run — fails on a run somebody asked for, rather
 # than on the one that follows a tag that already exists and cannot be taken
 # back.
+#
+# What can refuse a release and costs seconds is asked first, in a job that
+# waits on no reviewer and installs no toolchain: the tag against the
+# checkout, the versions and the matrix against the tag, which names are a
+# first publish, whether provenance can be minted, whether every script a
+# workflow runs loads, and the script tests. A doomed run fails there, in
+# its first minutes, with nothing to approve — the v0.6.0 publication spent
+# forty minutes in toolchains and tiers before two seconds-cheap defects of
+# its own scripts were found (#611, #613).
 name: release
 
 on:
@@ -37,17 +46,79 @@ permissions:
   # needs for it; the rest is the repository being public.
   id-token: write
 
+env:
+  # The tag being released, or the one being rehearsed. Every step reads
+  # this rather than the ref, which on a rehearsal is a branch.
+  TAG: ${{ inputs.tag || github.ref_name }}
+  REQUIRE_TAG: ${{ github.event_name == 'push' && '--require' || '' }}
+
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history, for the tags alone: the release gate reads the
+          # previous tag's conformance/matrix.json, and a shallow checkout
+          # carries no tag to read.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - name: Hold the remote tag to the checked-out commit
+        run: node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
+      # Every spelling of the version against the tag, and the conformance
+      # matrix against the tier table: a red cell in a profile the language's
+      # tier guarantees refuses the tag here, before anything is installed.
+      # Nothing is written; the release job writes the notes.
+      - name: Hold the versions and the matrix to the tag
+        run: node scripts/release-prepare.mjs "$TAG" --dry-run
+      # Whether npm has ever served each of the names this release publishes.
+      # A name it has not cannot authenticate by OIDC, and `pnpm -r publish`
+      # reaches such a name after the tag is pushed and after the names before
+      # it are already uploaded. Said here so the operator reads it before
+      # approving; the release job refuses a tag whose new name has no
+      # credential. RELEASING.md, *A name npm has not served*.
+      - name: Ask npm which names are a first publish
+        run: node scripts/first-publish.mjs
+      # Provenance is refused for a package published from a private
+      # repository, and the registry refuses it at the upload. It is one fact
+      # and it is known here.
+      - name: Check what provenance needs
+        run: |
+          visibility='${{ github.event.repository.visibility }}'
+          if [ "$visibility" != public ]; then
+            echo "::error::the repository is $visibility; npm provenance requires a public one — see the going-public list in RELEASING.md" >&2
+            exit 1
+          fi
+          echo "public repository and id-token: write — provenance can be minted"
+      # A script that does not load fails the step that runs it, which on a
+      # tag run is after the tiers and, for the round trip, after the upload.
+      - name: Every script a workflow runs loads
+        run: |
+          for script in scripts/*.mjs; do node --check "$script"; done
+          for script in $(grep -ho 'scripts/[A-Za-z0-9_-]*\.mjs' .github/workflows/*.yml | sort -u); do
+            test -f "$script" || { echo "::error::$script is named by a workflow and is not in the tree" >&2; exit 1; }
+          done
+      - run: pnpm install --frozen-lockfile
+      # The scripts that release, on fixture registries and matrices no run
+      # has produced yet, since a gate first exercised by the release it
+      # refuses is a gate nobody has run.
+      - run: node --test 'scripts/*.test.mjs'
+      - run: pnpm format:check
+      - run: node scripts/matrix-table.mjs --check
+      - run: node scripts/links.mjs
+      - run: node scripts/docs.mjs
+
   release:
+    needs: preflight
     runs-on: ubuntu-latest
     # Every run, a tag's or a rehearsal's, waits here for the reviewer the
-    # environment names before a step runs.
+    # environment names before a step runs — after preflight, so that what is
+    # approved has already passed everything cheap.
     environment: release
-    env:
-      # The tag being released, or the one being rehearsed. Every step reads
-      # this rather than the ref, which on a rehearsal is a branch.
-      TAG: ${{ inputs.tag || github.ref_name }}
-      REQUIRE_TAG: ${{ github.event_name == 'push' && '--require' || '' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,6 +128,30 @@ jobs:
           # conformance/matrix.json. A shallow checkout carries no tag to
           # read, and the gate would let a second failure through as a first.
           fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # Held again: the reviewer may have waited hours, and a tag can appear
+      # or move in that time.
+      - name: Hold the remote tag to the checked-out commit
+        run: node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
+      # Writes release-notes.md and copies the notices the tarballs carry.
+      - name: Hold the versions and the matrix to the tag
+        run: node scripts/release-prepare.mjs "$TAG"
+      # On a tag, a new name with no credential refuses the run here, and a
+      # credential that is set is asked whether it is live — `npm whoami`
+      # answers in a second what the upload would otherwise answer after the
+      # tiers, for a token that expired or was cut on the wrong scope.
+      - name: Ask npm which names are a first publish, and whether the credential for one is live
+        run: |
+          node scripts/first-publish.mjs $REQUIRE_CREDENTIAL
+          if [ -n "$NODE_AUTH_TOKEN" ]; then npm whoami --registry https://registry.npmjs.org; fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          REQUIRE_CREDENTIAL: ${{ github.event_name == 'push' && '--require-credential' || '' }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -75,41 +170,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: package.json
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Hold the remote tag to the checked-out commit
-        run: node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
-      # Every spelling of the version against the tag, and the conformance
-      # matrix against the tier table: a red cell in a profile the language's
-      # tier guarantees refuses the tag here, before anything is published,
-      # and a language the table ships as provisional is written into the
-      # notes. The matrix read is the one committed on the tag — the standing
-      # the release is cut at — and the suite runs below, so a tree that
-      # cannot pass fails the tag anyway.
-      - name: Hold the versions and the matrix to the tag
-        run: node scripts/release-prepare.mjs "$TAG"
-      # Whether npm has ever served each of the names this release publishes.
-      # A name it has not cannot authenticate by OIDC — npm attaches a trusted
-      # publisher to a package that already exists — and `pnpm -r publish`
-      # reaches such a name after the tag is pushed and after the names before
-      # it are already uploaded, which is the one failure a tag cannot answer.
-      # So it is asked here, before the install and on a rehearsal too; on a
-      # tag it also refuses the run when the token that would make the first
-      # publish is not set. RELEASING.md, *A name npm has not served*.
-      - name: Ask npm which names are a first publish
-        run: node scripts/first-publish.mjs $REQUIRE_CREDENTIAL
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          REQUIRE_CREDENTIAL: ${{ github.event_name == 'push' && '--require-credential' || '' }}
       - run: pnpm install --frozen-lockfile
       - name: Install the C++ core toolchain
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
@@ -119,7 +184,7 @@ jobs:
           cmake --build .build/cpp --parallel 2
           ctest --test-dir .build/cpp --output-on-failure
       - name: Import Swift signing keys
-        run: curl --fail --silent --show-error --location --compressed https://www.swift.org/keys/all-keys.asc | gpg --import -
+        run: curl --fail --silent --show-error --location --compressed --retry 3 --retry-delay 5 https://www.swift.org/keys/all-keys.asc | gpg --import -
       - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
         with:
           swift-version: "6.1.3"
@@ -138,7 +203,9 @@ jobs:
       - run: pnpm -r test
       - run: stack --system-ghc --no-install-ghc --stack-yaml conformance/haskell/stack.yaml test
       - run: node scripts/haskell-smoke.mjs
-      - run: go test ./...
+      # Eight native testee builds and the complete star need an overall
+      # budget beyond the default ten minutes, as in ci.yml.
+      - run: go test -timeout 25m ./...
       # The adapter at otel/go and the profile at auth/go are modules of
       # their own, released by a tag each beside this one; the tag is cut on
       # a tree where they are green too.
@@ -147,19 +214,6 @@ jobs:
       - run: go test ./...
         working-directory: auth/go
       - run: pnpm -r build
-      # Provenance is refused for a package published from a private
-      # repository, and the registry refuses it at the upload — which is
-      # after the tag exists and after four of these steps have passed. It is
-      # one fact and it is known here, so it is checked here, before anything
-      # is published and on a rehearsal as well.
-      - name: Check what provenance needs
-        run: |
-          visibility='${{ github.event.repository.visibility }}'
-          if [ "$visibility" != public ]; then
-            echo "::error::the repository is $visibility; npm provenance requires a public one — see the going-public list in RELEASING.md" >&2
-            exit 1
-          fi
-          echo "public repository and id-token: write — provenance can be minted"
       # What is about to be published, installed from outside the workspace
       # by the getting-started example: the tarballs by path and the Go
       # module from a proxy laid out of this tree. It runs on a rehearsal as
@@ -171,27 +225,38 @@ jobs:
       - run: node scripts/smoke-rust-packed.mjs
       - name: Publish to npm
         # On a rehearsal this packs each tarball, mints the provenance
-        # attestation and stops short of the upload.
+        # attestation and stops short of the upload. On a re-run of a tag
+        # whose upload succeeded, pnpm skips every version the registry
+        # already serves.
         run: |
           node scripts/release-tag.mjs "$TAG" $REQUIRE_TAG
           pnpm -r publish --access public --no-git-checks --provenance $DRY_RUN
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}
-      - name: Create the GitHub release
-        if: github.event_name == 'push'
-        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
-        env:
-          GH_TOKEN: ${{ github.token }}
       # The round trip, once there is something to install: the same
       # example, after waiting up to thirty minutes for npm and the Go proxy
-      # to serve the release, with nothing laid for
-      # it and nothing overridden. Its failure fails the run and files an
-      # issue naming the tag, because by now the tag exists and the packages
-      # are on npm, and a red run on a tag nobody re-runs is silence.
+      # to serve the release, with nothing laid for it and nothing overridden.
+      # Its failure fails the run and files an issue naming the tag, because
+      # by now the tag exists and the packages are on npm. It runs before the
+      # GitHub release is created, so that the release page announces what
+      # the round trip has held, and a red round trip is re-run with
+      # `gh run rerun --failed` rather than left red.
       - name: The round trip against what was published
         if: github.event_name == 'push'
         run: node scripts/smoke-registry.mjs "$TAG" --open-issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # Idempotent: a re-run after a red round trip finds the release it made
+      # and leaves it.
+      - name: Create the GitHub release
+        if: github.event_name == 'push'
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "the release $TAG exists; this run leaves it"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
       - name: What a rehearsal did not do
