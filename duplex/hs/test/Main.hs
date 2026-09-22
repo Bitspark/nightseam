@@ -50,4 +50,35 @@ main = do
   socketEnd <- timeout 1000000 (try (receiveFrame socketClient) :: IO (Either CloseError Frame))
   check "WebSocket close code and reason" (socketEnd == Just (Left (CloseError 4002 "socket ended")))
   WS.closeListener listener2
+  -- Closing must retain the carrier until the peer has read and acknowledged
+  -- the close. No data reader is required on the initiating endpoint.
+  forM_ [False, True] $ \clientCloses -> do
+    l <- WS.listen 1024 []
+    client <- WS.dial (WS.listenerURL l) 1024 []
+    server <- WS.accept l
+    let (initiator, remote) = if clientCloses then (client, server) else (server, client)
+    closing <- async (closeConnection initiator 4011 "refused")
+    premature <- timeout 50000 (wait closing)
+    check "close waits for its peer's acknowledgement" (premature == Nothing)
+    remoteEnd <- timeout 1000000 (try (receiveFrame remote) :: IO (Either CloseError Frame))
+    check "peer receives refusal before carrier closes" (remoteEnd == Just (Left (CloseError 4011 "refused")))
+    completed <- timeout 1000000 (wait closing)
+    check "acknowledgement completes close" (completed == Just ())
+    WS.closeListener l
+  l <- WS.listen 1024 []
+  unresponsive <- WS.dial (WS.listenerURL l) 1024 []
+  local <- WS.accept l
+  boundedClose <- timeout 2000000 (closeConnection local 1000 "")
+  check "an unresponsive peer cannot retain a closing carrier" (boundedClose == Just ())
+  abortConnection unresponsive
+  WS.closeListener l
+  l2 <- WS.listen 1024 []
+  reading <- WS.dial (WS.listenerURL l2) 1024 []
+  replying <- WS.accept l2
+  blockedReader <- async (try (receiveFrame reading) :: IO (Either CloseError Frame))
+  closing <- async (closeConnection reading 4001 "done")
+  _ <- timeout 1000000 (try (receiveFrame replying) :: IO (Either CloseError Frame))
+  joined <- timeout 1000000 (wait closing >> wait blockedReader)
+  check "an existing reader completes the closing handshake" (joined == Just (Left (CloseError 4001 "done")))
+  WS.closeListener l2
   putStrLn "seam tests passed"
