@@ -3,7 +3,8 @@
   "layer": "generated",
   "description": "What this holds is **lifetime**, not higher order: the callables in it take and answer data, and a callable whose own request or result is a callable is held by live-higher-order-callables.json instead. The reference survives the call that introduced it until its binding is released or its scope closes. The server keeps the ProgressSink it was handed, start returns, and only then does the server call report again — which is what makes a callback a reference rather than an argument of one invocation.",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "steps": [
     {

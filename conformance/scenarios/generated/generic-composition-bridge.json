@@ -2,7 +2,8 @@
   "name": "GEN-COMPOSE-BRIDGE one model crosses two real scopes with both generic forms",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "foreach": {

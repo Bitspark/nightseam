@@ -2,7 +2,7 @@
   "name": "generated callbacks retain uncertain publications until their owners release",
   "layer": "generated",
   "description": "Both caller directions on one real socket, with four exports and imports per scope: seven fresh callback supplies fail busy, followed by remote cancellation and frame-size errors, timeout, cancellation after a delivery barrier, suppressed replies, events and a handler-returned callback whose reply is lost. Every retained callback remains callable after failure, every explicit owner release revokes its remote alias, and every cycle reaches baseline before the next. Pre-cancelled requests and oversized events prove local non-publication unwinds only their new exports. Both generated bindings must serve this scenario without skips.",
-  "needs": ["generated"],
+  "needs": ["generated", "live"],
   "mirror": true,
   "steps": [
     {"on":"a","op":"gen.publication_serve","bind":{"handle":"server","url":"url"}},

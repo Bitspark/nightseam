@@ -28,19 +28,25 @@ matrix shows and no tier needs to name.
 
 A profile is a named set of scenarios, and a scenario belongs to exactly
 one. The profiles follow the components, because that is how a language is
-built and how a consumer adopts it:
+built and how a consumer adopts it. What holding a profile means to a
+consumer is one sentence, its description, which `conformance/profiles.json`
+declares and this table carries as the data spells it:
 
-| profile | scenarios | promise |
-|---|---|---|
-| `core` | the seam (`seam/*`) and the peer (`peer/*`): frames, correlation, cancellation, close codes, backpressure, the wire validator held to `tables/validator.json`, the malformed frames of `tables/frames.json` | P1 |
-| `generator` | `generated/*`: the target renders the corpus, the output builds against the language's runtime, the round trip and the diagram hold; names follow `tables/naming.json` | P2 |
-| `tunnel` | `tunnel/*`: channels over one peer, credit, closure, the tunnel's observer events | P3 |
-| `live` | `live/*`: a scope over a peer, exported bindings and imported references, repeated import and release, forwarding, and the refusals a wrong contract or a stale reference earns | P3 |
-| `observability` | the scenarios that `needs` `observer` or `propagator`, in any layer: trace propagation, the observer and its no-payload rule, the shipped adapter | P3 |
+| profile | a language that holds it | scenarios | promise |
+|---|---|---|---|
+| `core` | A peer of this language speaks the wire with a peer of any other: it sends and receives frames, correlates calls with their answers, cancels, closes with a code, applies backpressure, and refuses what the wire validator refuses, held against the reference on both sides of a socket. | the seam (`seam/*`) and the peer (`peer/*`): frames, correlation, cancellation, close codes, backpressure, the wire validator held to `tables/validator.json`, the malformed frames of `tables/frames.json` | P1 |
+| `generator` | The generator renders this language: the packages it renders build against the language's runtime, hold the round trip and the generic-versus-bound diagram, and serve as well as call, including values carried over prepared channels and live callables, which is why holding it takes the tunnel and live runtimes too. | `generated/*`: the target renders the corpus, the output builds against the language's runtime, the round trip and the diagram hold; names follow `tables/naming.json`; the scenarios that carry a Cell over a prepared channel or convert callables declare `tunnel` and `live` among their `needs` | P2 |
+| `tunnel` | A peer of this language multiplexes channels over one connection, with per-channel credit and closure, and reports the tunnel's events to its observer. | `tunnel/*`: channels over one peer, credit, closure, the tunnel's observer events | P3 |
+| `live` | A peer of this language passes callable values across a connection: a scope over the peer exports bindings, imports references, releases and forwards them, and refuses a wrong contract or a stale reference. | `live/*`: a scope over a peer, exported bindings and imported references, repeated import and release, forwarding, and the refusals a wrong contract or a stale reference earns | P3 |
+| `observability` | A peer of this language reports what it did, at every layer, under the common event names and never with a payload, and mints and carries trace context across calls. | the scenarios that `needs` `observer` or `propagator`, in any layer: trace propagation, the observer and its no-payload rule, the shipped adapter | P3 |
 
 A scenario's `layer` places it in a profile; `core` is the two lowest
 layers, `observability` cuts across them by feature. The runner refuses a
-scenario it cannot place, so nothing is ever unclassified.
+scenario it cannot place, so nothing is ever unclassified. A generated
+scenario that runs over the tunnel or live runtime says so in its `needs`,
+and the generated testee answers `hello` with the runtimes it links, so a
+language whose generator renders neither skips those scenarios with that
+reason; the profile it is placed in stays `generator`.
 
 The testee protocol is tiered the same way: a testee answers `hello` with
 the `layers` and `features` it implements, and a scenario a testee lacks a

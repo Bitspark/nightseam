@@ -312,10 +312,12 @@ func TestProfilesAreHeldToThemselves(t *testing.T) {
 	}
 	copyFile("profiles.schema.json")
 	for _, c := range []struct{ name, json, want string }{
-		{"a tier requiring an unknown profile", `{"profiles":{"core":{"layers":["seam"],"promise":"wire"}},"tiers":{"1":{"requires":["core","nope"],"onFailure":"stop"}},"languages":{}}`, "nope"},
-		{"a language with no testee", `{"profiles":{"core":{"layers":["seam"],"promise":"wire"}},"tiers":{"1":{"requires":["core"],"onFailure":"stop"}},"languages":{"cobol":{"tier":1}}}`, "cobol"},
-		{"a language of an unknown tier", `{"profiles":{"core":{"layers":["seam"],"promise":"wire"}},"tiers":{"1":{"requires":["core"],"onFailure":"stop"}},"languages":{"go":{"tier":9}}}`, "tier 9"},
-		{"a profile of nothing", `{"profiles":{"core":{"promise":"wire"}},"tiers":{},"languages":{}}`, "schema"},
+		{"a tier requiring an unknown profile", `{"profiles":{"core":{"layers":["seam"],"promise":"wire","description":"speaks the wire"}},"tiers":{"1":{"requires":["core","nope"],"onFailure":"stop"}},"languages":{}}`, "nope"},
+		{"a language with no testee", `{"profiles":{"core":{"layers":["seam"],"promise":"wire","description":"speaks the wire"}},"tiers":{"1":{"requires":["core"],"onFailure":"stop"}},"languages":{"cobol":{"tier":1}}}`, "cobol"},
+		{"a language of an unknown tier", `{"profiles":{"core":{"layers":["seam"],"promise":"wire","description":"speaks the wire"}},"tiers":{"1":{"requires":["core"],"onFailure":"stop"}},"languages":{"go":{"tier":9}}}`, "tier 9"},
+		{"a profile of nothing", `{"profiles":{"core":{"promise":"wire","description":"speaks the wire"}},"tiers":{},"languages":{}}`, "schema"},
+		{"a profile that says nothing of what it promises", `{"profiles":{"core":{"layers":["seam"],"promise":"wire"}},"tiers":{},"languages":{}}`, "schema"},
+		{"a profile whose description is empty", `{"profiles":{"core":{"layers":["seam"],"promise":"wire","description":""}},"tiers":{},"languages":{}}`, "schema"},
 	} {
 		if err := os.WriteFile(filepath.Join(broken, "profiles.json"), []byte(c.json), 0o644); err != nil {
 			t.Fatal(err)

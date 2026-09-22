@@ -12,14 +12,15 @@
       "minProperties": 1,
       "propertyNames": {"pattern": "^[a-z][a-z0-9-]*$"},
       "additionalProperties": {
-        "type": "object", "additionalProperties": false, "required": ["promise"],
+        "type": "object", "additionalProperties": false, "required": ["promise", "description"],
         "properties": {
           "layers": {"type": "array", "uniqueItems": true, "items": {"enum": ["seam", "peer", "tunnel", "live", "generated"]}},
           "needs": {"type": "array", "uniqueItems": true, "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy"]}},
-          "promise": {"enum": ["wire", "generated", "complete"]}
+          "promise": {"enum": ["wire", "generated", "complete"]},
+          "description": {"type": "string", "minLength": 1, "description": "One sentence saying what a language that holds the profile can do, written for the consumer who reads docs/languages/tiers.md; the page carries it and is held to it."}
         },
         "anyOf": [{"required": ["layers"]}, {"required": ["needs"]}],
-        "description": "A set of scenarios: those of its layers, or those needing one of its features."
+        "description": "A set of scenarios: those of its layers, or those needing one of its features; and what holding it means to a consumer."
       }
     },
     "tiers": {

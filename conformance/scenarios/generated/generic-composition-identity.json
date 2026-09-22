@@ -2,7 +2,9 @@
   "name": "GEN-ID-ROUTES independently specialized callable aliases agree with supplied generic recipes",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live",
+    "tunnel"
   ],
   "mirror": true,
   "foreach": {

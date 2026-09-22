@@ -25,11 +25,15 @@ type Profiles struct {
 }
 
 // Profile is one named set of scenarios: those of its layers, or those
-// needing one of its features.
+// needing one of its features. Its description is what holding it means to
+// a consumer, one sentence, which docs/languages/tiers.md carries and is
+// held to; the schema requires it, since a profile that cannot say what it
+// promises promises nothing a reader can rely on.
 type Profile struct {
-	Layers  []string `json:"layers"`
-	Needs   []string `json:"needs"`
-	Promise string   `json:"promise"`
+	Layers      []string `json:"layers"`
+	Needs       []string `json:"needs"`
+	Promise     string   `json:"promise"`
+	Description string   `json:"description"`
 }
 
 // Tier is what a language of it must hold, and what a failure means.

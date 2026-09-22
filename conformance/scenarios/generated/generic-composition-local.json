@@ -2,7 +2,8 @@
   "name": "GEN-COMPOSE-LOCAL unchanged Cell retains both generic forms across local Wire presentations",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "foreach": {

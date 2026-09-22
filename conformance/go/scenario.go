@@ -226,10 +226,10 @@ func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenari
 		steps = append(steps, step)
 	}
 	base := Scenario{Name: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Mirror: sf.Mirror, Steps: steps, File: file}
-	if err := holdDeclared(base); err != nil {
-		return nil, err
-	}
 	if sf.Foreach == nil {
+		if err := holdDeclared(base.Needs, []Scenario{base}); err != nil {
+			return nil, err
+		}
 		return []Scenario{base}, nil
 	}
 	rows, err := tableRows(filepath.Join(root, filepath.FromSlash(sf.Foreach.Table)), sf.Foreach.Where)
@@ -249,6 +249,11 @@ func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenari
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("foreach over %s selects no row", sf.Foreach.Table)
+	}
+	// The declared needs are held once the rows are known: a carrier a row
+	// selects is a need the file must name, and only the rows say which.
+	if err := holdDeclared(base.Needs, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

@@ -82,7 +82,11 @@ The first request is always `hello`, and the testee answers with what it is:
 
 `layers` names the op families the testee implements; a scenario names the
 layers and features it `needs`, and the runner skips it for a testee that
-lacks one. The features:
+lacks one. A language's generated testee (*Generated code*, below)
+implements no `tunnel.*` or `live.*` op and still answers with `tunnel` and
+`live` beside `generated` where the packages it links have those runtimes,
+since the generated scenarios that carry a Cell over a prepared channel or
+convert callables need them. The features:
 
 | feature | means |
 |---|---|
@@ -187,11 +191,13 @@ that side.
 What a scenario `needs` is held **per side**: from each side's steps the
 runner derives the layer of every op and the features the ops and their
 arguments use — `listen`, `pipe`, `lazy`, `observer` for `peer.observed`,
-`propagator` for `propagate: true` — and holds that side's testee to them
-alone, so a language that lacks a feature skips a scenario only where it
-would use it. The file's `needs` is the union over both sides, which the
-runner refuses a file to differ from: it is what places the scenario in a
-profile, and documentation that cannot drift.
+`propagator` for `propagate: true`, and for a generated op the runtimes it
+runs over: `live` where the rendered packages convert callables, `tunnel`
+where a Cell is carried by a prepared channel — and holds that side's
+testee to them alone, so a language that lacks a feature skips a scenario
+only where it would use it. The file's `needs` is the union over both
+sides, which the runner refuses a file to differ from: it is what places
+the scenario in a profile, and documentation that cannot drift.
 
 ## Ops
 
@@ -445,7 +451,13 @@ A language's second testee links the packages the generator renders for the
 corpus's `probe` family over that language's runtime: Go and TypeScript
 each link their client and server binding. The runner renders the
 families and builds this testee from the recipe
-in `testee.json` before the `generated` scenarios run.
+in `testee.json` before the `generated` scenarios run. It answers `hello`
+with `generated` and with the runtimes the rendered packages link, `tunnel`
+and `live`: the scenarios below that convert callables need `live`, the
+Wire-construction scenarios that carry a Cell over a prepared channel need
+`tunnel`, each says so in its `needs`, and a language whose generator
+renders neither skips them with that reason rather than failing to build a
+testee that would need them.
 
 | op | arguments | answer |
 |---|---|---|

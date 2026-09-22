@@ -105,11 +105,24 @@ func TestNeedsAreHeldPerSide(t *testing.T) {
 	if got := strings.Join(sides["b"], " "); got != "observer peer propagator" {
 		t.Fatalf("b needs %q", got)
 	}
-	if err := holdDeclared(Scenario{Needs: []string{"lazy", "observer", "peer", "pipe", "propagator", "seam"}, Steps: steps}); err != nil {
+	if err := holdDeclared([]string{"lazy", "observer", "peer", "pipe", "propagator", "seam"}, []Scenario{{Steps: steps}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := holdDeclared(Scenario{Needs: []string{"listen", "peer", "seam"}, Steps: steps}); err == nil || !strings.Contains(err.Error(), "declares needs") {
+	if err := holdDeclared([]string{"listen", "peer", "seam"}, []Scenario{{Steps: steps}}); err == nil || !strings.Contains(err.Error(), "declares needs") {
 		t.Fatalf("a declaration differing from the steps was not refused: %v", err)
+	}
+	// A generated op asks for the runtimes it runs over, and a carrier a row
+	// selects is read through the row: a channel brings the tunnel, a socket
+	// does not, and a carrier no row resolves is taken as possibly a channel.
+	carried := []Step{{On: "a", Op: "gen.wire_serve", Args: map[string]any{"carrier": "$row.carrier"}}, {On: "b", Op: "gen.live_dial", Args: map[string]any{"url": "$origin"}}}
+	if got := strings.Join(union(SideNeeds(withRow(carried, "row", map[string]any{"carrier": "channel"}))), " "); got != "generated live tunnel" {
+		t.Fatalf("a channel row asks %q", got)
+	}
+	if got := strings.Join(union(SideNeeds(withRow(carried, "row", map[string]any{"carrier": "socket"}))), " "); got != "generated live" {
+		t.Fatalf("a socket row asks %q", got)
+	}
+	if got := strings.Join(union(SideNeeds(carried)), " "); got != "generated live tunnel" {
+		t.Fatalf("an unresolved carrier asks %q", got)
 	}
 	if err := checkRunnerStep(Step{On: "a", Op: "pair.conns"}); err == nil {
 		t.Fatal("a pair op on a side was not refused")

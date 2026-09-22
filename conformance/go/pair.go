@@ -68,7 +68,67 @@ func needsOf(step Step) map[string][]string {
 		add(side, "lazy")
 	}
 	addOptionNeeds(add, side, step.Args["options"])
+	carrier, _ := step.Args["carrier"].(string)
+	for _, need := range runtimesOfGenerated(step.Op, carrier) {
+		add(side, need)
+	}
 	return needs
+}
+
+// runtimesOfGenerated is what a generated op asks of its testee beyond the
+// generated layer: the runtimes the rendered packages and the Wire fixture
+// link. Every op that converts callables — the live tier's, the
+// combinators', the owners', publication, forwarding, and the whole Wire
+// construction, whose Cell has callable slots — needs live; a Wire op that
+// carries the Cell needs the tunnel where its carrier is a prepared
+// channel. carrier is the op's carrier argument, resolved through the row
+// a foreach bound; one still unresolved is taken as possibly a channel, so
+// that a need is never understated.
+func runtimesOfGenerated(op, carrier string) []string {
+	switch {
+	case strings.HasPrefix(op, "gen.live_"), strings.HasPrefix(op, "client.live_"),
+		strings.HasPrefix(op, "gen.combinator_"), strings.HasPrefix(op, "client.combinator_"),
+		strings.HasPrefix(op, "gen.owners_"), strings.HasPrefix(op, "client.owners_"),
+		strings.HasPrefix(op, "gen.publication_"), strings.HasPrefix(op, "gen.forwarding_"):
+		return []string{"live"}
+	case strings.HasPrefix(op, "gen.wire_"):
+		if carrier == "channel" || strings.HasPrefix(carrier, "$") {
+			return []string{"live", "tunnel"}
+		}
+		return []string{"live"}
+	}
+	return nil
+}
+
+// withRow is the steps with the row a foreach bound applied to their
+// arguments — `$row.carrier` read as the row's carrier — so that what a
+// step asks of its side is derived from what it will send: at load over
+// every row, at run for the one the scenario carries. Only a string
+// argument that names a member of the row is replaced; a handle an earlier
+// step bound stays as written, since it says nothing about needs.
+func withRow(steps []Step, as string, row map[string]any) []Step {
+	if row == nil || as == "" {
+		return steps
+	}
+	prefix := "$" + as + "."
+	out := make([]Step, len(steps))
+	for i, step := range steps {
+		out[i] = step
+		if len(step.Args) == 0 {
+			continue
+		}
+		args := make(map[string]any, len(step.Args))
+		for name, value := range step.Args {
+			if s, ok := value.(string); ok && strings.HasPrefix(s, prefix) {
+				if member, found := row[strings.TrimPrefix(s, prefix)]; found {
+					value = member
+				}
+			}
+			args[name] = value
+		}
+		out[i].Args = args
+	}
+	return out
 }
 
 // addOptionNeeds reads a peer's options for the features they ask for.
@@ -125,15 +185,22 @@ func union(sides map[string][]string) []string {
 }
 
 // holdDeclared holds a scenario's declared needs to the union of what its
-// steps ask, so the file says what it needs and no more.
-func holdDeclared(s Scenario) error {
-	declared := append([]string(nil), s.Needs...)
-	sort.Strings(declared)
-	derived := union(SideNeeds(s.Steps))
-	if strings.Join(declared, " ") == strings.Join(derived, " ") {
+// steps ask over every expansion — each row of a foreach applied, since the
+// carrier a row selects is a need that row brings — so the file says what
+// it needs and no more.
+func holdDeclared(declared []string, expansions []Scenario) error {
+	sorted := append([]string(nil), declared...)
+	sort.Strings(sorted)
+	var asked []string
+	for _, s := range expansions {
+		asked = append(asked, union(SideNeeds(withRow(s.Steps, s.RowAs, s.Row)))...)
+	}
+	sort.Strings(asked)
+	asked = dedupe(asked)
+	if strings.Join(sorted, " ") == strings.Join(asked, " ") {
 		return nil
 	}
-	return fmt.Errorf("declares needs [%s] but its steps ask for [%s]", strings.Join(declared, ", "), strings.Join(derived, ", "))
+	return fmt.Errorf("declares needs [%s] but its steps ask for [%s]", strings.Join(sorted, ", "), strings.Join(asked, ", "))
 }
 
 // checkRunnerStep holds a runner step to its shape at load: the op is a

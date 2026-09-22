@@ -2,7 +2,7 @@
   "name": "generic data containers carry live values without acquiring a live runtime",
   "layer": "generated",
   "description": "An imported Box supplies a callback; an imported Batch alias returns Page<Result<Box<map<nullable<Bundle<Count>>>>>>, whose union inherits its generic payload. Bundle declares its own callable and an inline record capturing its parameter. The returned function invokes the supplied one after the enclosing RPC has completed. Empty union arms, absent and null fields and open-record extensions remain data.",
-  "needs": ["generated"],
+  "needs": ["generated", "live"],
   "steps": [
     {"on": "a", "op": "gen.combinator_serve", "bind": {"handle": "srv", "url": "url"}},
     {"on": "b", "op": "gen.combinator_dial", "args": {"url": "$url"}, "bind": "cl"},

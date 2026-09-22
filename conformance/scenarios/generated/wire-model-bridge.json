@@ -3,7 +3,8 @@
   "description": "The intermediary composes generated FromWire(origin) directly into ToWire(destination), with no per-operation or per-slot forwarding. The returned factory invokes its supplied function across four live scopes; both mounted and forwarded physical presentations retain prefixes and explicit releases return all four scopes to zero before teardown.",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "steps": [

@@ -278,7 +278,12 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 	}
 	switch op {
 	case "hello":
-		return map[string]any{"driver": 1, "language": "go", "layers": []string{"generated"}, "features": []string{"listen"}}, nil
+		// The generated layer, and the runtimes the rendered packages and the
+		// Wire-construction fixture link: a generated scenario that converts
+		// callables needs live, one that carries a Cell over a prepared
+		// channel needs the tunnel, and the runner skips either for a
+		// generated testee that does not announce them.
+		return map[string]any{"driver": 1, "language": "go", "layers": []string{"generated", "tunnel", "live"}, "features": []string{"listen"}}, nil
 	case "reset":
 		t.reset()
 		return nil, nil
