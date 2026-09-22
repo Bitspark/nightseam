@@ -152,10 +152,28 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           REQUIRE_CREDENTIAL: ${{ github.event_name == 'push' && '--require-credential' || '' }}
+      # Whether ci.yml's `full` job already proved this exact commit: a green
+      # check on the SHA, made by a run of that workflow on that SHA, is the
+      # same tree, toolchains and suite this job would run again, and a
+      # rehearsal and a tag run each spent forty minutes repeating it before
+      # their first packaging step. On that proof the tiers below are
+      # skipped and the proving run is named; on a commit with no such
+      # check — one no pull request carried — they run as before. What only
+      # this workflow does runs on every run: the build, the packed smokes
+      # and the two toolchains they need, the publish, the round trip, the
+      # release. The operator's verdict A on #618; the decision page *The
+      # release trusts the commit's green check*.
+      - name: Ask CI whether it already proved this commit
+        id: proof
+        run: node scripts/tiers-proven.mjs "$(git rev-parse 'HEAD^{commit}')" | tee -a "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - uses: haskell-actions/setup@v2
+        if: steps.proof.outputs.proven != 'true'
         with:
           ghc-version: '9.6.7'
           enable-stack: true
@@ -164,33 +182,45 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
+        if: steps.proof.outputs.proven != 'true'
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: steps.proof.outputs.proven != 'true'
       - run: cargo test --workspace --locked
+        if: steps.proof.outputs.proven != 'true'
       - uses: actions/setup-java@v5
+        if: steps.proof.outputs.proven != 'true'
         with:
           distribution: temurin
           java-version: '21'
       - uses: actions/setup-python@v7
+        if: steps.proof.outputs.proven != 'true'
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pnpm install --frozen-lockfile
       - name: Install the C++ core toolchain
+        if: steps.proof.outputs.proven != 'true'
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
       - name: Build and test the C++ core
+        if: steps.proof.outputs.proven != 'true'
         run: |
           cmake -S . -B .build/cpp -G Ninja -DCMAKE_BUILD_TYPE=Debug
           cmake --build .build/cpp --parallel 2
           ctest --test-dir .build/cpp --output-on-failure
       - name: Import Swift signing keys
+        if: steps.proof.outputs.proven != 'true'
         run: curl --fail --silent --show-error --location --compressed --retry 3 --retry-delay 5 https://www.swift.org/keys/all-keys.asc | gpg --import -
       - uses: swift-actions/setup-swift@d8e84bc3a450686a95474d7d6fa4a3301498debc # v3
+        if: steps.proof.outputs.proven != 'true'
         with:
           swift-version: "6.1.3"
       - run: node scripts/swift.mjs
+        if: steps.proof.outputs.proven != 'true'
       - run: python -m pip install --disable-pip-version-check -e ".[test]"
+        if: steps.proof.outputs.proven != 'true'
       - name: Python unit suites
+        if: steps.proof.outputs.proven != 'true'
         run: |
           python -m ruff check duplex/py runtime/py conformance/python scripts/smoke-python.py
           python -m ruff format --check duplex/py runtime/py conformance/python scripts/smoke-python.py
@@ -198,20 +228,28 @@ jobs:
           python -m unittest discover -s runtime/py/tests
           python -m unittest discover -s conformance/python -p 'test_*.py'
       - name: Python installed wheel
+        if: steps.proof.outputs.proven != 'true'
         run: python scripts/smoke-python.py
       - run: pnpm -r check
+        if: steps.proof.outputs.proven != 'true'
       - run: pnpm -r test
+        if: steps.proof.outputs.proven != 'true'
       - run: stack --system-ghc --no-install-ghc --stack-yaml conformance/haskell/stack.yaml test
+        if: steps.proof.outputs.proven != 'true'
       - run: node scripts/haskell-smoke.mjs
+        if: steps.proof.outputs.proven != 'true'
       # Eight native testee builds and the complete star need an overall
       # budget beyond the default ten minutes, as in ci.yml.
       - run: go test -timeout 25m ./...
+        if: steps.proof.outputs.proven != 'true'
       # The adapter at otel/go and the profile at auth/go are modules of
-      # their own, released by a tag each beside this one; the tag is cut on
-      # a tree where they are green too.
+      # their own, released by a tag each beside this one; the commit is
+      # proved with them green, by CI or here.
       - run: go test ./...
+        if: steps.proof.outputs.proven != 'true'
         working-directory: otel/go
       - run: go test ./...
+        if: steps.proof.outputs.proven != 'true'
         working-directory: auth/go
       - run: pnpm -r build
       # What is about to be published, installed from outside the workspace

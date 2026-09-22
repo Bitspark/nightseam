@@ -60,3 +60,4 @@ both, and says so at the top.
 | [Strings are Unicode scalar values](strings-are-unicode-scalars.md) | [agnosticism](../goals/agnosticism.md) | 0.5.0, #170 |
 | [Generic families render once and commute](generic-families-render-once-and-commute.md) | [agnosticism](../goals/agnosticism.md) | v2 |
 | [Tiers are promises, not rankings](tiers-are-promises-not-rankings.md) | [agnosticism](../goals/agnosticism.md) | 0.3.0 |
+| [The release trusts the commit's green check](the-release-trusts-the-commits-green-check.md) | [declarative](../goals/declarative.md) | 0.7.0, #618 |
