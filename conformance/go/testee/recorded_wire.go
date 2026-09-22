@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -15,7 +16,7 @@ import (
 
 type recordedEntry struct {
 	path     []string
-	message  duplex.Message
+	message  bitwire.Message
 	sequence int
 }
 
@@ -38,7 +39,7 @@ type recordedFollower struct {
 
 func newRecordedWire() *recordedWire { return &recordedWire{followers: map[*recordedFollower]bool{}} }
 func (w *recordedWire) head() int    { w.mu.Lock(); defer w.mu.Unlock(); return len(w.entries) }
-func (w *recordedWire) Send(path []string, message duplex.Message) error {
+func (w *recordedWire) Send(path []string, message bitwire.Message) error {
 	w.mu.Lock()
 	entry := recordedEntry{append([]string{}, path...), message, len(w.entries) + 1}
 	w.entries = append(w.entries, entry)
@@ -55,7 +56,7 @@ func (w *recordedWire) Send(path []string, message duplex.Message) error {
 	w.mu.Unlock()
 	return nil
 }
-func (w *recordedWire) Close(duplex.Code, string) error {
+func (w *recordedWire) Close(bitwire.Code, string) error {
 	w.mu.Lock()
 	for follower := range w.followers {
 		follower.once.Do(func() { close(follower.stop) })
@@ -119,7 +120,7 @@ func (w *recordedWire) attach(after int, target ws.HandlerRegistry, bound int, p
 // forward hop receives and sends the same opaque Message to a second root.
 type recordedRoot struct {
 	mu       sync.Mutex
-	receiver *duplex.Receiver
+	receiver *bitwire.Receiver
 	queue    chan recordedEntry
 	stop     chan struct{}
 	done     chan struct{}
@@ -146,7 +147,7 @@ func newRecordedRoot() *recordedRoot {
 	}()
 	return r
 }
-func (r *recordedRoot) Send(path []string, message duplex.Message) error {
+func (r *recordedRoot) Send(path []string, message bitwire.Message) error {
 	select {
 	case <-r.stop:
 		return duplex.ErrClosed
@@ -159,7 +160,7 @@ func (r *recordedRoot) Send(path []string, message duplex.Message) error {
 		return fmt.Errorf("witness output queue full")
 	}
 }
-func (r *recordedRoot) Receive(receiver duplex.Receiver) (func(), error) {
+func (r *recordedRoot) Receive(receiver bitwire.Receiver) (func(), error) {
 	r.mu.Lock()
 	if r.receiver != nil {
 		r.mu.Unlock()
@@ -175,7 +176,7 @@ func (r *recordedRoot) Receive(receiver duplex.Receiver) (func(), error) {
 		r.mu.Unlock()
 	}, nil
 }
-func (r *recordedRoot) Close(duplex.Code, string) error {
+func (r *recordedRoot) Close(bitwire.Code, string) error {
 	r.once.Do(func() { close(r.stop) })
 	<-r.done
 	return nil
@@ -184,7 +185,7 @@ func (r *recordedRoot) Close(duplex.Code, string) error {
 type recordedPresentation struct {
 	wire         ws.HandlerRegistry
 	rootDispatch *ws.Dispatcher
-	owned        []duplex.Endpoint
+	owned        []bitwire.Endpoint
 	registries   []*ws.Dispatcher
 	root         *recordedRoot
 	end          *recordedRoot
@@ -195,7 +196,7 @@ type recordedPresentation struct {
 
 func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 	p := &recordedPresentation{root: newRecordedRoot(), end: newRecordedRoot(), values: make(chan int, 32), closed: make(chan int, 4), errors: make(chan error, 4)}
-	registry := func(endpoint duplex.Endpoint) (*ws.Dispatcher, error) {
+	registry := func(endpoint bitwire.Endpoint) (*ws.Dispatcher, error) {
 		d, err := ws.NewDispatcher(endpoint)
 		if err == nil {
 			p.registries = append(p.registries, d)
@@ -213,9 +214,9 @@ func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 		p.close()
 		return nil, err
 	}
-	out := duplex.Mount(map[string]duplex.Endpoint{"out": end.Select([]string{"destination"})})
-	inner := duplex.Mount(map[string]duplex.Endpoint{"in": root.Select([]string{"source"})})
-	outer := duplex.Mount(map[string]duplex.Endpoint{"outer": inner})
+	out := duplex.Mount(map[string]bitwire.Endpoint{"out": end.Select([]string{"destination"})})
+	inner := duplex.Mount(map[string]bitwire.Endpoint{"in": root.Select([]string{"source"})})
+	outer := duplex.Mount(map[string]bitwire.Endpoint{"outer": inner})
 	p.owned = append(p.owned, out, inner, outer)
 	outRoutes, err := registry(out)
 	if err != nil {
@@ -237,7 +238,7 @@ func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 		p.close()
 		return nil, err
 	}
-	_, err = destination.Register([]string{"tick"}, duplex.Receiver{Message: func(path []string, m duplex.Message) {
+	_, err = destination.Register([]string{"tick"}, bitwire.Receiver{Message: func(path []string, m bitwire.Message) {
 		if len(path) != 1 || path[0] != "tick" {
 			p.errors <- fmt.Errorf("recorded destination received path %q", path)
 			return
@@ -253,11 +254,11 @@ func presentRecorded(w *recordedWire) (*recordedPresentation, error) {
 		p.values <- value
 	}})
 	if err == nil {
-		_, err = p.wire.Register([]string{"tick"}, duplex.Receiver{Message: func(path []string, message duplex.Message) {
+		_, err = p.wire.Register([]string{"tick"}, bitwire.Receiver{Message: func(path []string, message bitwire.Message) {
 			if err := destination.Send(path, message); err != nil {
 				p.errors <- err
 			}
-		}, Closed: func(code duplex.Code, _ string) { _ = w.head(); p.closed <- int(code) }})
+		}, Closed: func(code bitwire.Code, _ string) { _ = w.head(); p.closed <- int(code) }})
 	}
 	return p, err
 }
@@ -271,8 +272,8 @@ func (p *recordedPresentation) close() {
 	_ = p.root.Close(1000, "done")
 	_ = p.end.Close(1000, "done")
 }
-func recordedMessage(value int) duplex.Message {
-	return duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: json.RawMessage(fmt.Sprint(value))}}
+func recordedMessage(value int) bitwire.Message {
+	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: json.RawMessage(fmt.Sprint(value))}}
 }
 func recordedWait[T any](ctx context.Context, channel <-chan T) (T, error) {
 	select {
@@ -435,7 +436,7 @@ func recordedStallCase(ctx context.Context) (any, error) {
 		return nil, fmt.Errorf("stalled carrier accepted after close")
 	}
 	underneath := make(chan int, 1)
-	_, err = stalled.rootDispatch.Register([]string{"probe"}, duplex.Receiver{Message: func(_ []string, message duplex.Message) {
+	_, err = stalled.rootDispatch.Register([]string{"probe"}, bitwire.Receiver{Message: func(_ []string, message bitwire.Message) {
 		var value int
 		_ = json.Unmarshal(message.Frame.Data, &value)
 		underneath <- value

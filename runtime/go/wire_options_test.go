@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Bitspark/nightseam/duplex/go"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
+
 	ws "github.com/Bitspark/nightseam/runtime/go"
 	"testing"
 	"time"
@@ -48,19 +49,19 @@ func (p *configuredWirePropagator) Inject(ctx context.Context) ws.Trace {
 }
 
 type optionWire struct {
-	send func([]string, duplex.Message) error
+	send func([]string, bitwire.Message) error
 }
 
-func (w optionWire) Send(path []string, m duplex.Message) error { return w.send(path, m) }
+func (w optionWire) Send(path []string, m bitwire.Message) error { return w.send(path, m) }
 
 func TestWireUsesTheConfiguredOutgoingPropagatorAndTimeout(t *testing.T) {
 	want := ws.Trace{Parent: "00-11111111111111111111111111111111-2222222222222222-01", State: "vendor=kept"}
 	propagator := &configuredWirePropagator{trace: want}
-	received := make(chan duplex.ProfileFrame, 2)
-	wire := optionWire{send: func(_ []string, m duplex.Message) error {
+	received := make(chan bitwire.ProfileFrame, 2)
+	wire := optionWire{send: func(_ []string, m bitwire.Message) error {
 		received <- m.Frame
-		if m.Frame.Kind == duplex.ProfileRequest {
-			return m.Return.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: m.Frame.ID, Result: json.RawMessage(`null`)}})
+		if m.Frame.Kind == bitwire.ProfileRequest {
+			return m.Return.Wire.Send(nil, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileResponse, ID: m.Frame.ID, Result: json.RawMessage(`null`)}})
 		}
 		return nil
 	}}
@@ -82,8 +83,8 @@ func TestWireUsesTheConfiguredOutgoingPropagatorAndTimeout(t *testing.T) {
 }
 
 func TestWireConfiguredTimeoutCancelsTheSameReturnCapability(t *testing.T) {
-	messages := make(chan duplex.Message, 2)
-	wire := optionWire{send: func(_ []string, m duplex.Message) error { messages <- m; return nil }}
+	messages := make(chan bitwire.Message, 2)
+	wire := optionWire{send: func(_ []string, m bitwire.Message) error { messages <- m; return nil }}
 	started := time.Now()
 	err := ws.CallWire(context.Background(), wire, []string{"wait"}, nil, nil, ws.WireCallOptions{RequestTimeout: 20 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
@@ -93,7 +94,7 @@ func TestWireConfiguredTimeoutCancelsTheSameReturnCapability(t *testing.T) {
 		t.Fatal("configured timeout was ignored")
 	}
 	request, cancel := <-messages, <-messages
-	if cancel.Frame.Kind != duplex.ProfileCancel || cancel.Return != request.Return || cancel.Frame.ID != request.Frame.ID || cancel.Frame.Traceparent != request.Frame.Traceparent {
+	if cancel.Frame.Kind != bitwire.ProfileCancel || cancel.Return != request.Return || cancel.Frame.ID != request.Frame.ID || cancel.Frame.Traceparent != request.Frame.Traceparent {
 		t.Fatal("timeout changed request correlation")
 	}
 }

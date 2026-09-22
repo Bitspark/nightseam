@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,16 +16,19 @@ import (
 var preparedIdentity = DeclarationIdentity{Path: "service", Digest: strings.Repeat("a", 64)}
 
 type observedIdentityWire struct {
-	duplex.Endpoint
-	observed chan duplex.ProfileKind
+	bitwire.Endpoint
+	observed chan bitwire.ProfileKind
 }
 
-func (w observedIdentityWire) Receive(receiver duplex.Receiver) (func(), error) {
+func (w observedIdentityWire) Receive(receiver bitwire.Receiver) (func(), error) {
 	original := receiver.Message
-	receiver.Message = func(path []string, message duplex.Message) { w.observed <- message.Frame.Kind; original(path, message) }
+	receiver.Message = func(path []string, message bitwire.Message) {
+		w.observed <- message.Frame.Kind
+		original(path, message)
+	}
 	return w.Endpoint.Receive(receiver)
 }
-func identityWait(t *testing.T, signal <-chan duplex.ProfileKind, kind duplex.ProfileKind) {
+func identityWait(t *testing.T, signal <-chan bitwire.ProfileKind, kind bitwire.ProfileKind) {
 	t.Helper()
 	select {
 	case actual := <-signal:
@@ -35,7 +39,7 @@ func identityWait(t *testing.T, signal <-chan duplex.ProfileKind, kind duplex.Pr
 		t.Fatal("delivery did not arrive")
 	}
 }
-func installWireIdentity(t *testing.T, wire duplex.Endpoint, identity DeclarationIdentity) {
+func installWireIdentity(t *testing.T, wire bitwire.Endpoint, identity DeclarationIdentity) {
 	t.Helper()
 	handler, err := IdentityHandler(identity)
 	if err != nil {
@@ -61,7 +65,7 @@ func TestIdentityPreparationHoldsFirstEventThroughCheckAndBinding(t *testing.T) 
 			if !absent {
 				installWireIdentity(t, far, preparedIdentity)
 			}
-			observed := make(chan duplex.ProfileKind, 8)
+			observed := make(chan bitwire.ProfileKind, 8)
 			p, err := PrepareIdentity(observedIdentityWire{near, observed}, preparedIdentity, Options{})
 			if err != nil {
 				t.Fatal(err)
@@ -80,7 +84,7 @@ func TestIdentityPreparationHoldsFirstEventThroughCheckAndBinding(t *testing.T) 
 			if err = EmitWire(context.Background(), far, []string{"event"}, 1); err != nil {
 				t.Fatal(err)
 			}
-			identityWait(t, observed, duplex.ProfileEvent)
+			identityWait(t, observed, bitwire.ProfileEvent)
 			// The local root's event delivery is held. Identity's response returns
 			// through its original return address, never through that event FIFO.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -113,7 +117,7 @@ func TestIdentityPreparationMismatchDiscardsEventsAndPreservesSharedCarrier(t *t
 	installWireIdentity(t, far, DeclarationIdentity{Path: "service", Digest: strings.Repeat("b", 64)})
 	root := testBinding(t, near)
 	model := root.Select(nil)
-	observed := make(chan duplex.ProfileKind, 8)
+	observed := make(chan bitwire.ProfileKind, 8)
 	p, err := PrepareIdentity(observedIdentityWire{model, observed}, preparedIdentity, Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +127,7 @@ func TestIdentityPreparationMismatchDiscardsEventsAndPreservesSharedCarrier(t *t
 	_, _ = RegisterWire(p.Wire(), []string{"event"}, WireHandlers{Event: func(context.Context, json.RawMessage) error { effects.Add(1); return nil }})
 	_, _ = HandleWire(root, []string{"unrelated"}, func(context.Context, json.RawMessage) (any, error) { return 7, nil })
 	_ = EmitWire(context.Background(), far, []string{"event"}, 1)
-	identityWait(t, observed, duplex.ProfileEvent)
+	identityWait(t, observed, bitwire.ProfileEvent)
 	requireIdentityCode(t, p.Check(context.Background()), "contract_mismatch")
 	requireIdentityCode(t, p.Ready(), "contract_mismatch")
 	var result int
@@ -144,7 +148,7 @@ func TestIdentityPreparationDefersRequestsWithoutBlockingRootAndPreservesCancel(
 	installWireIdentity(t, far, preparedIdentity)
 	root := testBinding(t, near)
 	model := root.Select(nil)
-	observed := make(chan duplex.ProfileKind, 8)
+	observed := make(chan bitwire.ProfileKind, 8)
 	p, err := PrepareIdentity(observedIdentityWire{model, observed}, preparedIdentity, Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +160,7 @@ func TestIdentityPreparationDefersRequestsWithoutBlockingRootAndPreservesCancel(
 	ctx, cancel := context.WithCancel(context.Background())
 	answer := make(chan error, 1)
 	go func() { answer <- CallWire(ctx, far, []string{"model"}, nil, nil) }()
-	identityWait(t, observed, duplex.ProfileRequest)
+	identityWait(t, observed, bitwire.ProfileRequest)
 	var result int
 	if err = CallWire(context.Background(), far, []string{"unrelated"}, nil, &result); err != nil || result != 7 {
 		t.Fatalf("root blocked: %d, %v", result, err)
@@ -165,7 +169,7 @@ func TestIdentityPreparationDefersRequestsWithoutBlockingRootAndPreservesCancel(
 	if !errors.Is(<-answer, context.Canceled) {
 		t.Fatal("request did not cancel")
 	}
-	identityWait(t, observed, duplex.ProfileCancel)
+	identityWait(t, observed, bitwire.ProfileCancel)
 	if err = p.Check(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +228,7 @@ func TestIdentityPreparationBoundsUnstartedAndUnboundFactories(t *testing.T) {
 func TestIdentityPreparationMismatchRefusesDeferredRequest(t *testing.T) {
 	near, far := localPair(t, Options{})
 	installWireIdentity(t, far, DeclarationIdentity{Path: "service", Digest: strings.Repeat("b", 64)})
-	observed := make(chan duplex.ProfileKind, 8)
+	observed := make(chan bitwire.ProfileKind, 8)
 	p, err := PrepareIdentity(observedIdentityWire{near, observed}, preparedIdentity, Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -236,7 +240,7 @@ func TestIdentityPreparationMismatchRefusesDeferredRequest(t *testing.T) {
 	})
 	answer := make(chan error, 1)
 	go func() { answer <- CallWire(context.Background(), far, []string{"model"}, nil, nil) }()
-	identityWait(t, observed, duplex.ProfileRequest)
+	identityWait(t, observed, bitwire.ProfileRequest)
 	requireIdentityCode(t, p.Check(context.Background()), "contract_mismatch")
 	requireIdentityCode(t, <-answer, "contract_mismatch")
 }
@@ -281,7 +285,7 @@ func TestIdentityPreparationCancellationAndCarrierCloseReleaseDispatch(t *testin
 func TestIdentityPreparationBoundsDeferredRequests(t *testing.T) {
 	near, far := localPair(t, Options{MaxConcurrentHandlers: 8})
 	installWireIdentity(t, far, preparedIdentity)
-	observed := make(chan duplex.ProfileKind, 8)
+	observed := make(chan bitwire.ProfileKind, 8)
 	p, err := PrepareIdentity(observedIdentityWire{near, observed}, preparedIdentity, Options{MaxConcurrentHandlers: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +294,7 @@ func TestIdentityPreparationBoundsDeferredRequests(t *testing.T) {
 	_, _ = HandleWire(p.Wire(), []string{"model"}, func(context.Context, json.RawMessage) (any, error) { return 1, nil })
 	first := make(chan error, 1)
 	go func() { first <- CallWire(context.Background(), far, []string{"model"}, nil, nil) }()
-	identityWait(t, observed, duplex.ProfileRequest)
+	identityWait(t, observed, bitwire.ProfileRequest)
 	requireIdentityCode(t, CallWire(context.Background(), far, []string{"model"}, nil, nil), "busy")
 	if err = p.Check(context.Background()); err != nil {
 		t.Fatal(err)

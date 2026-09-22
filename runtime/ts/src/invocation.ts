@@ -1,4 +1,4 @@
-import type { Message, Path, Wire } from '@nightseam/duplex';
+import type { Message, Path, Wire } from '@bitspark/bitwire';
 
 /**
  * An admitted request's return capability is the invocation, presented as a

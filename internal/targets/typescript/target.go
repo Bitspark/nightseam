@@ -279,6 +279,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 	if hasModel {
 		emitClient(client)
 		dependencies["@nightseam/duplex"] = t.config.RuntimeVersion
+		dependencies["@bitspark/bitwire"] = "0.2.0"
 	} else {
 		client.line("export * from './types.ts';")
 	}
@@ -311,7 +312,7 @@ func (t *target) Render(f *render.Family) ([]spi.File, error) {
 		if err != nil {
 			return nil, fmt.Errorf("locate binding protocol: %w", err)
 		}
-		bindingDependencies := map[string]string{t.config.Runtime: t.config.RuntimeVersion, "@nightseam/duplex": t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
+		bindingDependencies := map[string]string{"@bitspark/bitwire": "0.2.0", t.config.Runtime: t.config.RuntimeVersion, "@nightseam/duplex": t.config.RuntimeVersion, t.config.pkg(f.Name): clientDependency}
 		if f.Live {
 			bindingDependencies[t.config.Live] = t.config.RuntimeVersion
 		}

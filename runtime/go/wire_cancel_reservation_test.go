@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"reflect"
 	"sync"
 	"testing"
@@ -45,11 +46,11 @@ func (p *wireReservationPropagator) pause(t *testing.T) *wireDrainGate {
 }
 
 type wireReservationSink struct {
-	replies chan duplex.ProfileFrame
-	onReply func(duplex.ProfileFrame)
+	replies chan bitwire.ProfileFrame
+	onReply func(bitwire.ProfileFrame)
 }
 
-func (s *wireReservationSink) Send(_ []string, message duplex.Message) error {
+func (s *wireReservationSink) Send(_ []string, message bitwire.Message) error {
 	if s.onReply != nil {
 		s.onReply(message.Frame)
 	}
@@ -72,7 +73,7 @@ func wireReservationAwait[T any](t *testing.T, values <-chan T) T {
 // Only the root dispatcher runs. Its actual peer admission writes into an
 // independently drained carrier queue, so a full root queue is tested without
 // a second, unrelated transport saturation masking the root's result.
-func wireReservationPeer(t *testing.T) (*Peer, duplex.Wire, *wireReservationPropagator) {
+func wireReservationPeer(t *testing.T) (*Peer, bitwire.Wire, *wireReservationPropagator) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	near, far := duplex.Pipe(1 << 20)
@@ -86,16 +87,16 @@ func wireReservationPeer(t *testing.T) (*Peer, duplex.Wire, *wireReservationProp
 	return peer, peer.Wire(), propagator
 }
 
-func wireReservationMessage(kind duplex.ProfileKind, id string, address *duplex.ReturnAddress) duplex.Message {
-	frame := duplex.ProfileFrame{Version: 1, Kind: kind, ID: id}
-	if kind == duplex.ProfileRequest {
+func wireReservationMessage(kind bitwire.ProfileKind, id string, address *bitwire.ReturnAddress) bitwire.Message {
+	frame := bitwire.ProfileFrame{Version: 1, Kind: kind, ID: id}
+	if kind == bitwire.ProfileRequest {
 		frame.Params = json.RawMessage(`{}`)
-	} else if kind == duplex.ProfileEvent {
+	} else if kind == bitwire.ProfileEvent {
 		frame.Data = json.RawMessage(`null`)
 	}
-	return duplex.Message{Frame: frame, Return: address}
+	return bitwire.Message{Frame: frame, Return: address}
 }
-func wireReservationSend(t *testing.T, wire duplex.Wire, kind duplex.ProfileKind, id string, address *duplex.ReturnAddress) {
+func wireReservationSend(t *testing.T, wire bitwire.Wire, kind bitwire.ProfileKind, id string, address *bitwire.ReturnAddress) {
 	t.Helper()
 	if err := wire.Send([]string{"operation"}, wireReservationMessage(kind, id, address)); err != nil {
 		t.Fatal(err)
@@ -104,16 +105,16 @@ func wireReservationSend(t *testing.T, wire duplex.Wire, kind duplex.ProfileKind
 
 func TestRootWireCancellationHasReservedAdmissionAndKeepsFIFO(t *testing.T) {
 	peer, wire, propagator := wireReservationPeer(t)
-	sink := &wireReservationSink{replies: make(chan duplex.ProfileFrame, 8)}
-	address := &duplex.ReturnAddress{Wire: sink}
+	sink := &wireReservationSink{replies: make(chan bitwire.ProfileFrame, 8)}
+	address := &bitwire.ReturnAddress{Wire: sink}
 	gate := propagator.pause(t)
-	wireReservationSend(t, wire, duplex.ProfileRequest, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileRequest, "c:1", address)
 	wireReservationAwait(t, gate.started)
-	wireReservationSend(t, wire, duplex.ProfileEvent, "", nil) // The sole data slot is occupied.
-	wireReservationSend(t, wire, duplex.ProfileCancel, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileEvent, "", nil) // The sole data slot is occupied.
+	wireReservationSend(t, wire, bitwire.ProfileCancel, "c:1", address)
 	for range 4 {
-		wireReservationSend(t, wire, duplex.ProfileCancel, "c:1", address)
-		wireReservationSend(t, wire, duplex.ProfileCancel, "c:999", address)
+		wireReservationSend(t, wire, bitwire.ProfileCancel, "c:1", address)
+		wireReservationSend(t, wire, bitwire.ProfileCancel, "c:999", address)
 	}
 	if err := peer.Err(); err != nil {
 		t.Fatalf("cancellation ended its carrier: %v", err)
@@ -130,8 +131,8 @@ func TestRootWireCancellationHasReservedAdmissionAndKeepsFIFO(t *testing.T) {
 		t.Fatalf("cancel reply = %+v", reply)
 	}
 	// A fence after duplicate, unknown and settled controls proves none escaped.
-	wireReservationSend(t, wire, duplex.ProfileCancel, "c:1", address)
-	wireReservationSend(t, wire, duplex.ProfileEvent, "", nil)
+	wireReservationSend(t, wire, bitwire.ProfileCancel, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileEvent, "", nil)
 	if got := wireReservationAwait(t, peer.outputs).frame.Kind; got != "event" {
 		t.Fatalf("stale control reached the carrier: %s", got)
 	}
@@ -142,20 +143,20 @@ func TestRootWireCancellationHasReservedAdmissionAndKeepsFIFO(t *testing.T) {
 
 func TestRootWireCompletedCallRetainsItsQueuedCancellationBudget(t *testing.T) {
 	peer, wire, propagator := wireReservationPeer(t)
-	first := &wireReservationSink{replies: make(chan duplex.ProfileFrame, 4)}
-	address := &duplex.ReturnAddress{Wire: first}
-	second := &wireReservationSink{replies: make(chan duplex.ProfileFrame, 4)}
-	secondAddress := &duplex.ReturnAddress{Wire: second}
+	first := &wireReservationSink{replies: make(chan bitwire.ProfileFrame, 4)}
+	address := &bitwire.ReturnAddress{Wire: first}
+	second := &wireReservationSink{replies: make(chan bitwire.ProfileFrame, 4)}
+	secondAddress := &bitwire.ReturnAddress{Wire: second}
 	reentrant := make(chan error, 1)
-	first.onReply = func(duplex.ProfileFrame) {
-		reentrant <- wire.Send([]string{"operation"}, wireReservationMessage(duplex.ProfileRequest, "c:2", secondAddress))
+	first.onReply = func(bitwire.ProfileFrame) {
+		reentrant <- wire.Send([]string{"operation"}, wireReservationMessage(bitwire.ProfileRequest, "c:2", secondAddress))
 	}
-	wireReservationSend(t, wire, duplex.ProfileRequest, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileRequest, "c:1", address)
 	request := wireReservationAwait(t, peer.outputs).frame
 	gate := propagator.pause(t)
-	wireReservationSend(t, wire, duplex.ProfileEvent, "", nil)
+	wireReservationSend(t, wire, bitwire.ProfileEvent, "", nil)
 	wireReservationAwait(t, gate.started)
-	wireReservationSend(t, wire, duplex.ProfileCancel, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileCancel, "c:1", address)
 	// Complete before the root can drain the control. The response callback
 	// attempts to spend the same one-request budget while its stale control is
 	// still queued; it must receive busy, not replenish control capacity.
@@ -179,7 +180,7 @@ func TestRootWireCompletedCallRetainsItsQueuedCancellationBudget(t *testing.T) {
 	// Reuse the original local identity after the control drains. The stale
 	// cancellation must neither cancel it nor delete its new state.
 	first.onReply = nil
-	wireReservationSend(t, wire, duplex.ProfileRequest, "c:1", address)
+	wireReservationSend(t, wire, bitwire.ProfileRequest, "c:1", address)
 	third := wireReservationAwait(t, peer.outputs).frame
 	if third.Kind != "request" {
 		t.Fatalf("stale control was emitted: %+v", third)
@@ -199,10 +200,10 @@ func TestRootWireCompletedCallRetainsItsQueuedCancellationBudget(t *testing.T) {
 func TestRootWireCancellationReservationDoesNotIncreaseDataCapacity(t *testing.T) {
 	peer, wire, propagator := wireReservationPeer(t)
 	gate := propagator.pause(t)
-	wireReservationSend(t, wire, duplex.ProfileEvent, "", nil)
+	wireReservationSend(t, wire, bitwire.ProfileEvent, "", nil)
 	wireReservationAwait(t, gate.started)
-	wireReservationSend(t, wire, duplex.ProfileEvent, "", nil)
-	if err := wire.Send([]string{"operation"}, wireReservationMessage(duplex.ProfileEvent, "", nil)); !errors.Is(err, ErrBackpressure) {
+	wireReservationSend(t, wire, bitwire.ProfileEvent, "", nil)
+	if err := wire.Send([]string{"operation"}, wireReservationMessage(bitwire.ProfileEvent, "", nil)); !errors.Is(err, ErrBackpressure) {
 		t.Fatalf("extra data admission = %v", err)
 	}
 	if !errors.Is(peer.Err(), ErrBackpressure) {

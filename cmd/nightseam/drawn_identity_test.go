@@ -75,7 +75,7 @@ import (
  binding "example.test/generated/api/go/consumer-binding"
  consumer "example.test/generated/api/go/consumer-protocol"
  source "example.test/generated/api/go/source-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/runtime/go"
 )
 

@@ -4,6 +4,7 @@ package main
 // reading cannot satisfy this fixture by winning a race.
 const goEventsFixture = `package generated_test
 import (
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "errors"
  "net/http"
@@ -13,7 +14,7 @@ import (
  "time"
  binding "example.test/generated/api/go/probe-binding"
  protocol "example.test/generated/api/go/probe-protocol"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
  runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 type initialEvents struct{receive func(protocol.Payload)}
@@ -30,7 +31,7 @@ func TestEventsBeforeReading(t *testing.T) {
     var err error
     complete,cleanup,err=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err}
     // The generated interpretation owns its attachment before host preparation.
-    if _,err=p.Wire().Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return errors.New("typed event attachment was not installed before host preparation")}
+    if _,err=p.Wire().Receive(bitwire.Receiver{Message:func([]string,bitwire.Message){}});err==nil{return errors.New("typed event attachment was not installed before host preparation")}
     prepared = true
     return nil
    }}
@@ -67,7 +68,7 @@ func TestEventPreparationErrors(t *testing.T) {
   near,far := duplex.Pipe(1<<20); defer far.Abort()
   sentinel := errors.New("prepare failed")
   options := runtime.Options{Prepare:func(p *runtime.Peer)error{
-   if duplicate { if _,err:=p.Wire().Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err!=nil{return err} }
+   if duplicate { if _,err:=p.Wire().Receive(bitwire.Receiver{Message:func([]string,bitwire.Message){}});err!=nil{return err} }
    _,cleanup,err:=binding.PrepareFromWire(p.Wire(),runtime.AdapterContext{});if err!=nil{return err};defer cleanup()
    return sentinel
   }}

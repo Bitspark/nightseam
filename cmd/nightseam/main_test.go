@@ -491,7 +491,7 @@ import (
  client "example.test/generated/api/go/probe-client"
  protocol "example.test/generated/api/go/probe-protocol"
  runtime "github.com/Bitspark/nightseam/runtime/go"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
 )
 type serverHandler struct{remote protocol.Client}
 func(h serverHandler)Echo(ctx context.Context,p protocol.Payload)(protocol.Payload,error){if err:=h.remote.Events.Changed(ctx,p);err!=nil{return p,err};return h.remote.Methods.Reverse(ctx,p)}

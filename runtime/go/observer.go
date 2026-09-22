@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"time"
 
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -264,7 +265,7 @@ func (p *Peer) observeOpened(role Role) {
 // carried and no other: the close this side sent, 1006 where it aborted and
 // sent nothing at all, or the remote's own where the remote closed first. A
 // code an operator reads here is one a gateway between the two read as well.
-func (p *Peer) observeClosed(err error, code duplex.Code, reason string) {
+func (p *Peer) observeClosed(err error, code bitwire.Code, reason string) {
 	if p.options.Observer == nil {
 		return
 	}

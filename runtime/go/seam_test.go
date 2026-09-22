@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"testing"
 	"time"
 
@@ -145,7 +146,7 @@ func TestHowAPeerEndsAConnectionIsWhatItsObserverIsTold(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		end    func(ctx context.Context, cancel context.CancelFunc, peer *Peer, far duplex.Conn)
-		code   duplex.Code
+		code   bitwire.Code
 		reason string
 		local  bool
 	}{

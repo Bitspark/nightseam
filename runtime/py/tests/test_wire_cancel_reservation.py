@@ -1,7 +1,8 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import CloseError, Frame, Message, ReturnAddress, WireError, encode_path, pipe
+from bitwire import Message, ReturnAddress
+from nightseam.duplex import CloseError, Frame, WireError, encode_path, pipe
 from nightseam.runtime import Options, Peer, PublicError
 from nightseam.runtime.json import encode_object, loads
 

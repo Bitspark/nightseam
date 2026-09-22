@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
-import { at, encodePath, mount, pipe, type Wire } from '@nightseam/duplex';
+import { at, encodePath, mount, pipe } from '@nightseam/duplex';
+import type { Wire } from '@bitspark/bitwire';
 import { Tunnel, type Connection } from '@nightseam/tunnel';
 import { DuplexPeer } from './peer.ts';
 import { createDispatcher } from './dispatcher.ts';

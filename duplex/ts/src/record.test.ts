@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { at, mount, type Message, type Path, type Wire } from './wire.ts';
+import { at, mount } from './wire.ts';
+import type { Message, Path, Wire } from '@bitspark/bitwire';
 import { record, MemoryWireLog, RecordError, type WireRecord } from './record.ts';
 
 function deferred<T = void>() {

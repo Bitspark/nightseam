@@ -117,7 +117,7 @@ import (
  binding "example.test/drawnalias/api/go/holder-binding"
  protocol "example.test/drawnalias/api/go/holder-protocol"
  source "example.test/drawnalias/api/go/source-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/runtime/go"
 )
 type value = protocol.Holder[source.Job]

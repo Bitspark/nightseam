@@ -4,19 +4,9 @@ import unittest
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
-from nightseam.duplex import (
-    MemoryWireLog,
-    Message,
-    Receiver,
-    RecordError,
-    RecordOptions,
-    ReturnAddress,
-    WireError,
-    WireRecord,
-    at,
-    mount,
-    record,
-)
+from bitwire import Message, Receiver, ReturnAddress
+from nightseam.duplex import MemoryWireLog, RecordError, RecordOptions, WireError, WireRecord, at, mount, record
+from nightseam.runtime import Dispatcher
 
 
 def message(value):
@@ -42,8 +32,8 @@ class Target:
             self.on_send(path, value)
         self.values.put_nowait((tuple(path), value))
 
-    def receive(self, path, receiver):
-        entry = (tuple(path), receiver)
+    def receive(self, receiver):
+        entry = receiver
         self.receivers.append(entry)
 
         def detach():
@@ -207,9 +197,10 @@ class RecordTests(unittest.IsolatedAsyncioTestCase):
         log, original, slow_root, healthy = HeldLog(), Target(), Target(), Target()
         wire, _, _ = await self.recorder(original, log, bound=2)
         wire.send(["tick"], message(1))
-        slow_view = at(mount({"slow": slow_root}), ["slow"])
+        slow_router = Dispatcher(mount({"slow": slow_root}))
+        slow_view = slow_router.select(["slow"])
         closes = []
-        slow_view.receive([], Receiver(closed=lambda *ending: closes.append(ending)))
+        slow_view.receive(Receiver(closed=lambda *ending: closes.append(ending)))
         slow = await wire.follow(0, slow_view)
         await asyncio.wait_for(log.entered.wait(), 2)
         fast = await wire.follow(1, healthy)
@@ -404,9 +395,9 @@ class RecordTests(unittest.IsolatedAsyncioTestCase):
             entry.sequence = 2
         wire, _, _ = await self.recorder(target, log)
         self.assertEqual(await wire.head(), 1)
-        receiver = Receiver(namespace=True)
-        detach = wire.receive(["reply"], receiver)
-        self.assertEqual(target.receivers, [(("reply",), receiver)])
+        receiver = Receiver()
+        detach = wire.receive(receiver)
+        self.assertEqual(target.receivers, [receiver])
         detach()
         detach()
         self.assertEqual(target.receivers, [])
@@ -567,7 +558,7 @@ class RecordTests(unittest.IsolatedAsyncioTestCase):
         await follower.wait_closed()
         self.assertEqual(target.endings, [(4007, "finished")])
         with self.assertRaises(WireError):
-            wire.receive([], Receiver())
+            wire.receive(Receiver())
 
     async def test_reentrant_follower_close_does_not_start_another_replay_read(self):
         reads = []

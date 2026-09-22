@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,19 +21,19 @@ import (
 // the two independent integrations #439 requires.
 type invocationEndpoint struct {
 	mu          sync.Mutex
-	receiver    *duplex.Receiver
+	receiver    *bitwire.Receiver
 	closed      bool
 	limits      ws.InvocationLimits
 	admitted    map[string]*ws.Invocation
-	returns     map[string]*duplex.ReturnAddress
-	outcomes    map[string]chan duplex.Message
+	returns     map[string]*bitwire.ReturnAddress
+	outcomes    map[string]chan bitwire.Message
 	retirements atomic.Int64
 	next        atomic.Uint64
 }
 
 func newInvocationEndpoint(limits ws.InvocationLimits) *invocationEndpoint {
 	return &invocationEndpoint{limits: limits, admitted: map[string]*ws.Invocation{},
-		returns: map[string]*duplex.ReturnAddress{}, outcomes: map[string]chan duplex.Message{}}
+		returns: map[string]*bitwire.ReturnAddress{}, outcomes: map[string]chan bitwire.Message{}}
 }
 
 // invocationReturn is this endpoint's return capability. The empty path is the
@@ -43,11 +44,11 @@ type invocationReturn struct {
 	invocation *ws.Invocation
 }
 
-func (r *invocationReturn) Send(path []string, message duplex.Message) error {
+func (r *invocationReturn) Send(path []string, message bitwire.Message) error {
 	if len(path) != 0 {
 		return r.invocation.Deliver(path, message)
 	}
-	if message.Frame.Kind != duplex.ProfileResponse {
+	if message.Frame.Kind != bitwire.ProfileResponse {
 		return errors.New("invalid outcome")
 	}
 	r.owner.mu.Lock()
@@ -66,12 +67,12 @@ func (r *invocationReturn) Send(path []string, message duplex.Message) error {
 // Send loops back into this endpoint's own attachment, asynchronously, so a
 // composition above it can be traversed more than once in one invocation
 // without running destination code on the sender's stack.
-func (e *invocationEndpoint) Send(path []string, message duplex.Message) error {
+func (e *invocationEndpoint) Send(path []string, message bitwire.Message) error {
 	go e.deliver(path, message)
 	return nil
 }
 
-func (e *invocationEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (e *invocationEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
@@ -91,7 +92,7 @@ func (e *invocationEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
 	}, nil
 }
 
-func (e *invocationEndpoint) Close(code duplex.Code, reason string) error {
+func (e *invocationEndpoint) Close(code bitwire.Code, reason string) error {
 	e.mu.Lock()
 	if e.closed {
 		e.mu.Unlock()
@@ -109,19 +110,19 @@ func (e *invocationEndpoint) Close(code duplex.Code, reason string) error {
 
 // admit delivers one request through the attached receiver with a fresh
 // invocation, and returns the channel its outcome arrives on.
-func (e *invocationEndpoint) admit(path []string, params json.RawMessage) (string, chan duplex.Message) {
+func (e *invocationEndpoint) admit(path []string, params json.RawMessage) (string, chan bitwire.Message) {
 	identifier := fmt.Sprintf("x:%d", e.next.Add(1))
-	outcome := make(chan duplex.Message, 1)
+	outcome := make(chan bitwire.Message, 1)
 	invocation := ws.NewInvocation(e.limits, func() { e.retirements.Add(1) })
-	address := &duplex.ReturnAddress{Wire: &invocationReturn{owner: e, identifier: identifier, invocation: invocation}}
+	address := &bitwire.ReturnAddress{Wire: &invocationReturn{owner: e, identifier: identifier, invocation: invocation}}
 	e.mu.Lock()
 	e.admitted[identifier] = invocation
 	e.returns[identifier] = address
 	e.outcomes[identifier] = outcome
 	receiver := e.receiver
 	e.mu.Unlock()
-	message := duplex.Message{
-		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier, Params: params},
+	message := bitwire.Message{
+		Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: identifier, Params: params},
 		Return: address,
 	}
 	if receiver != nil && receiver.Message != nil {
@@ -133,7 +134,7 @@ func (e *invocationEndpoint) admit(path []string, params json.RawMessage) (strin
 
 // deliver hands a message to the attachment exactly as it arrived, without
 // admitting an invocation of this endpoint's own.
-func (e *invocationEndpoint) deliver(path []string, message duplex.Message) {
+func (e *invocationEndpoint) deliver(path []string, message bitwire.Message) {
 	e.mu.Lock()
 	receiver := e.receiver
 	e.mu.Unlock()
@@ -149,8 +150,8 @@ func (e *invocationEndpoint) cancel(identifier string) {
 	if invocation == nil {
 		return
 	}
-	_ = invocation.Deliver([]string{ws.InvocationControl}, duplex.Message{
-		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: identifier},
+	_ = invocation.Deliver([]string{ws.InvocationControl}, bitwire.Message{
+		Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: identifier},
 		Return: address,
 	})
 }
@@ -164,15 +165,15 @@ func (e *invocationEndpoint) invocation(identifier string) *ws.Invocation {
 // opaqueEndpoint wraps another endpoint with nothing but the contract. It
 // passes the complete message, its return capability and its relative path
 // through, and recognizes no concrete type on either side.
-type opaqueEndpoint struct{ inner duplex.Endpoint }
+type opaqueEndpoint struct{ inner bitwire.Endpoint }
 
-func (o opaqueEndpoint) Send(path []string, message duplex.Message) error {
+func (o opaqueEndpoint) Send(path []string, message bitwire.Message) error {
 	return o.inner.Send(path, message)
 }
-func (o opaqueEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (o opaqueEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	return o.inner.Receive(receiver)
 }
-func (o opaqueEndpoint) Close(code duplex.Code, reason string) error {
+func (o opaqueEndpoint) Close(code bitwire.Code, reason string) error {
 	return o.inner.Close(code, reason)
 }
 
@@ -220,23 +221,23 @@ func TestCapturedTraversalSurvivesDetachAndRebind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, second := make(chan duplex.Message, 4), make(chan duplex.Message, 4)
-	detach, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { first <- m }})
+	first, second := make(chan bitwire.Message, 4), make(chan bitwire.Message, 4)
+	detach, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) { first <- m }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	identifier, _ := endpoint.admit([]string{"read"}, nil)
-	if got := (<-first).Frame.Kind; got != duplex.ProfileRequest {
+	if got := (<-first).Frame.Kind; got != bitwire.ProfileRequest {
 		t.Fatalf("first receiver saw %q", got)
 	}
 	detach()
-	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { second <- m }}); err != nil {
+	if _, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) { second <- m }}); err != nil {
 		t.Fatal(err)
 	}
 	endpoint.cancel(identifier)
 	select {
 	case m := <-first:
-		if m.Frame.Kind != duplex.ProfileCancel || m.Frame.ID != identifier {
+		if m.Frame.Kind != bitwire.ProfileCancel || m.Frame.ID != identifier {
 			t.Fatalf("captured receiver got %q %q", m.Frame.Kind, m.Frame.ID)
 		}
 	case <-time.After(5 * time.Second):
@@ -258,15 +259,15 @@ func TestEachTraversalOfOneDispatcherCapturesSeparately(t *testing.T) {
 	// One dispatcher visited twice in one traversal: its outer route forwards
 	// back into its own inner route. Each visit is a capture of its own.
 	seen := make(chan string, 8)
-	if _, err := dispatch.Register([]string{"outer"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
-		if m.Frame.Kind == duplex.ProfileRequest {
+	if _, err := dispatch.Register([]string{"outer"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		if m.Frame.Kind == bitwire.ProfileRequest {
 			go func() { _ = dispatch.Send([]string{"inner"}, m) }()
 		}
 		seen <- "outer:" + string(m.Frame.Kind)
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dispatch.Register([]string{"inner"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	if _, err := dispatch.Register([]string{"inner"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
 		seen <- "inner:" + string(m.Frame.Kind)
 	}}); err != nil {
 		t.Fatal(err)
@@ -287,13 +288,13 @@ func TestLatchedCancellationReachesACaptureInstalledAfterIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controls := make(chan duplex.Message, 4)
+	controls := make(chan bitwire.Message, 4)
 	var identifier atomic.Value
 	identifier.Store("")
 	// The outer receiver cancels the invocation before the inner capture is
 	// installed. The latch is what carries the control to the later capture.
-	if _, err := inner.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
-		if m.Frame.Kind == duplex.ProfileRequest {
+	if _, err := inner.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		if m.Frame.Kind == bitwire.ProfileRequest {
 			endpoint.cancel(m.Frame.ID)
 			return
 		}
@@ -305,7 +306,7 @@ func TestLatchedCancellationReachesACaptureInstalledAfterIt(t *testing.T) {
 	_ = identifier
 	select {
 	case m := <-controls:
-		if m.Frame.Kind != duplex.ProfileCancel {
+		if m.Frame.Kind != bitwire.ProfileCancel {
 			t.Fatalf("latched control was %q", m.Frame.Kind)
 		}
 	case <-time.After(5 * time.Second):
@@ -317,14 +318,14 @@ func TestInvocationBoundsCapturesAndBodies(t *testing.T) {
 	endpoint := newInvocationEndpoint(ws.InvocationLimits{Captures: 2, Bodies: 1})
 	identifier, _ := endpoint.admit([]string{"read"}, nil)
 	invocation := endpoint.invocation(identifier)
-	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier},
-		Return: &duplex.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
+	message := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: identifier},
+		Return: &bitwire.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
 	for i := range 2 {
-		if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); err != nil {
+		if _, err := ws.CaptureInvocation(message, func(bitwire.Message) {}); err != nil {
 			t.Fatalf("capture %d refused: %v", i, err)
 		}
 	}
-	if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); !errors.Is(err, ws.ErrInvocationLimit) {
+	if _, err := ws.CaptureInvocation(message, func(bitwire.Message) {}); !errors.Is(err, ws.ErrInvocationLimit) {
 		t.Fatalf("capture beyond the bound: %v", err)
 	}
 	body, err := ws.BeginInvocationBody(message)
@@ -346,9 +347,9 @@ func TestRetirementWaitsForTheBodyAndTheControlDrain(t *testing.T) {
 	endpoint := newInvocationEndpoint(ws.DefaultInvocationLimits())
 	identifier, _ := endpoint.admit([]string{"read"}, nil)
 	invocation := endpoint.invocation(identifier)
-	message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier},
-		Return: &duplex.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
-	capture, err := ws.CaptureInvocation(message, func(duplex.Message) {})
+	message := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: identifier},
+		Return: &bitwire.ReturnAddress{Wire: &invocationReturn{owner: endpoint, identifier: identifier, invocation: invocation}}}
+	capture, err := ws.CaptureInvocation(message, func(bitwire.Message) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +369,7 @@ func TestRetirementWaitsForTheBodyAndTheControlDrain(t *testing.T) {
 	if !invocation.Retired() {
 		t.Fatal("did not retire once settled with nothing outstanding")
 	}
-	if _, err := ws.CaptureInvocation(message, func(duplex.Message) {}); !errors.Is(err, ws.ErrInvocationEnded) {
+	if _, err := ws.CaptureInvocation(message, func(bitwire.Message) {}); !errors.Is(err, ws.ErrInvocationEnded) {
 		t.Fatalf("a retired invocation admitted a capture: %v", err)
 	}
 	if _, err := ws.BeginInvocationBody(message); !errors.Is(err, ws.ErrInvocationEnded) {
@@ -419,7 +420,7 @@ func TestATraversalPastTheCaptureBoundIsRefusedAsBusy(t *testing.T) {
 		t.Fatal(err)
 	}
 	delivered := make(chan struct{}, 1)
-	if _, err := inner.Register([]string{"read"}, duplex.Receiver{Message: func([]string, duplex.Message) { delivered <- struct{}{} }}); err != nil {
+	if _, err := inner.Register([]string{"read"}, bitwire.Receiver{Message: func([]string, bitwire.Message) { delivered <- struct{}{} }}); err != nil {
 		t.Fatal(err)
 	}
 	_, outcome := endpoint.admit([]string{"a", "read"}, nil)
@@ -445,17 +446,17 @@ func TestADispatcherRefusesAnInvocationWithoutALifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	delivered := make(chan struct{}, 1)
-	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func([]string, duplex.Message) { delivered <- struct{}{} }}); err != nil {
+	if _, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func([]string, bitwire.Message) { delivered <- struct{}{} }}); err != nil {
 		t.Fatal(err)
 	}
-	answered := make(chan duplex.Message, 1)
-	bare := &bareReturn{answer: func(m duplex.Message) { answered <- m }}
+	answered := make(chan bitwire.Message, 1)
+	bare := &bareReturn{answer: func(m bitwire.Message) { answered <- m }}
 	// A request arrives through the contract alone, with a return capability
 	// that carries no lifecycle. It is refused explicitly, on its own original
 	// return capability, rather than routed with weaker guarantees.
-	endpoint.deliver([]string{"read"}, duplex.Message{
-		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "b:1", Params: []byte("null")},
-		Return: &duplex.ReturnAddress{Wire: bare},
+	endpoint.deliver([]string{"read"}, bitwire.Message{
+		Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "b:1", Params: []byte("null")},
+		Return: &bitwire.ReturnAddress{Wire: bare},
 	})
 	select {
 	case refusal := <-answered:
@@ -476,11 +477,11 @@ func TestADispatcherRefusesAnInvocationWithoutALifecycle(t *testing.T) {
 }
 
 type bareReturn struct {
-	answer func(duplex.Message)
+	answer func(bitwire.Message)
 	uses   atomic.Int64
 }
 
-func (b *bareReturn) Send(path []string, message duplex.Message) error {
+func (b *bareReturn) Send(path []string, message bitwire.Message) error {
 	if len(path) != 0 {
 		return errors.New("this return capability carries no lifecycle")
 	}

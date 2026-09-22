@@ -90,7 +90,8 @@ await compare<%s>(%q, %s, source%s, state => {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "diagram.ts")
 }
 
-const tsAdapterDiagramProgram = `import {pipe, type Endpoint} from '@nightseam/duplex';
+const tsAdapterDiagramProgram = `import { pipe } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import {DuplexPeer, DuplexError, forwardWire, type ValueAdapter} from '@nightseam/runtime';
 import {scopeOf, liveOver, valueEnvironment, type LiveOwner} from '@nightseam/live';
 import * as values from '@example/values-client';

@@ -1,5 +1,5 @@
 import { encodePath, WireError } from '@nightseam/duplex';
-import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint } from '@nightseam/duplex';
+import type { Message, Path, Receiver, ReturnAddress, Wire, Endpoint } from '@bitspark/bitwire';
 import { Invocation, defaultInvocationLimits } from './invocation.ts';
 import { DUPLEX_DEFAULTS, positiveInteger } from './peer.ts';
 import type { PeerOptions } from './peer.ts';

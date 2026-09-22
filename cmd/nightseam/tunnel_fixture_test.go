@@ -4,6 +4,7 @@ package main
 // tunnel owns their one peer, while a handle is resolved by the consumer.
 const goTunnelFixture = `package generated_test
 import (
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "net/http"
  "net/http/httptest"
@@ -13,7 +14,7 @@ import (
  "time"
  binding "example.test/generated/api/go/probe-binding"
  protocol "example.test/generated/api/go/probe-protocol"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
  runtime "github.com/Bitspark/nightseam/runtime/go"
  tunnel "github.com/Bitspark/nightseam/tunnel/go"
 )
@@ -32,7 +33,7 @@ func prepareTunnelProbe(peer *runtime.Peer)error{
  if _,err=runtime.ForwardWire(peer.Wire(),model);err!=nil{_ = model.Close(duplex.CodeInternalError,"setup failed");return err}
  go func(){<-peer.Done();_ = model.Close(duplex.CodeNormal,"")}();return nil
 }
-func interpretTunnelProbe(ctx context.Context,wire duplex.Endpoint)(protocol.ServerMethods,error){
+func interpretTunnelProbe(ctx context.Context,wire bitwire.Endpoint)(protocol.ServerMethods,error){
  factory,err:=binding.FromWire(ctx,wire,runtime.AdapterContext{});if err!=nil{return nil,err}
  model,err:=factory(protocol.Client{Methods:tunnelReverse{},Events:tunnelEvents{}});if err!=nil{return nil,err};return model.Methods,nil
 }

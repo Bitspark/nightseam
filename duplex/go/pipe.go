@@ -3,6 +3,7 @@ package duplex
 import (
 	"context"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 )
 
@@ -112,7 +113,7 @@ func (e *pipeEnd) Receive(ctx context.Context) (Frame, error) {
 	}
 }
 
-func (e *pipeEnd) Close(ctx context.Context, code Code, reason string) error {
+func (e *pipeEnd) Close(ctx context.Context, code bitwire.Code, reason string) error {
 	e.end(&CloseError{Code: code, Reason: reason})
 	return nil
 }

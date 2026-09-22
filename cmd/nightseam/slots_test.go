@@ -99,6 +99,7 @@ peer.close();
 
 const goDiagramFixture = `package generated
 import (
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "encoding/json"
  "errors"
@@ -115,7 +116,7 @@ import (
  rightbinding "example.test/generated/gen/go/carrier-binding"
  right "example.test/generated/gen/go/carrier-protocol"
  "github.com/Bitspark/nightseam/runtime/go"
- "github.com/Bitspark/nightseam/duplex/go"
+
 )
 type E = probe.Envelope
 type H = probe.Handle
@@ -197,7 +198,7 @@ type leftEvents struct{ relayed chan left.Frame }
 func (e leftEvents) FrameRelayed(_ context.Context, frame left.Frame) error {e.relayed<-frame;return nil}
 type rightEvents struct{ relayed chan right.Frame[E] }
 func (e rightEvents) FrameRelayed(_ context.Context, frame right.Frame[E]) error {e.relayed<-frame;return nil}
-func wireHandler(t *testing.T, model func()(duplex.Endpoint,error)) http.Handler {
+func wireHandler(t *testing.T, model func()(bitwire.Endpoint,error)) http.Handler {
  t.Helper()
  settings:=options
  settings.Options.Prepare=func(peer *runtime.Peer)error{
@@ -220,7 +221,7 @@ func serve(t *testing.T, h http.Handler) (*httptest.Server, string) {
  return server, "ws" + strings.TrimPrefix(server.URL, "http")
 }
 func TestPlainClientSpeaksWithPlainServer(t *testing.T) {
- h := wireHandler(t,func()(duplex.Endpoint,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
+ h := wireHandler(t,func()(bitwire.Endpoint,error){return leftbinding.ToWire(leftModel,runtime.AdapterContext{})})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -250,7 +251,7 @@ func TestPlainClientSpeaksWithPlainServer(t *testing.T) {
  if err != nil || attachment.Connection.Channel != 7 { t.Fatalf("attach %#v %v", attachment, err) }
 }
 func TestGenericClientSpeaksWithGenericServer(t *testing.T) {
- h := wireHandler(t,func()(duplex.Endpoint,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
+ h := wireHandler(t,func()(bitwire.Endpoint,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -309,7 +310,7 @@ func TestDistinctDeclarationsRefuseCrossInterpretation(t *testing.T) {
 }
 func TestGenericTypeScriptClientSpeaksWithGenericServer(t *testing.T) {
  if _, err := exec.LookPath("node"); err != nil { t.Skip("Node is not installed") }
- h := wireHandler(t,func()(duplex.Endpoint,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
+ h := wireHandler(t,func()(bitwire.Endpoint,error){return rightbinding.ToWire(rightModel,runtime.AdapterContext{},runtime.JSONAdapter[E](),runtime.JSONAdapter[H]())})
  server, url := serve(t, h)
  defer server.Close()
  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

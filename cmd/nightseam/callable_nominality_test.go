@@ -71,7 +71,7 @@ import (
 	protocol "example.test/generated/api/go/nominal-protocol"
 	binding "example.test/generated/api/go/nominal-binding"
 	previous "example.test/generated/api-v1/go/nominal-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
+
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 	"github.com/Bitspark/nightseam/tunnel/go"
@@ -343,7 +343,8 @@ const tsCallableNominalityFixture = `import assert from 'node:assert/strict';
 import * as nominal from './api/ts/nominal-client/src/index.ts';
 import * as previous from './api-v1/ts/nominal-client/src/types.ts';
 import * as binding from './api/ts/nominal-binding/src/index.ts';
-import { encodePath, pipe, type Endpoint } from '@nightseam/duplex';
+import { encodePath, pipe } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { DuplexError, DuplexPeer, forwardWire } from '@nightseam/runtime';
 import { CONTRACT_MISMATCH, liveOver, scopeOf, valueEnvironment } from '@nightseam/live';
 

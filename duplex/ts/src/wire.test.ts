@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { at, mount, encodePath, decodePath, WireError } from './wire.ts';
-import type { Wire, Endpoint, Message, Receiver, Path, ProfileFrame } from './wire.ts';
+import type { Wire, Endpoint, Message, Receiver, Path, ProfileFrame } from '@bitspark/bitwire';
 
 test('path encoding is canonical, injective and composes by concatenation', () => {
   const paths: Path[] = [[], [''], ['a', 'b'], ['a.b'], ['a', 'b:c'], ['é', 'e\u0301', '😀', '\ufeff', '\0']];

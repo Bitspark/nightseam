@@ -46,7 +46,7 @@ func TestGeneratedTypeScriptWireFactories(t *testing.T) {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "wire.ts")
 }
 
-const tsWireFactoriesProgram = `import type {Endpoint} from '@nightseam/duplex';
+const tsWireFactoriesProgram = `import type { Endpoint } from '@bitspark/bitwire';
 import type {WireModelContext} from '@nightseam/runtime';
 import {adapterCount} from '@example/values-client';
 import * as binding from '@example/cell-binding';

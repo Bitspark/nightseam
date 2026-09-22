@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"reflect"
 	"sync"
 	"testing"
@@ -17,18 +18,18 @@ type namespaceObservation struct {
 	Path   []string
 }
 
-func namespaceReceiver(picked string, events chan namespaceObservation) duplex.Receiver {
-	return duplex.Receiver{Message: func(path []string, message duplex.Message) {
+func namespaceReceiver(picked string, events chan namespaceObservation) bitwire.Receiver {
+	return bitwire.Receiver{Message: func(path []string, message bitwire.Message) {
 		observation := namespaceObservation{picked, append([]string{}, path...)}
-		if message.Frame.Kind == duplex.ProfileEvent {
+		if message.Frame.Kind == bitwire.ProfileEvent {
 			events <- observation
 			return
 		}
-		if message.Frame.Kind != duplex.ProfileRequest {
+		if message.Frame.Kind != bitwire.ProfileRequest {
 			return
 		}
 		data, _ := json.Marshal(observation)
-		_ = message.Return.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: message.Frame.ID, Result: data}})
+		_ = message.Return.Wire.Send(nil, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileResponse, ID: message.Frame.ID, Result: data}})
 	}}
 }
 
@@ -97,13 +98,13 @@ func TestDispatcherUsesExactThenLongestSegmentPrefix(t *testing.T) {
 func TestDispatcherCancellationKeepsOriginalRegistration(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
 	serverBinding := testBinding(t, server.Wire())
-	started := make(chan *duplex.ReturnAddress, 1)
-	cancelled := make(chan *duplex.ReturnAddress, 1)
-	detach, err := serverBinding.RegisterPrefix([]string{"worker"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
-		if m.Frame.Kind == duplex.ProfileRequest {
+	started := make(chan *bitwire.ReturnAddress, 1)
+	cancelled := make(chan *bitwire.ReturnAddress, 1)
+	detach, err := serverBinding.RegisterPrefix([]string{"worker"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		if m.Frame.Kind == bitwire.ProfileRequest {
 			started <- m.Return
 		}
-		if m.Frame.Kind == duplex.ProfileCancel {
+		if m.Frame.Kind == bitwire.ProfileCancel {
 			cancelled <- m.Return
 		}
 	}})
@@ -116,8 +117,8 @@ func TestDispatcherCancellationKeepsOriginalRegistration(t *testing.T) {
 	go func() { result <- ws.CallWire(ctx, client.Wire(), []string{"worker", "dynamic"}, nil, nil) }()
 	original := receive(t, started)
 	detach()
-	replacement := make(chan duplex.ProfileKind, 4)
-	if _, err := serverBinding.RegisterPrefix([]string{"worker"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { replacement <- m.Frame.Kind }}); err != nil {
+	replacement := make(chan bitwire.ProfileKind, 4)
+	if _, err := serverBinding.RegisterPrefix([]string{"worker"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) { replacement <- m.Frame.Kind }}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()
@@ -137,35 +138,35 @@ func TestDispatcherCancellationKeepsOriginalRegistration(t *testing.T) {
 func TestStructuredWireBridgePreservesTraceVerbatim(t *testing.T) {
 	client, server := newPair(t, ws.Options{}, ws.Options{})
 	serverBinding := testBinding(t, server.Wire())
-	frames := make(chan duplex.ProfileFrame, 8)
-	_, err := serverBinding.Register([]string{"trace"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	frames := make(chan bitwire.ProfileFrame, 8)
+	_, err := serverBinding.Register([]string{"trace"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
 		frames <- m.Frame
-		if m.Frame.Kind == duplex.ProfileRequest {
-			_ = m.Return.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: m.Frame.ID, Result: json.RawMessage(`null`)}})
+		if m.Frame.Kind == bitwire.ProfileRequest {
+			_ = m.Return.Wire.Send(nil, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileResponse, ID: m.Frame.ID, Result: json.RawMessage(`null`)}})
 		}
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sink := &wireReplySink{replies: make(chan duplex.ProfileFrame, 2)}
-	address := &duplex.ReturnAddress{Wire: sink}
+	sink := &wireReplySink{replies: make(chan bitwire.ProfileFrame, 2)}
+	address := &bitwire.ReturnAddress{Wire: sink}
 	for _, trace := range []ws.Trace{{Parent: "00-11111111111111111111111111111111-2222222222222222-01", State: "vendor=value"}, {}} {
-		for _, kind := range []duplex.ProfileKind{duplex.ProfileRequest, duplex.ProfileEvent} {
-			frame := duplex.ProfileFrame{Version: 1, Kind: kind, Traceparent: trace.Parent, Tracestate: trace.State}
-			if kind == duplex.ProfileRequest {
+		for _, kind := range []bitwire.ProfileKind{bitwire.ProfileRequest, bitwire.ProfileEvent} {
+			frame := bitwire.ProfileFrame{Version: 1, Kind: kind, Traceparent: trace.Parent, Tracestate: trace.State}
+			if kind == bitwire.ProfileRequest {
 				frame.ID = "c:1"
 				frame.Params = json.RawMessage(`null`)
 			} else {
 				frame.Data = json.RawMessage(`null`)
 			}
-			if err := client.Wire().Send([]string{"trace"}, duplex.Message{Frame: frame, Return: address}); err != nil {
+			if err := client.Wire().Send([]string{"trace"}, bitwire.Message{Frame: frame, Return: address}); err != nil {
 				t.Fatal(err)
 			}
 			got := receive(t, frames)
 			if got.Traceparent != trace.Parent || got.Tracestate != trace.State {
 				t.Fatalf("structured %s trace changed: %+v; want %+v", kind, got, trace)
 			}
-			if kind == duplex.ProfileRequest {
+			if kind == bitwire.ProfileRequest {
 				reply := receive(t, sink.replies)
 				if reply.Traceparent != trace.Parent || reply.Tracestate != trace.State {
 					t.Fatalf("response trace changed: %+v", reply)
@@ -221,10 +222,10 @@ func TestRegisterWireGroupsRequestAndEventAtOnePath(t *testing.T) {
 // fatal-handler closure. Ordinary borrowed dispatchers only detach themselves.
 type ownedEventRegistry struct {
 	*ws.Dispatcher
-	endpoint duplex.Endpoint
+	endpoint bitwire.Endpoint
 }
 
-func (r ownedEventRegistry) Close(code duplex.Code, reason string) error {
+func (r ownedEventRegistry) Close(code bitwire.Code, reason string) error {
 	_ = r.Dispatcher.Close(code, reason)
 	return r.endpoint.Close(code, reason)
 }
@@ -263,8 +264,8 @@ func TestRegisterWireEventFailuresEndOnlyTheirCarrierWithSanitizedReason(t *test
 }
 
 type forwardRegistrationWire struct {
-	receiver   duplex.Receiver
-	sent       []duplex.Message
+	receiver   bitwire.Receiver
+	sent       []bitwire.Message
 	paths      [][]string
 	detached   int
 	closed     int
@@ -272,12 +273,12 @@ type forwardRegistrationWire struct {
 	sendErr    error
 }
 
-func (w *forwardRegistrationWire) Send(path []string, message duplex.Message) error {
+func (w *forwardRegistrationWire) Send(path []string, message bitwire.Message) error {
 	w.paths = append(w.paths, path)
 	w.sent = append(w.sent, message)
 	return w.sendErr
 }
-func (w *forwardRegistrationWire) Receive(receiver duplex.Receiver) (func(), error) {
+func (w *forwardRegistrationWire) Receive(receiver bitwire.Receiver) (func(), error) {
 	if w.receiveErr != nil {
 		return nil, w.receiveErr
 	}
@@ -285,7 +286,7 @@ func (w *forwardRegistrationWire) Receive(receiver duplex.Receiver) (func(), err
 	var once sync.Once
 	return func() { once.Do(func() { w.detached++ }) }, nil
 }
-func (w *forwardRegistrationWire) Close(duplex.Code, string) error { w.closed++; return nil }
+func (w *forwardRegistrationWire) Close(bitwire.Code, string) error { w.closed++; return nil }
 
 func TestForwardWirePreservesMessagesAndOwnsOnlyRegistrations(t *testing.T) {
 	left, right := &forwardRegistrationWire{}, &forwardRegistrationWire{}
@@ -293,10 +294,10 @@ func TestForwardWirePreservesMessagesAndOwnsOnlyRegistrations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	returning := &duplex.ReturnAddress{Wire: left}
+	returning := &bitwire.ReturnAddress{Wire: left}
 	path := []string{"unknown", "a.b", "", "😀"}
-	for _, kind := range []duplex.ProfileKind{duplex.ProfileRequest, duplex.ProfileResponse, duplex.ProfileEvent, duplex.ProfileCancel} {
-		message := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: kind, ID: "c:1", Params: json.RawMessage(`{"n":1e3}`)}, Return: returning}
+	for _, kind := range []bitwire.ProfileKind{bitwire.ProfileRequest, bitwire.ProfileResponse, bitwire.ProfileEvent, bitwire.ProfileCancel} {
+		message := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: kind, ID: "c:1", Params: json.RawMessage(`{"n":1e3}`)}, Return: returning}
 		left.receiver.Message(path, message)
 		right.receiver.Message(path, message)
 		if !reflect.DeepEqual(left.sent[len(left.sent)-1], message) || !reflect.DeepEqual(right.sent[len(right.sent)-1], message) {
@@ -323,8 +324,8 @@ func TestForwardWirePreservesMessagesAndOwnsOnlyRegistrations(t *testing.T) {
 	if _, err := ws.ForwardWire(left, right); err != nil {
 		t.Fatal(err)
 	}
-	sink := &wireReplySink{replies: make(chan duplex.ProfileFrame, 1)}
-	left.receiver.Message(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1"}, Return: &duplex.ReturnAddress{Wire: sink}})
+	sink := &wireReplySink{replies: make(chan bitwire.ProfileFrame, 1)}
+	left.receiver.Message(path, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1"}, Return: &bitwire.ReturnAddress{Wire: sink}})
 	response := receive(t, sink.replies)
 	if response.Error == nil || response.Error.Code != "busy" || left.detached != 1 || right.detached != 1 || right.closed != 0 {
 		t.Fatalf("failed forwarding did not refuse and detach: %+v %+v %+v", response, left, right)
@@ -334,8 +335,8 @@ func TestForwardWirePreservesMessagesAndOwnsOnlyRegistrations(t *testing.T) {
 func TestForwardWireCarriesUnknownPathsAndReverseCallsAcrossPeers(t *testing.T) {
 	client, middleIn := newPair(t, ws.Options{}, ws.Options{})
 	middleOut, server := newPair(t, ws.Options{}, ws.Options{})
-	inbound := testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"in": testBinding(t, middleIn.Wire()).Select([]string{"gateway"})})).Select([]string{"in"})
-	outbound := testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"out": testBinding(t, middleOut.Wire()).Select([]string{"service"})})).Select([]string{"out"})
+	inbound := testBinding(t, duplex.Mount(map[string]bitwire.Endpoint{"in": testBinding(t, middleIn.Wire()).Select([]string{"gateway"})})).Select([]string{"in"})
+	outbound := testBinding(t, duplex.Mount(map[string]bitwire.Endpoint{"out": testBinding(t, middleOut.Wire()).Select([]string{"service"})})).Select([]string{"out"})
 	caller := testBinding(t, testBinding(t, client.Wire()).Select([]string{"gateway"}))
 	implementation := testBinding(t, testBinding(t, server.Wire()).Select([]string{"service"}))
 	detach, err := ws.ForwardWire(inbound, outbound)

@@ -4,7 +4,9 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass
 
-from nightseam.duplex.wire import Message, Path, Receiver, Wire, WireError, at, encode_path, mount
+from bitwire import Message, Path, Receiver, Wire
+from nightseam.duplex.wire import WireError, at, mount
+from nightseam.runtime import Dispatcher
 
 
 class _Queue:
@@ -95,7 +97,7 @@ class _RecordedWire:
         finally:
             self.appending = False
 
-    def receive(self, path, receiver):
+    def receive(self, receiver):
         raise WireError("no_route")
 
     def close(self, code=1000, reason=""):
@@ -167,12 +169,12 @@ class _RecordedRoot:
         self.scheduled = False
         while not self.closed and self.queue:
             path, message = self.queue.popleft()
-            receiver = self.receivers.get(encode_path(path))
+            receiver = self.receivers.get(None)
             if receiver and receiver.message:
                 receiver.message(list(path), message)
 
-    def receive(self, path: Path, receiver: Receiver):
-        key = encode_path(path)
+    def receive(self, receiver: Receiver):
+        key = None
         if key in self.receivers:
             raise WireError("receiver_exists")
         self.receivers[key] = receiver
@@ -203,8 +205,12 @@ class _Presentation:
         self.values = _Queue()
         self.closed = _Queue()
         self.failure = None
-        destination = at(mount({"out": at(self.end, ["destination"])}), ["out"])
-        self.wire = at(mount({"outer": mount({"in": at(self.root, ["source"])})}), ["outer", "in"])
+        self.root_routes = Dispatcher(self.root)
+        self.end_routes = Dispatcher(self.end)
+        self.destination_routes = Dispatcher(mount({"out": self.end_routes.select(["destination"])}))
+        destination = self.destination_routes.select(["out"])
+        self.source_routes = Dispatcher(mount({"outer": mount({"in": self.root_routes.select(["source"])})}))
+        self.wire = self.source_routes.select(["outer", "in"])
 
         def deliver(path, message):
             try:
@@ -218,7 +224,7 @@ class _Presentation:
                 self.failure = error
                 self.values.put(0)
 
-        destination.receive(["tick"], Receiver(message=deliver))
+        destination.receive(Receiver(message=deliver))
 
         def forward(path, message):
             try:
@@ -231,7 +237,7 @@ class _Presentation:
             store.head()
             self.closed.put(code)
 
-        self.wire.receive(["tick"], Receiver(message=forward, closed=closed))
+        self.wire.receive(Receiver(message=forward, closed=closed))
 
     async def collect(self):
         # A fence on the same route follows all earlier replay/live deliveries.
@@ -247,6 +253,10 @@ class _Presentation:
 
     def close(self):
         self.wire.close()
+        self.source_routes.close()
+        self.destination_routes.close()
+        self.root_routes.close()
+        self.end_routes.close()
         self.root.close()
         self.end.close()
 
@@ -334,7 +344,7 @@ async def _stall_case():
             if message.frame["kind"] == "event":
                 underneath.put(message.frame["data"])
 
-        stalled.root.receive(["probe"], Receiver(message=probe_received))
+        stalled.root_routes.register(["probe"], Receiver(message=probe_received))
         stalled.root.send(["probe"], _message(99))
         probe = await underneath.take()
         store.send(["tick"], _message(7))

@@ -8,7 +8,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from .wire import Message, Path, Receiver, Wire, WireError, encode_path
+from bitwire import Message, Path, Receiver, Wire
+
+from .wire import WireError, encode_path
 
 __all__ = [
     "WireRecord",
@@ -143,10 +145,10 @@ class RecordedWire:
         encode_path(path)
         self._admit(_Append(tuple(path), message))
 
-    def receive(self, path: Path, receiver: Receiver) -> Callable[[], None]:
+    def receive(self, receiver: Receiver) -> Callable[[], None]:
         if self._closed:
             raise WireError("closed")
-        return self._target.receive(path, receiver)
+        return self._target.receive(receiver)
 
     def close(self, code: int = 1000, reason: str = "") -> None:
         self._end(code, reason, None)

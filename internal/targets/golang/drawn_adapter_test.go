@@ -134,7 +134,7 @@ import (
  protocol "example.test/drawn/api/go/holder-protocol"
  other "example.test/drawn/api/go/other-protocol"
  source "example.test/drawn/api/go/source-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/runtime/go"
 )
 type value = protocol.Holder[source.Job,source.Progress]

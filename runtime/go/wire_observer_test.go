@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"sync"
 	"testing"
@@ -12,17 +13,17 @@ import (
 )
 
 // Expose only the neutral contract, with no concrete peer available to inspect.
-type observedOpaqueWire struct{ duplex.Wire }
-type observedOpaqueEndpoint struct{ duplex.Endpoint }
+type observedOpaqueWire struct{ bitwire.Wire }
+type observedOpaqueEndpoint struct{ bitwire.Endpoint }
 
 type cancellationObservingWire struct {
-	duplex.Wire
+	bitwire.Wire
 	observer *wireObservations
 	ended    chan bool
 }
 
-func (w cancellationObservingWire) Send(path []string, message duplex.Message) error {
-	if message.Frame.Kind == duplex.ProfileCancel {
+func (w cancellationObservingWire) Send(path []string, message bitwire.Message) error {
+	if message.Frame.Kind == bitwire.ProfileCancel {
 		ended := false
 		for _, event := range w.observer.snapshot() {
 			if event, ok := event.(RequestEnded); ok && !event.Incoming {

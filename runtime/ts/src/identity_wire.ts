@@ -1,4 +1,4 @@
-import type { Message, Path, Receiver, ReturnAddress, Endpoint } from '@nightseam/duplex';
+import type { Message, Path, Receiver, ReturnAddress, Endpoint } from '@bitspark/bitwire';
 import { createDispatcher, type HandlerRegistry } from './dispatcher.ts';
 import { DuplexError } from './error.ts';
 import { IDENTITY_METHOD, checkIdentity, identityHandler, type DeclarationIdentity } from './identity.ts';

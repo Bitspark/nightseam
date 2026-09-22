@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"maps"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 type routedFrame struct {
 	path    []string
-	message duplex.Message
+	message bitwire.Message
 	call    *routedCall
 	refusal error
 }
@@ -29,7 +30,7 @@ type routedCall struct {
 }
 
 type returnKey struct {
-	address *duplex.ReturnAddress
+	address *bitwire.ReturnAddress
 	id      string
 }
 
@@ -47,7 +48,7 @@ type peerWire struct {
 }
 
 type wireRegistration struct {
-	receiver duplex.Receiver
+	receiver bitwire.Receiver
 }
 
 type wireFrameKey struct{}
@@ -72,10 +73,10 @@ type wireCompletion struct {
 // composition; it is never reconstructed from event data or metadata.
 type wireEventContext struct{ ctx context.Context }
 
-func (*wireEventContext) Send([]string, duplex.Message) error {
+func (*wireEventContext) Send([]string, bitwire.Message) error {
 	return errors.New("an event context is not a return address")
 }
-func eventContextOf(message duplex.Message) (context.Context, bool) {
+func eventContextOf(message bitwire.Message) (context.Context, bool) {
 	if message.Return != nil {
 		if held, ok := message.Return.Wire.(*wireEventContext); ok {
 			return held.ctx, true
@@ -83,14 +84,14 @@ func eventContextOf(message duplex.Message) (context.Context, bool) {
 	}
 	return nil, false
 }
-func withWireEventContext(message duplex.Message, ctx context.Context) duplex.Message {
-	message.Return = &duplex.ReturnAddress{Wire: &wireEventContext{ctx: ctx}}
+func withWireEventContext(message bitwire.Message, ctx context.Context) bitwire.Message {
+	message.Return = &bitwire.ReturnAddress{Wire: &wireEventContext{ctx: ctx}}
 	return message
 }
 
 // Wire selects this peer's root origin. Repeated selection shares the peer,
 // its queues and its carrier lifetime.
-func (p *Peer) Wire() duplex.Endpoint {
+func (p *Peer) Wire() bitwire.Endpoint {
 	p.wireOnce.Do(func() {
 		p.wire = &peerWire{peer: p, wake: make(chan struct{}, 1), incoming: map[returnKey]*routedCall{}}
 		p.mu.Lock()
@@ -102,21 +103,21 @@ func (p *Peer) Wire() duplex.Endpoint {
 	return p.wire
 }
 
-func (w *peerWire) Send(path []string, message duplex.Message) error {
+func (w *peerWire) Send(path []string, message bitwire.Message) error {
 	name, err := duplex.EncodePath(path)
 	if err != nil {
 		return err
 	}
-	if name == "" && (message.Frame.Kind == duplex.ProfileRequest || message.Frame.Kind == duplex.ProfileEvent) {
+	if name == "" && (message.Frame.Kind == bitwire.ProfileRequest || message.Frame.Kind == bitwire.ProfileEvent) {
 		return errors.New("a root wire operation needs a nonempty path")
 	}
 	if err := w.peer.Err(); err != nil {
 		return err
 	}
-	if (message.Frame.Kind == duplex.ProfileRequest || message.Frame.Kind == duplex.ProfileCancel) && (message.Return == nil || message.Return.Wire == nil) {
+	if (message.Frame.Kind == bitwire.ProfileRequest || message.Frame.Kind == bitwire.ProfileCancel) && (message.Return == nil || message.Return.Wire == nil) {
 		return errors.New("a wire request or cancellation requires a return address")
 	}
-	if message.Frame.Kind != duplex.ProfileRequest && message.Frame.Kind != duplex.ProfileEvent && message.Frame.Kind != duplex.ProfileCancel {
+	if message.Frame.Kind != bitwire.ProfileRequest && message.Frame.Kind != bitwire.ProfileEvent && message.Frame.Kind != bitwire.ProfileCancel {
 		return errors.New("a response is sent to its request's return address")
 	}
 	if err := validateWireFrame(name, message.Frame, w.peer.options.MaxFrameBytes); err != nil {
@@ -132,7 +133,7 @@ func (w *peerWire) Send(path []string, message duplex.Message) error {
 		w.mu.Unlock()
 		return err
 	}
-	if message.Frame.Kind == duplex.ProfileCancel {
+	if message.Frame.Kind == bitwire.ProfileCancel {
 		call := w.incoming[key]
 		if call == nil || call.completed || call.cancelQueued || call.cancelled {
 			w.mu.Unlock()
@@ -149,7 +150,7 @@ func (w *peerWire) Send(path []string, message duplex.Message) error {
 			return ErrBackpressure
 		}
 		w.dataQueued++
-		if message.Frame.Kind == duplex.ProfileRequest {
+		if message.Frame.Kind == bitwire.ProfileRequest {
 			if w.incoming[key] != nil {
 				delivered.refusal = &PublicError{Code: "invalid_message", Message: "Duplicate active request identifier"}
 			} else if len(w.incoming) >= w.peer.options.MaxPendingRequests {
@@ -193,13 +194,13 @@ func (w *peerWire) next() (routedFrame, bool) {
 	delivered := w.queue[0]
 	w.queue[0] = routedFrame{}
 	w.queue = w.queue[1:]
-	if delivered.message.Frame.Kind != duplex.ProfileCancel {
+	if delivered.message.Frame.Kind != bitwire.ProfileCancel {
 		w.dataQueued--
 	}
 	return delivered, true
 }
 
-func (w *peerWire) Close(code duplex.Code, reason string) error {
+func (w *peerWire) Close(code bitwire.Code, reason string) error {
 	w.peer.end(ErrClosed, code, reason)
 	return nil
 }
@@ -207,7 +208,7 @@ func (w *peerWire) Close(code duplex.Code, reason string) error {
 func (w *peerWire) run() {
 	defer func() {
 		w.mu.Lock()
-		var receivers []duplex.Receiver
+		var receivers []bitwire.Receiver
 		var cancels []context.CancelFunc
 		if w.receiver != nil {
 			receivers = append(receivers, w.receiver.receiver)
@@ -249,7 +250,7 @@ func (w *peerWire) run() {
 		f := delivered.message.Frame
 		key := returnKey{delivered.message.Return, f.ID}
 		switch f.Kind {
-		case duplex.ProfileCancel:
+		case bitwire.ProfileCancel:
 			w.mu.Lock()
 			state := delivered.call
 			var cancel context.CancelFunc
@@ -265,7 +266,7 @@ func (w *peerWire) run() {
 			if cancel != nil {
 				cancel()
 			}
-		case duplex.ProfileRequest:
+		case bitwire.ProfileRequest:
 			if delivered.refusal != nil {
 				sendWireResponse(delivered.message, nil, delivered.refusal)
 				continue
@@ -297,7 +298,7 @@ func (w *peerWire) run() {
 				w.complete(key, state)
 				sendWireResponse(delivered.message, result, WithoutUnpublishedProof(err))
 			}()
-		case duplex.ProfileEvent:
+		case bitwire.ProfileEvent:
 			name, err := duplex.EncodePath(delivered.path)
 			ctx := w.peer.options.Propagator.Extract(w.peer.Context(), Trace{Parent: f.Traceparent, State: f.Tracestate})
 			if err == nil {
@@ -310,7 +311,7 @@ func (w *peerWire) run() {
 	}
 }
 
-func (w *peerWire) Receive(receiver duplex.Receiver) (func(), error) {
+func (w *peerWire) Receive(receiver bitwire.Receiver) (func(), error) {
 	registration := &wireRegistration{receiver: receiver}
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -362,7 +363,7 @@ func (w *peerWire) namespaceEvent(name string) EventHandler {
 	return w.eventReceiver(path, registration.receiver)
 }
 
-func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Handler {
+func (w *peerWire) requestReceiver(path []string, receiver bitwire.Receiver) Handler {
 	return func(ctx context.Context, _ *Peer, params json.RawMessage) (any, error) {
 		if receiver.Message == nil {
 			return nil, &PublicError{Code: "method_not_found", Message: "Unknown method"}
@@ -377,20 +378,20 @@ func (w *peerWire) requestReceiver(path []string, receiver duplex.Receiver) Hand
 	}
 }
 
-func (w *peerWire) eventReceiver(path []string, receiver duplex.Receiver) EventHandler {
+func (w *peerWire) eventReceiver(path []string, receiver bitwire.Receiver) EventHandler {
 	return func(ctx context.Context, _ *Peer, data json.RawMessage) {
 		if receiver.Message == nil {
 			return
 		}
 		incoming, _ := ctx.Value(wireFrameKey{}).(frame)
-		receiver.Message(append([]string{}, path...), withWireEventContext(duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}}, ctx))
+		receiver.Message(append([]string{}, path...), withWireEventContext(bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: data, Traceparent: incoming.Traceparent, Tracestate: incoming.Tracestate, Meta: MetaFrom(ctx)}}, ctx))
 	}
 }
 
 // ForwardWire joins two existing origins without allocating a peer or channel.
 // Detach removes only the forwarding registrations; both wires remain owned by
 // their callers. Each root remains responsible for ending its failed carrier.
-func ForwardWire(inbound, outbound duplex.Endpoint) (func(), error) {
+func ForwardWire(inbound, outbound bitwire.Endpoint) (func(), error) {
 	if inbound == nil || outbound == nil {
 		return nil, errors.New("wire forwarding requires two origins")
 	}
@@ -411,17 +412,17 @@ func ForwardWire(inbound, outbound duplex.Endpoint) (func(), error) {
 			detach()
 		}
 	}
-	receiver := func(destination duplex.Wire) duplex.Receiver {
-		return duplex.Receiver{Closed: func(duplex.Code, string) { stop() }, Message: func(path []string, message duplex.Message) {
+	receiver := func(destination bitwire.Wire) bitwire.Receiver {
+		return bitwire.Receiver{Closed: func(bitwire.Code, string) { stop() }, Message: func(path []string, message bitwire.Message) {
 			if err := destination.Send(path, message); err != nil {
 				stop()
-				if message.Frame.Kind == duplex.ProfileRequest {
+				if message.Frame.Kind == bitwire.ProfileRequest {
 					sendWireResponse(message, nil, WithoutUnpublishedProof(err))
 				}
 			}
 		}}
 	}
-	for _, direction := range []struct{ source, destination duplex.Endpoint }{{inbound, outbound}, {outbound, inbound}} {
+	for _, direction := range []struct{ source, destination bitwire.Endpoint }{{inbound, outbound}, {outbound, inbound}} {
 		detach, err := direction.source.Receive(receiver(direction.destination))
 		if err != nil {
 			stop()
@@ -444,9 +445,9 @@ func ForwardWire(inbound, outbound duplex.Endpoint) (func(), error) {
 // receiverWire is used only inside the peer's already asynchronous request
 // dispatch. It reuses the same completion primitive when handing a decoded
 // request to a generated wire receiver.
-type receiverWire struct{ receiver duplex.Receiver }
+type receiverWire struct{ receiver bitwire.Receiver }
 
-func (w *receiverWire) Send(path []string, message duplex.Message) error {
+func (w *receiverWire) Send(path []string, message bitwire.Message) error {
 	w.receiver.Message(path, message)
 	return nil
 }
@@ -466,11 +467,11 @@ func (w *replyWire) Invocation() *Invocation { return w.invocation }
 
 func (w *replyWire) wireDispatch() *wireDispatchContext { return w.dispatch }
 
-func (w *replyWire) Send(path []string, message duplex.Message) error {
+func (w *replyWire) Send(path []string, message bitwire.Message) error {
 	if len(path) != 0 {
 		return w.invocation.Deliver(path, message)
 	}
-	if message.Frame.Kind != duplex.ProfileResponse || message.Frame.ID != w.id {
+	if message.Frame.Kind != bitwire.ProfileResponse || message.Frame.ID != w.id {
 		return errors.New("invalid wire response")
 	}
 	var limit int64
@@ -519,10 +520,10 @@ func (w *replyWire) finish() error {
 
 // CallWire calls a relative operation through the peer's request primitive.
 // Its local return address is independent of every other call's identifier.
-func CallWire(ctx context.Context, wire duplex.Wire, path []string, params, result any, options ...WireCallOptions) error {
+func CallWire(ctx context.Context, wire bitwire.Wire, path []string, params, result any, options ...WireCallOptions) error {
 	return callWire(ctx, wire, path, params, result, nil, options...)
 }
-func callWire(ctx context.Context, wire duplex.Wire, path []string, params, result any, dispatch *wireDispatchContext, options ...WireCallOptions) (err error) {
+func callWire(ctx context.Context, wire bitwire.Wire, path []string, params, result any, dispatch *wireDispatchContext, options ...WireCallOptions) (err error) {
 	if ctx == nil || wire == nil {
 		return Unpublished(errors.New("a wire call requires a context and wire"))
 	}
@@ -561,7 +562,7 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	}
 	returning := &replyWire{id: "c:1", reply: make(chan pendingResult, 1), done: make(chan struct{}), dispatch: dispatch, invocation: NewInvocation(DefaultInvocationLimits(), nil)}
 	defer returning.finish()
-	address := &duplex.ReturnAddress{Wire: returning}
+	address := &bitwire.ReturnAddress{Wire: returning}
 	var trace Trace
 	if dispatch != nil {
 		trace = Trace{Parent: dispatch.frame.Traceparent, State: dispatch.frame.Tracestate}
@@ -574,14 +575,14 @@ func callWire(ctx context.Context, wire duplex.Wire, path []string, params, resu
 	}
 	finish := observeWireRequest(observation.Observer, observation.Family, name, false, trace)
 	defer func() { finish(err) }()
-	request := duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: returning.id, Params: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, Return: address}
+	request := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: returning.id, Params: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}, Return: address}
 	if err := wire.Send(path, request); err != nil {
 		return Unpublished(err)
 	}
 	cancelRemote, err := awaitReply(ctx, returning.reply, returning.done, func() error { return ErrClosed }, result)
 	finish(err)
 	if cancelRemote {
-		_ = wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: returning.id, Traceparent: trace.Parent, Tracestate: trace.State}, Return: address})
+		_ = wire.Send(path, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: returning.id, Traceparent: trace.Parent, Tracestate: trace.State}, Return: address})
 		if dispatch != nil {
 			// This waiter is the carrier's admitted handler, not the outgoing
 			// caller. Cancellation reaches the body immediately, but its slot
@@ -615,7 +616,7 @@ type AdapterContext struct {
 
 // EmitWire admits one event at a relative path. The return says only that the
 // destination accepted it; processing and transport remain asynchronous.
-func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any, options ...WireEmitOptions) error {
+func EmitWire(ctx context.Context, wire bitwire.Wire, path []string, data any, options ...WireEmitOptions) error {
 	if ctx == nil || wire == nil {
 		return Unpublished(errors.New("a wire event requires a context and wire"))
 	}
@@ -638,7 +639,7 @@ func EmitWire(ctx context.Context, wire duplex.Wire, path []string, data any, op
 	if len(options) > 0 && options[0].Observer != nil {
 		observeWire(options[0].Observer, EventEmitted{At: time.Now(), Name: name, Bytes: len(encoded), Trace: trace, Family: options[0].Family})
 	}
-	return Unpublished(wire.Send(path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}}))
+	return Unpublished(wire.Send(path, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: encoded, Traceparent: trace.Parent, Tracestate: trace.State, Meta: outgoingMeta(ctx)}}))
 }
 
 // HandleWire registers one relative operation. The receiver returns before
@@ -662,16 +663,16 @@ func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (f
 	}
 	var mu sync.Mutex
 	incoming := map[returnKey]context.CancelFunc{}
-	return wire.Register(path, duplex.Receiver{
-		Closed: func(duplex.Code, string) {
+	return wire.Register(path, bitwire.Receiver{
+		Closed: func(bitwire.Code, string) {
 			mu.Lock()
 			defer mu.Unlock()
 			for _, cancel := range incoming {
 				cancel()
 			}
 		},
-		Message: func(_ []string, message duplex.Message) {
-			if message.Frame.Kind == duplex.ProfileEvent {
+		Message: func(_ []string, message bitwire.Message) {
+			if message.Frame.Kind == bitwire.ProfileEvent {
 				if handlers.Event != nil {
 					if handlers.Observer != nil {
 						observeWire(handlers.Observer, EventDelivered{At: time.Now(), Name: name, Bytes: len(message.Frame.Data),
@@ -688,7 +689,7 @@ func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (f
 				return
 			}
 			key := returnKey{message.Return, message.Frame.ID}
-			if message.Frame.Kind == duplex.ProfileCancel {
+			if message.Frame.Kind == bitwire.ProfileCancel {
 				mu.Lock()
 				cancel := incoming[key]
 				mu.Unlock()
@@ -697,7 +698,7 @@ func RegisterWire(wire HandlerRegistry, path []string, handlers WireHandlers) (f
 				}
 				return
 			}
-			if message.Frame.Kind != duplex.ProfileRequest {
+			if message.Frame.Kind != bitwire.ProfileRequest {
 				return
 			}
 			finish := observeWireRequest(handlers.Observer, handlers.Family, name, true,
@@ -793,22 +794,22 @@ func invokeWireHandler(ctx context.Context, handler WireHandler, params json.Raw
 	return handler(ctx, params)
 }
 
-func sendWireResponse(request duplex.Message, result json.RawMessage, err error) error {
+func sendWireResponse(request bitwire.Message, result json.RawMessage, err error) error {
 	if request.Return == nil || request.Return.Wire == nil {
 		return ErrClosed
 	}
-	f := duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: request.Frame.ID, Result: result, Traceparent: request.Frame.Traceparent, Tracestate: request.Frame.Tracestate}
+	f := bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileResponse, ID: request.Frame.ID, Result: result, Traceparent: request.Frame.Traceparent, Tracestate: request.Frame.Tracestate}
 	if err != nil {
 		var public *PublicError
 		switch {
 		case errors.As(err, &public) && public != nil && public.Code != "" && public.Message != "":
-			f.Error = &duplex.ProfileError{Code: public.Code, Message: public.Message, Data: public.Data}
+			f.Error = &bitwire.ProfileError{Code: public.Code, Message: public.Message, Data: public.Data}
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			f.Error = &duplex.ProfileError{Code: "cancelled", Message: "Request cancelled"}
+			f.Error = &bitwire.ProfileError{Code: "cancelled", Message: "Request cancelled"}
 		case errors.Is(err, ErrClosed):
-			f.Error = &duplex.ProfileError{Code: "disconnected", Message: "Connection ended; outcome may be unknown"}
+			f.Error = &bitwire.ProfileError{Code: "disconnected", Message: "Connection ended; outcome may be unknown"}
 		default:
-			f.Error = &duplex.ProfileError{Code: "internal", Message: "Internal error"}
+			f.Error = &bitwire.ProfileError{Code: "internal", Message: "Internal error"}
 		}
 		f.Result = nil
 		// Preserve the local cancellation cause, but otherwise observe exactly
@@ -817,12 +818,12 @@ func sendWireResponse(request duplex.Message, result json.RawMessage, err error)
 			err = &PublicError{Code: f.Error.Code, Message: f.Error.Message, Data: f.Error.Data}
 		}
 	}
-	if sendErr := request.Return.Wire.Send(nil, duplex.Message{Frame: f}); sendErr != nil {
+	if sendErr := request.Return.Wire.Send(nil, bitwire.Message{Frame: f}); sendErr != nil {
 		// A malformed or oversized public result must settle as a bounded
 		// refusal, just as the carrier peer's respond does.
 		f.Result = nil
-		f.Error = &duplex.ProfileError{Code: "internal", Message: "Response could not be encoded"}
-		if fallbackErr := request.Return.Wire.Send(nil, duplex.Message{Frame: f}); fallbackErr == nil {
+		f.Error = &bitwire.ProfileError{Code: "internal", Message: "Response could not be encoded"}
+		if fallbackErr := request.Return.Wire.Send(nil, bitwire.Message{Frame: f}); fallbackErr == nil {
 			return &PublicError{Code: f.Error.Code, Message: f.Error.Message}
 		}
 		// A caller that already withdrew cannot receive either response. Its
@@ -837,7 +838,7 @@ func sendWireResponse(request duplex.Message, result json.RawMessage, err error)
 // The structured boundary uses the profile's existing validator. A logical
 // return address identifies an origin independently of the carrier role, so
 // either profile identifier prefix is valid before the peer remaps it.
-func validateWireFrame(name string, value duplex.ProfileFrame, limit int64) error {
+func validateWireFrame(name string, value bitwire.ProfileFrame, limit int64) error {
 	f := frame{Version: value.Version, Kind: string(value.Kind), ID: value.ID,
 		Params: value.Params, Result: value.Result, Data: value.Data,
 		Traceparent: value.Traceparent, Tracestate: value.Tracestate, Meta: value.Meta}
@@ -845,9 +846,9 @@ func validateWireFrame(name string, value duplex.ProfileFrame, limit int64) erro
 		f.Error = &PublicError{Code: value.Error.Code, Message: value.Error.Message, Data: value.Error.Data}
 	}
 	switch value.Kind {
-	case duplex.ProfileRequest:
+	case bitwire.ProfileRequest:
 		f.Method = name
-	case duplex.ProfileEvent:
+	case bitwire.ProfileEvent:
 		f.Event = name
 	}
 	data, err := MarshalJSON(f)

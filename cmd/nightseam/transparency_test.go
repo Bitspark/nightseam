@@ -56,6 +56,7 @@ func testTransparencyFixture(t *testing.T, tests string) {
 
 const goTransparencyProgram = `package consumer_test
 import (
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "encoding/json"
  "errors"
@@ -75,7 +76,7 @@ import (
  functiontest "example.test/generated/api/go/functions-binding/familytest"
  datatest "example.test/generated/api/go/data-protocol/familytest"
  functions "example.test/generated/api/go/functions-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/runtime/go"
  "github.com/Bitspark/nightseam/tunnel/go"
  "github.com/Bitspark/nightseam/live/go"
@@ -110,12 +111,12 @@ func TestHelpers(t *testing.T){
  stop();stop();if _,err:=access.Methods.Ping(ctx);err==nil{t.Fatal("stop left access usable")}
  if err:=test.Smoke(ctx,model,opposite(),test.Options{Inputs:map[string]any{"constant":protocol.Input{Value:-1}}});err==nil{t.Fatal("invalid input passed smoke")}
  if err:=test.Smoke(ctx,func(r protocol.Client)(protocol.Server,error){s,_:=model(r);s.Methods=methods{remote:r,invalid:true};return s,nil},opposite(),test.Options{});err==nil{t.Fatal("invalid result passed smoke")}
- changed:=func(ctx context.Context,w duplex.Endpoint)(duplex.Endpoint,func(),error){return mutatingWire{w},func(){},nil}
+ changed:=func(ctx context.Context,w bitwire.Endpoint)(bitwire.Endpoint,func(),error){return mutatingWire{w},func(){},nil}
  if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:changed});err==nil||!strings.Contains(err.Error(),"constant.request"){t.Fatalf("constant handler concealed changed input: %v",err)}
  err=test.Smoke(ctx,func(protocol.Client)(protocol.Server,error){return protocol.Server{},errors.New("factory failed")},opposite(),test.Options{});if err==nil{t.Fatal("factory failure ignored")}
  ended,abort:=context.WithCancel(ctx);abort()
- var abandoned duplex.Endpoint;detached:=0
- failedPresentation:=func(_ context.Context,w duplex.Endpoint)(duplex.Endpoint,func(),error){abandoned=w;return w,func(){detached++},nil}
+ var abandoned bitwire.Endpoint;detached:=0
+ failedPresentation:=func(_ context.Context,w bitwire.Endpoint)(bitwire.Endpoint,func(),error){abandoned=w;return w,func(){detached++},nil}
  if factory,stop,err:=test.Pair(ended,model,test.Options{Presentation:failedPresentation});err==nil||factory!=nil||stop!=nil{t.Fatal("cancelled preparation returned usable resources",err)}
  if detached!=1{t.Fatalf("failed preparation detached %d times",detached)}
  var discarded int64;if err:=runtime.CallWire(ctx,abandoned,[]string{"ping"},struct{}{},&discarded);err==nil{t.Fatal("failed preparation left its model wire open")}
@@ -123,8 +124,8 @@ func TestHelpers(t *testing.T){
  if err:=celltest.Smoke(ctx,func(cell.Client[string])(cell.Server[string],error){return cell.Server[string]{Methods:cellMethods[string]{}},nil},cell.Client[string]{},celltest.Options{},runtime.JSONAdapter[string]());err!=nil{t.Fatal(err)}
  clientModel:=func(protocol.Server)(protocol.Client,error){return opposite(),nil}
  server,_:=model(opposite());if err:=clienttest.Smoke(ctx,clientModel,server,clienttest.Options{});err!=nil{t.Fatal(err)}
- var observedWire duplex.Endpoint
- observer:=test.Options{Presentation:func(ctx context.Context,w duplex.Endpoint)(duplex.Endpoint,func(),error){observedWire=w;return test.Local(ctx,w)}}
+ var observedWire bitwire.Endpoint
+ observer:=test.Options{Presentation:func(ctx context.Context,w bitwire.Endpoint)(bitwire.Endpoint,func(),error){observedWire=w;return test.Local(ctx,w)}}
  observer.Equal=func(method string,x,y any)error{
   if method=="constant.request"{var value int64;if err:=runtime.CallWire(ctx,observedWire,[]string{"ping"},struct{}{},&value);err!=nil{return err};if value!=9{return errors.New("reentrant observation changed")}}
   if !reflect.DeepEqual(x,y){return errors.New("observation differs")};return nil
@@ -153,8 +154,8 @@ func liveHelper(t *testing.T,ctx context.Context){
  owner.Release();near.Owner().Release();far.Owner().Release()
  until:=time.Now().Add(3*time.Second);for near.Counts()!=(live.Counts{})||far.Counts()!=(live.Counts{}){if time.Now().After(until){t.Fatal("live helper retained caller-owned bindings",near.Counts(),far.Counts())};time.Sleep(time.Millisecond)}
 }
-type mutatingWire struct{duplex.Endpoint}
-func(w mutatingWire)Send(path []string,m duplex.Message)error{if len(path)==1&&path[0]=="constant"&&m.Frame.Kind=="request"{m.Frame.Params=json.RawMessage("{\"value\":77}")};return w.Endpoint.Send(path,m)}
+type mutatingWire struct{bitwire.Endpoint}
+func(w mutatingWire)Send(path []string,m bitwire.Message)error{if len(path)==1&&path[0]=="constant"&&m.Frame.Kind=="request"{m.Frame.Params=json.RawMessage("{\"value\":77}")};return w.Endpoint.Send(path,m)}
 `
 
 const tsTransparencyProgram = `import * as test from '@example/meter-binding/test';
@@ -168,7 +169,7 @@ import {adapterInput,validateWire,type ServerModel,type Client} from '@example/m
 import {DuplexError,jsonAdapter} from '@nightseam/runtime';
 import {DuplexPeer} from '@nightseam/runtime';
 import {callWire} from '@nightseam/runtime';
-import type {Endpoint} from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import {pipe as framePipe} from '@nightseam/duplex';
 import {liveOver,valueEnvironment} from '@nightseam/live';
 import {adapterUnary,type Unary} from '@example/functions-client/types';
@@ -225,7 +226,7 @@ await clientTest.smoke(()=>opposite(),model(opposite()),{});
 `
 
 const goTransparencyPresentations = `
-func socket(ctx context.Context,wire duplex.Endpoint)(duplex.Endpoint,func(),error){
+func socket(ctx context.Context,wire bitwire.Endpoint)(bitwire.Endpoint,func(),error){
  server:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
   var off func()
   peer,err:=runtime.Accept(w,r,runtime.ServerOptions{Options:runtime.Options{Prepare:func(p *runtime.Peer)error{var err error;off,err=runtime.ForwardWire(p.Wire(),wire);return err}},Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}})
@@ -234,7 +235,7 @@ func socket(ctx context.Context,wire duplex.Endpoint)(duplex.Endpoint,func(),err
  client,_,err:=runtime.Dial(ctx,"ws"+strings.TrimPrefix(server.URL,"http"),runtime.DialOptions{})
  if err!=nil{server.Close();return nil,nil,err};return client.Wire(),func(){client.Close();server.Close()},nil
 }
-func channel(ctx context.Context,wire duplex.Endpoint)(duplex.Endpoint,func(),error){
+func channel(ctx context.Context,wire bitwire.Endpoint)(bitwire.Endpoint,func(),error){
  a,b:=duplex.Pipe(1<<20)
  left,err:=runtime.NewPeer(ctx,a,runtime.ClientRole,runtime.Options{});if err!=nil{return nil,nil,err}
  right,err:=runtime.NewPeer(ctx,b,runtime.ServerRole,runtime.Options{});if err!=nil{left.Close();return nil,nil,err}
@@ -252,7 +253,7 @@ func TestPresentations(t *testing.T){
  for carrierName,carrier:=range map[string]test.Presentation{"pipe":test.Pipe,"socket":socket,"channel":channel}{
   for viewName,view:=range map[string]test.Presentation{"direct":test.Local,"mounted":test.Mounted,"forwarded":test.Forwarded}{
    t.Run(carrierName+"/"+viewName,func(t *testing.T){
-    presentation:=func(ctx context.Context,wire duplex.Endpoint)(duplex.Endpoint,func(),error){host,close,err:=carrier(ctx,wire);if err!=nil{return nil,nil,err};selected,detach,err:=view(ctx,host);if err!=nil{close();return nil,nil,err};return selected,func(){detach();close()},nil}
+    presentation:=func(ctx context.Context,wire bitwire.Endpoint)(bitwire.Endpoint,func(),error){host,close,err:=carrier(ctx,wire);if err!=nil{return nil,nil,err};selected,detach,err:=view(ctx,host);if err!=nil{close();return nil,nil,err};return selected,func(){detach();close()},nil}
     if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:presentation});err!=nil{t.Fatal(err)}
    })
   }
@@ -261,9 +262,9 @@ func TestPresentations(t *testing.T){
 func TestTypeScriptPresentations(t *testing.T){
  // A host relays two actual socket carriers. Its only knowledge is Endpoint;
  // the model and its generated transparency helper live entirely in Node.
- var mutex sync.Mutex;var next duplex.Endpoint
+ var mutex sync.Mutex;var next bitwire.Endpoint
  server:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-  var off func();var root duplex.Endpoint
+  var off func();var root bitwire.Endpoint
   peer,err:=runtime.Accept(w,r,runtime.ServerOptions{Options:runtime.Options{Prepare:func(p *runtime.Peer)error{
    mutex.Lock();defer mutex.Unlock();if next==nil{var err error;root,next,err=runtime.NewWirePair(runtime.Options{});if err!=nil{return err}}else{root=next;next=nil};var err error;off,err=runtime.ForwardWire(p.Wire(),root);return err
   }},Authenticate:func(r *http.Request)(context.Context,error){return r.Context(),nil},CheckOrigin:func(*http.Request)bool{return true}})

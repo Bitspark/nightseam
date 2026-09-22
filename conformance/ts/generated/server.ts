@@ -11,7 +11,7 @@ import {
   type WebSocketLike,
   type WireDispatcher,
 } from '@nightseam/runtime';
-import type { Endpoint } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { valueEnvironment, type LiveScope } from '@nightseam/live';
 
 /** One fixture attachment point for adapter options and an explicit live scope. */

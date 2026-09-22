@@ -1,4 +1,5 @@
-import { encodePath, WireError, type Message, type Path, type Wire } from './wire.ts';
+import { encodePath, WireError } from './wire.ts';
+import type { Message, Path, Wire } from '@bitspark/bitwire';
 
 /** An immutable opaque message; replay preserves its original reference scope. */
 export interface WireRecord {

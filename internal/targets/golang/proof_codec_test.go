@@ -80,7 +80,7 @@ import (
  protocol "example.test/proof/api/go/proof-protocol"
  probe "example.test/proof/api/go/probe-protocol"
  probebinding "example.test/proof/api/go/probe-binding"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
  runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 type server struct{protocol.ServerMethods[probe.Envelope,probe.Handle,string];remote protocol.Client[probe.Envelope,probe.Handle,string]}

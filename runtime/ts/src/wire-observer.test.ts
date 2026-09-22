@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { encodePath } from '@nightseam/duplex';
-import type { Endpoint, Wire } from '@nightseam/duplex';
+import type { Endpoint, Wire } from '@bitspark/bitwire';
 import { createDispatcher } from './dispatcher.ts';
 import { DuplexError } from './error.ts';
 import type { Observer, ObserverEvent } from './observer.ts';

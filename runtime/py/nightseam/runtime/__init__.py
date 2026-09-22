@@ -1,5 +1,6 @@
 """Python's peer and descriptor validator for nightseam.duplex/1."""
 
+from .dispatcher import Dispatcher
 from .identity import IDENTITY_METHOD, check_identity, identity_handler
 from .json import RawJSON
 from .peer import ABSENT, PROFILE, DefaultPropagator, Options, Peer, PublicError, RequestContext
@@ -19,6 +20,7 @@ from .wire import (
 from .wire_pair import wire_pair
 
 __all__ = [
+    "Dispatcher",
     "ABSENT",
     "IDENTITY_METHOD",
     "PROFILE",

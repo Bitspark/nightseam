@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"sync"
 	"testing"
@@ -833,7 +834,7 @@ func (c *blockedConn) Receive(ctx context.Context) (duplex.Frame, error) {
 	}
 }
 
-func (c *blockedConn) Close(context.Context, duplex.Code, string) error { return c.Abort() }
+func (c *blockedConn) Close(context.Context, bitwire.Code, string) error { return c.Abort() }
 
 func (c *blockedConn) Abort() error {
 	c.once.Do(func() { close(c.done) })

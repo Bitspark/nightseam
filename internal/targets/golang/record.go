@@ -40,13 +40,13 @@ func (f *file) emitRecordedEvents(side, opposite string) {
 		})
 	})
 	f.line("// Follow checks the subscriber's declaration before registering any replay.")
-	f.w.Block(fmt.Sprintf("func(r *Recorder%s) Follow(ctx %s.Context,after uint64,target %s.Wire)(*%s.Follower,error){", args, ctx, seam, seam), "}", func() {
+	f.w.Block(fmt.Sprintf("func(r *Recorder%s) Follow(ctx %s.Context,after uint64,target %s.Wire)(*%s.Follower,error){", args, ctx, f.bitwire(), seam), "}", func() {
 		f.linef("if err := %s.CheckIdentity(ctx,func(ctx %s.Context,method string,params,result any)error{return %s.CallWire(ctx,target,[]string{method},params,result,%s.WireCallOptions{RequestTimeout:r.options.RequestTimeout,Observer:r.options.Observer,Propagator:r.options.Propagator})},r.identity);err!=nil{return nil,err}", rt, ctx, rt, rt)
 		f.line("return r.RecordedWire.Follow(ctx,after,target)")
 	})
 	f.line("// Record checks a prepared origin before exposing typed event append. Setup")
 	f.line("// failure detaches this interpretation and leaves the borrowed target usable.")
-	f.w.Block(fmt.Sprintf("func Record%s(ctx %s.Context,target %s.Endpoint,log %s.WireLog,options %s.RecordOptions,environment %s%s)(*Recorder%s,error){", open, ctx, seam, seam, seam, f.adapterContext(), f.slotParameters(), args), "}", func() {
+	f.w.Block(fmt.Sprintf("func Record%s(ctx %s.Context,target %s.Endpoint,log %s.WireLog,options %s.RecordOptions,environment %s%s)(*Recorder%s,error){", open, ctx, f.bitwire(), seam, seam, f.adapterContext(), f.slotParameters(), args), "}", func() {
 		f.linef("environment,err:=normalizeContext%s(environment%s);if err!=nil{return nil,err}", args, f.slotArguments())
 		f.linef("identity,err:=declarationIdentity%s(%s);if err!=nil{return nil,err}", args, identityArguments(f))
 		f.linef("preparation,err:=%s.PrepareIdentity(target,identity,environment.Options);if err!=nil{return nil,err}", rt)

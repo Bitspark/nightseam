@@ -11,43 +11,6 @@ import (
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 )
 
-// ProfileKind is one of the profile's four frame kinds. Correlation and
-// validation remain the peer's; a wire only carries the frame.
-type ProfileKind = bitwire.ProfileKind
-
-const (
-	ProfileRequest  = bitwire.ProfileRequest
-	ProfileResponse = bitwire.ProfileResponse
-	ProfileEvent    = bitwire.ProfileEvent
-	ProfileCancel   = bitwire.ProfileCancel
-)
-
-// ProfileError is public error data, without a runtime error dependency.
-type ProfileError = bitwire.ProfileError
-
-// ProfileFrame carries a profile frame. The Send path is the request method or
-// event name; keeping it outside this value prevents contradictory names.
-// Payloads retain their JSON representation, including numeric precision.
-type ProfileFrame = bitwire.ProfileFrame
-
-// ReturnAddress is a local address with stable pointer identity, even when its
-// Wire implementation is not comparable. It is never an envelope member.
-type ReturnAddress = bitwire.ReturnAddress
-
-// Message preserves a frame and its local return capability through routing.
-type Message = bitwire.Message
-
-// Receiver receives deliveries relative to its wire's origin, and an ending.
-// A root owns asynchronous dispatch; composition does not invoke Message itself.
-type Receiver = bitwire.Receiver
-
-// Wire grants send access without receive attachment or lifecycle control.
-type Wire = bitwire.Wire
-
-// Endpoint owns one receive attachment and its lifecycle. Path dispatch and
-// sharing among selected receiving views belong to an explicit dispatcher.
-type Endpoint = bitwire.Endpoint
-
 var (
 	ErrPath           = errors.New("invalid wire path")
 	ErrNoRoute        = errors.New("wire path has no destination")
@@ -103,31 +66,31 @@ func DecodePath(encoded string) ([]string, error) {
 }
 
 type selectedWire struct {
-	root   Wire
+	root   bitwire.Wire
 	prefix []string
 }
 
 // At selects a relative path without allocating a peer, channel or queue.
 // The selection grants only send access, even when path is empty.
-func At(root Wire, path []string) Wire {
+func At(root bitwire.Wire, path []string) bitwire.Wire {
 	return &selectedWire{root: root, prefix: append([]string{}, path...)}
 }
 
 func (w *selectedWire) path(path []string) []string {
 	return append(append([]string{}, w.prefix...), path...)
 }
-func (w *selectedWire) Send(path []string, message Message) error {
+func (w *selectedWire) Send(path []string, message bitwire.Message) error {
 	return w.root.Send(w.path(path), message)
 }
 
 type mountedWire struct {
-	children map[string]Endpoint
+	children map[string]bitwire.Endpoint
 	mu       sync.Mutex
 	closed   bool
 	current  *mountedReceiver
 }
 type mountedReceiver struct {
-	receiver  Receiver
+	receiver  bitwire.Receiver
 	active    bool
 	children  []*mountedChild
 	remaining int
@@ -141,15 +104,15 @@ type mountedChild struct {
 // copied. A mount has no leaf at []; [""] can select an empty-string key.
 // Its single receive attachment borrows one attachment from each child.
 // Closing a mount detaches those attachments and leaves every child usable.
-func Mount(children map[string]Endpoint) Endpoint {
-	w := &mountedWire{children: make(map[string]Endpoint, len(children))}
+func Mount(children map[string]bitwire.Endpoint) bitwire.Endpoint {
+	w := &mountedWire{children: make(map[string]bitwire.Endpoint, len(children))}
 	for key, child := range children {
 		w.children[key] = child
 	}
 	return w
 }
 
-func (w *mountedWire) destination(path []string) (Endpoint, error) {
+func (w *mountedWire) destination(path []string) (bitwire.Endpoint, error) {
 	if w.closed {
 		return nil, ErrClosed
 	}
@@ -165,7 +128,7 @@ func (w *mountedWire) destination(path []string) (Endpoint, error) {
 	}
 	return child, nil
 }
-func (w *mountedWire) Send(path []string, message Message) error {
+func (w *mountedWire) Send(path []string, message bitwire.Message) error {
 	w.mu.Lock()
 	child, err := w.destination(path)
 	w.mu.Unlock()
@@ -174,7 +137,7 @@ func (w *mountedWire) Send(path []string, message Message) error {
 	}
 	return child.Send(append([]string{}, path[1:]...), message)
 }
-func (w *mountedWire) Receive(receiver Receiver) (func(), error) {
+func (w *mountedWire) Receive(receiver bitwire.Receiver) (func(), error) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -206,15 +169,15 @@ func (w *mountedWire) Receive(receiver Receiver) (func(), error) {
 		if !active {
 			return nil, ErrClosed
 		}
-		detach, err := w.children[key].Receive(Receiver{
-			Message: func(path []string, message Message) {
+		detach, err := w.children[key].Receive(bitwire.Receiver{
+			Message: func(path []string, message bitwire.Message) {
 				// The child owns capture of accepted invocations. A retained
 				// delivery, including cancellation, keeps its original receiver.
 				if receiver.Message != nil {
 					receiver.Message(append([]string{key}, path...), message)
 				}
 			},
-			Closed: func(code Code, reason string) { w.childEnded(attachment, slot, code, reason) },
+			Closed: func(code bitwire.Code, reason string) { w.childEnded(attachment, slot, code, reason) },
 		})
 		w.mu.Lock()
 		active = attachment.active && !slot.ended
@@ -274,7 +237,7 @@ func (w *mountedWire) remove(attachment *mountedReceiver) {
 	}
 }
 
-func (w *mountedWire) childEnded(attachment *mountedReceiver, child *mountedChild, code Code, reason string) {
+func (w *mountedWire) childEnded(attachment *mountedReceiver, child *mountedChild, code bitwire.Code, reason string) {
 	w.mu.Lock()
 	if !attachment.active || child.ended {
 		w.mu.Unlock()
@@ -299,7 +262,7 @@ func (w *mountedWire) childEnded(attachment *mountedReceiver, child *mountedChil
 	}
 }
 
-func (w *mountedWire) Close(code Code, reason string) error {
+func (w *mountedWire) Close(code bitwire.Code, reason string) error {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()

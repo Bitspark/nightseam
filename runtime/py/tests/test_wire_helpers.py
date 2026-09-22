@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import unittest
 
-from nightseam.duplex import Message, ReturnAddress
+from bitwire import Message, ReturnAddress
 from nightseam.runtime import PublicError, RawJSON, RequestContext
 from nightseam.runtime.wire import (
     WireDispatchContext,
@@ -40,7 +40,10 @@ class StubWire:
         if self.on_send:
             self.on_send(path, message)
 
-    def receive(self, path, receiver):
+    def receive(self, receiver):
+        return self.register([], receiver)
+
+    def register(self, path, receiver):
         self.registrations.append((list(path), receiver))
         active = True
 

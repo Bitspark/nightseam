@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"reflect"
 	"runtime"
 	"sync"
@@ -16,7 +17,7 @@ import (
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
-func testBinding(t *testing.T, endpoint duplex.Endpoint) *ws.Dispatcher {
+func testBinding(t *testing.T, endpoint bitwire.Endpoint) *ws.Dispatcher {
 	t.Helper()
 	binding, err := ws.NewDispatcher(endpoint)
 	if err != nil {
@@ -26,7 +27,7 @@ func testBinding(t *testing.T, endpoint duplex.Endpoint) *ws.Dispatcher {
 	return binding
 }
 
-type wireReplySink struct{ replies chan duplex.ProfileFrame }
+type wireReplySink struct{ replies chan bitwire.ProfileFrame }
 
 func TestReceiverDeadlineWinsImmediateHandlerRefusal(t *testing.T) {
 	previous := runtime.GOMAXPROCS(4)
@@ -262,7 +263,7 @@ func TestWireHandlerPanicStaysPrivateAndObserved(t *testing.T) {
 
 // A return capability refuses what it does not implement, as every addressed
 // receiver in this profile does; this one carries outcomes and nothing else.
-func (s *wireReplySink) Send(path []string, message duplex.Message) error {
+func (s *wireReplySink) Send(path []string, message bitwire.Message) error {
 	if len(path) != 0 {
 		return errors.New("this return capability carries outcomes only")
 	}
@@ -273,8 +274,8 @@ func (s *wireReplySink) Send(path []string, message duplex.Message) error {
 func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 	observed := &recorder{}
 	client, server := newPair(t, ws.Options{}, ws.Options{Observer: observed})
-	sink := &wireReplySink{replies: make(chan duplex.ProfileFrame, 40)}
-	address := &duplex.ReturnAddress{Wire: sink}
+	sink := &wireReplySink{replies: make(chan bitwire.ProfileFrame, 40)}
+	address := &bitwire.ReturnAddress{Wire: sink}
 	wire := client.Wire()
 	var want []string
 	serverBinding := testBinding(t, server.Wire())
@@ -285,15 +286,15 @@ func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		name, _ := duplex.EncodePath(path)
-		for _, kind := range []duplex.ProfileKind{duplex.ProfileRequest, duplex.ProfileEvent} {
-			frame := duplex.ProfileFrame{Version: 1, Kind: kind}
-			if kind == duplex.ProfileRequest {
+		for _, kind := range []bitwire.ProfileKind{bitwire.ProfileRequest, bitwire.ProfileEvent} {
+			frame := bitwire.ProfileFrame{Version: 1, Kind: kind}
+			if kind == bitwire.ProfileRequest {
 				frame.ID = fmt.Sprintf("c:%d", i+1)
 				frame.Params = json.RawMessage("{}")
 			} else {
 				frame.Data = json.RawMessage("null")
 			}
-			if err := wire.Send(path, duplex.Message{Frame: frame, Return: address}); err != nil {
+			if err := wire.Send(path, bitwire.Message{Frame: frame, Return: address}); err != nil {
 				t.Fatal(err)
 			}
 			want = append(want, string(kind)+" "+name)
@@ -330,14 +331,14 @@ func TestWirePreservesCancellationBeforeTheFollowingEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sink := &wireReplySink{replies: make(chan duplex.ProfileFrame, 1)}
-	address := &duplex.ReturnAddress{Wire: sink}
+	sink := &wireReplySink{replies: make(chan bitwire.ProfileFrame, 1)}
+	address := &bitwire.ReturnAddress{Wire: sink}
 	wire := client.Wire()
-	if err := wire.Send([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1", Params: json.RawMessage("{}")}, Return: address}); err != nil {
+	if err := wire.Send([]string{"wait"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1", Params: json.RawMessage("{}")}, Return: address}); err != nil {
 		t.Fatal(err)
 	}
 	receive(t, started)
-	if err := wire.Send([]string{"wait"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: "c:1"}, Return: address}); err != nil {
+	if err := wire.Send([]string{"wait"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: "c:1"}, Return: address}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ws.EmitWire(context.Background(), wire, []string{"after"}, nil); err != nil {
@@ -382,7 +383,7 @@ func TestMountedWireKeepsIndependentOriginsAndCancellation(t *testing.T) {
 	}
 	// Both views select the same existing carrier. Each CallWire has its own
 	// local return address, so cancelling one cannot cancel the other's id.
-	wire := duplex.At(duplex.Mount(map[string]duplex.Endpoint{"service": client.Wire()}), []string{"service", "worker"})
+	wire := duplex.At(duplex.Mount(map[string]bitwire.Endpoint{"service": client.Wire()}), []string{"service", "worker"})
 	first, cancelFirst := context.WithCancel(context.Background())
 	second, cancelSecond := context.WithCancel(context.Background())
 	defer cancelFirst()

@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import Message, ReturnAddress
+from bitwire import Message, ReturnAddress
 from nightseam.runtime import PublicError
 from nightseam.runtime.publication import UnpublishedError
 from nightseam.runtime.wire import forward_wire
@@ -12,7 +12,7 @@ class WireForwardTests(unittest.IsolatedAsyncioTestCase):
     async def test_forward_preserves_message_identity_and_borrows_both_endpoints(self):
         left, right = StubWire(), StubWire()
         detach = forward_wire(left, right)
-        self.assertTrue(left.registrations[0][1].namespace)
+        self.assertEqual(left.registrations[0][0], [])
         message = request(ReturnAddress(StubWire()))
         left.registrations[0][1].message(["outer", "leaf"], message)
         self.assertIs(right.sent[0][1], message)
@@ -29,7 +29,7 @@ class WireForwardTests(unittest.IsolatedAsyncioTestCase):
     async def test_partial_registration_failure_detaches_first_side(self):
         left, right = StubWire(), StubWire()
 
-        def refuse(path, receiver):
+        def refuse(receiver):
             raise PublicError("busy", "registration refused")
 
         right.receive = refuse

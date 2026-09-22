@@ -165,7 +165,7 @@ import (
  protocol "example.test/callable/api/go/function-protocol"
  captured "example.test/callable/api/go/captured-protocol"
  source "example.test/callable/api/go/source-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/live/go"
  "github.com/Bitspark/nightseam/runtime/go"
 )

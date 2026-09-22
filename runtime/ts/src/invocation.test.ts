@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Endpoint, Message, Path, Receiver, ReturnAddress, Wire } from '@nightseam/duplex';
+import type { Endpoint, Message, Path, Receiver, ReturnAddress, Wire } from '@bitspark/bitwire';
 import { createDispatcher } from './dispatcher.ts';
 import {
   Invocation,

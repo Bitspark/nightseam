@@ -1,17 +1,5 @@
 import type { Endpoint, Path, Receiver, Wire } from '@bitspark/bitwire';
 
-// The public Nightseam names present the shared contract's actual declarations.
-export type {
-  Path,
-  ProfileKind,
-  ProfileFrame,
-  ProfileError,
-  ReturnAddress,
-  Message,
-  Receiver,
-  Wire,
-  Endpoint,
-} from '@bitspark/bitwire';
 
 export class WireError extends Error {
   readonly code: 'closed' | 'no_route' | 'receiver_exists' | 'invalid_path';

@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import at, mount, pipe
+from nightseam.duplex import mount, pipe
 from nightseam.runtime import (
     ABSENT,
     DefaultPropagator,
@@ -15,6 +15,7 @@ from nightseam.runtime import (
     on_wire_event,
     wire_pair,
 )
+from routing import dispatcher, select_endpoint
 
 
 class WireContextTests(unittest.IsolatedAsyncioTestCase):
@@ -40,14 +41,14 @@ class WireContextTests(unittest.IsolatedAsyncioTestCase):
 
         client, server = await self.physical(Options(propagator=Verifier()))
         access, binding = self.local()
-        self.addCleanup(forward_wire(server.wire(), at(mount({"local": access}), ["local"])))
+        self.addCleanup(forward_wire(server.wire(), select_endpoint(mount({"local": access}), ["local"])))
         seen = []
 
         def reverse(value, context):
             seen.append(context)
             return value
 
-        handle_wire(client.wire(), ["reverse"], reverse)
+        handle_wire(dispatcher(client.wire()), ["reverse"], reverse)
 
         async def model(value, context):
             self.assertIs(context.verified, verified)
@@ -57,7 +58,7 @@ class WireContextTests(unittest.IsolatedAsyncioTestCase):
             second = await call_wire(binding, ["reverse"], value, context=context, meta=context.meta)
             return [first, second]
 
-        handle_wire(binding, ["check"], model)
+        handle_wire(dispatcher(binding), ["check"], model)
         self.assertEqual(await call_wire(client.wire(), ["check"], 7, meta={"credential": "one-call"}), [7, 7])
         self.assertIs(seen[0].meta, ABSENT)
         self.assertEqual(seen[1].meta, {"credential": "one-call"})
@@ -76,14 +77,14 @@ class WireContextTests(unittest.IsolatedAsyncioTestCase):
         access, binding = self.local()
         self.addCleanup(forward_wire(server.wire(), access))
         observed = asyncio.Queue()
-        selected = at(mount({"model": binding}), ["model", "events"])
-        on_wire_event(selected, ["change"], lambda value, context: observed.put_nowait(context))
+        selected = select_endpoint(mount({"model": binding}), ["model", "events"])
+        on_wire_event(dispatcher(selected), ["change"], lambda value, context: observed.put_nowait(context))
         emit_wire(client.wire(), ["events", "change"], meta={"tenant": "explicit"})
         context = await asyncio.wait_for(observed.get(), 1)
         self.assertIs(context.verified, verified)
         self.assertIs(context.peer, server)
         self.assertEqual(context.meta, {"tenant": "explicit"})
-        on_wire_event(client.wire(), ["outgoing"], lambda value, context: observed.put_nowait(context))
+        on_wire_event(dispatcher(client.wire()), ["outgoing"], lambda value, context: observed.put_nowait(context))
         emit_wire(server.wire(), ["outgoing"], context=context)
         emit_wire(server.wire(), ["outgoing"], context=context, meta=context.meta)
         first, second = await asyncio.wait_for(observed.get(), 1), await asyncio.wait_for(observed.get(), 1)
@@ -109,13 +110,13 @@ class WireContextTests(unittest.IsolatedAsyncioTestCase):
         second_client, second_server = await self.physical()
         self.addCleanup(forward_wire(first_server.wire(), second_client.wire()))
         observed = asyncio.Queue()
-        on_wire_event(second_server.wire(), ["event"], lambda value, context: observed.put_nowait(context))
+        on_wire_event(dispatcher(second_server.wire()), ["event"], lambda value, context: observed.put_nowait(context))
         emit_wire(first_client.wire(), ["event"], meta={"explicit": "yes"}, propagator=Sender())
         context = await asyncio.wait_for(observed.get(), 1)
         self.assertEqual(context.trace, original)
         self.assertEqual(context.meta, {"explicit": "yes"})
         self.assertFalse(hasattr(context, "verified"))
-        handle_wire(second_server.wire(), ["request"], lambda value, context: context.trace)
+        handle_wire(dispatcher(second_server.wire()), ["request"], lambda value, context: context.trace)
         self.assertEqual(await call_wire(first_client.wire(), ["request"], propagator=Sender()), original)
 
     async def test_metadata_cannot_fabricate_private_context_for_an_effect_guard(self):
@@ -129,7 +130,7 @@ class WireContextTests(unittest.IsolatedAsyncioTestCase):
                 raise PublicError("denied", "unverified context")
             effects.append(value)
 
-        handle_wire(binding, ["guard"], guard)
+        handle_wire(dispatcher(binding), ["guard"], guard)
         with self.assertRaises(PublicError) as denied:
             await call_wire(client.wire(), ["guard"], "effect", meta={"verified": "true"})
         self.assertEqual(denied.exception.code, "denied")

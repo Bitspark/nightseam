@@ -5,7 +5,8 @@ import inspect
 from collections import deque
 from dataclasses import dataclass
 
-from nightseam.duplex import Message, ReturnAddress, WireError, decode_path, encode_path
+from bitwire import Message, ReturnAddress
+from nightseam.duplex import WireError, decode_path, encode_path
 
 from .peer import ABSENT, PublicError
 from .wire import (
@@ -43,8 +44,7 @@ class PeerWire:
         self._queue = deque()
         self._data_queued = 0
         self._calls = {}
-        self._exact = {}
-        self._namespaces = {}
+        self._attachment = None
         self._scheduled = False
         self._ending = False
         self._closed = False
@@ -189,21 +189,15 @@ class PeerWire:
             if self._queue and not self._ending:
                 self._schedule()
 
-    def receive(self, path, receiver):
+    def receive(self, receiver):
         self._open()
-        name = encode_path(path)
-        if (not name and not receiver.namespace) or not callable(receiver.message):
-            raise PublicError("invalid_message", "a Wire receiver requires an operation path and callback")
-        table = self._namespaces if receiver.namespace else self._exact
-        if name in table:
+        if self._attachment is not None:
             raise WireError("receiver_exists")
-        registration = _Registration(tuple(path), receiver)
-        table[name] = registration
-
+        registration = _Registration((), receiver)
+        self._attachment = registration
         def detach():
-            if table.get(name) is registration:
-                del table[name]
-
+            if self._attachment is registration:
+                self._attachment = None
         return detach
 
     def _lookup(self, name):
@@ -211,14 +205,7 @@ class PeerWire:
             path = tuple(decode_path(name))
         except WireError:
             return None
-        registration = self._exact.get(name)
-        if registration is None:
-            for candidate in self._namespaces.values():
-                if path[: len(candidate.path)] == candidate.path and (
-                    registration is None or len(candidate.path) > len(registration.path)
-                ):
-                    registration = candidate
-        return (path, registration) if registration else None
+        return (path, self._attachment) if self._attachment is not None else None
 
     def _panic(self, name, error, trace):
         self.peer._observe("handler.panic", method=name, value=str(error), trace=trace, family=self.peer._family(name))
@@ -264,9 +251,6 @@ class PeerWire:
                         else None
                     )
                     answer = bridge._answer(context, value, error, outcome)
-
-                def receive(self, path, receiver):
-                    raise WireError("receiver_exists")
 
                 def close(self, code=1000, reason=""):
                     if not result.done():
@@ -375,9 +359,8 @@ class PeerWire:
         for _, message, call, refusal in queued:
             if call is None and message.frame["kind"] == "request":
                 response(message, error=self._disconnected())
-        registrations = [*self._exact.values(), *self._namespaces.values()]
-        self._exact.clear()
-        self._namespaces.clear()
+        registrations = [self._attachment] if self._attachment else []
+        self._attachment = None
 
         def notify():
             for registration in registrations:

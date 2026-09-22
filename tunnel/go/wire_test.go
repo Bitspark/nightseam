@@ -3,6 +3,7 @@ package tunnel_test
 import (
 	"context"
 	"encoding/json"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -60,11 +61,11 @@ func TestChannelIsAPreparedWireBeforeSelection(t *testing.T) {
 	if opened.Digest != digest || accepted.Digest != digest {
 		t.Fatal("prepared channel lost declaration digest")
 	}
-	var _ duplex.Wire = (*tunnel.Channel)(nil)
+	var _ bitwire.Wire = (*tunnel.Channel)(nil)
 	if observer.count.Load() != 2 {
 		t.Fatalf("construction peers %d", observer.count.Load())
 	}
-	selected := duplex.At(duplex.Mount(map[string]duplex.Endpoint{"route": opened}), []string{"route", "deep"})
+	selected := duplex.At(duplex.Mount(map[string]bitwire.Endpoint{"route": opened}), []string{"route", "deep"})
 	var got string
 	if err := runtime.CallWire(ctx, selected, []string{"echo"}, "selected", &got); err != nil || got != "selected" {
 		t.Fatalf("selected %q %v", got, err)
@@ -123,7 +124,7 @@ func TestServerOpenedWireChannelUsesOnePreparedPeerOnEachSide(t *testing.T) {
 	if opened.ID%2 != 0 {
 		t.Fatal("server changed channel parity")
 	}
-	for _, wire := range []duplex.Wire{opened, accepted} {
+	for _, wire := range []bitwire.Wire{opened, accepted} {
 		var result string
 		if err := runtime.CallWire(ctx, wire, []string{"echo"}, "both ways", &result); err != nil || result != "both ways" {
 			t.Fatalf("call %q %v", result, err)

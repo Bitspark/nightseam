@@ -45,6 +45,7 @@ func (f *file) proto() string {
 }
 
 func (f *file) runtime() string { return f.use("runtime", f.config.Runtime) }
+func (f *file) bitwire() string { return f.use("bitwire", "github.com/Bitspark/bitwire/wire/go") }
 func (f *file) seam() string    { return f.use("duplex", f.config.Seam) }
 func (f *file) tunnel() string  { return f.use("tunnel", f.config.Tunnel) }
 func (f *file) std(name string) string {

@@ -11,7 +11,8 @@ import time
 import weakref
 from dataclasses import dataclass, field
 
-from nightseam.duplex import Message, Receiver, ReturnAddress, WireError, encode_path
+from bitwire import Message, Receiver, ReturnAddress
+from nightseam.duplex import WireError, encode_path
 
 from .envelope import decode_envelope
 from .json import RawJSON, encode_object, loads
@@ -139,9 +140,6 @@ def wire_event_context(message):
 class _EventContextWire:
     def send(self, path, message):
         raise PublicError("invalid_message", "An event context is not a return address")
-
-    def receive(self, path, receiver):
-        raise WireError("receiver_exists")
 
     def close(self, code=1000, reason=""):
         pass
@@ -386,9 +384,6 @@ class _Returning:
             self.future.set_exception(PublicError(error["code"], error["message"], error.get("data", ABSENT)))
         else:
             self.future.set_result(frame["result"])
-
-    def receive(self, path, receiver):
-        raise WireError("receiver_exists")
 
     def close(self, code=1000, reason=""):
         if not self.future.done():
@@ -664,7 +659,7 @@ def register_wire(wire, path, handlers):
 
         return run()
 
-    detach = wire.receive(path, Receiver(message=receive, closed=stop))
+    detach = wire.register(path, Receiver(message=receive, closed=stop))
     detached = False
 
     def remove():
@@ -704,11 +699,11 @@ def forward_wire(left, right):
                 stop()
                 response(message, error=public_error(error))
 
-        return Receiver(namespace=True, message=deliver, closed=stop)
+        return Receiver(message=deliver, closed=stop)
 
     try:
         for source, destination in ((left, right), (right, left)):
-            remove = source.receive([], receiver(destination))
+            remove = source.receive(receiver(destination))
             if detached:
                 remove()
             else:

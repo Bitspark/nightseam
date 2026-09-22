@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"io"
 	"runtime"
 	"strconv"
@@ -337,12 +338,12 @@ func (p *Peer) abandon(err error) {
 
 // codeAborted stands for no close at all: the connection is aborted, nothing
 // is sent, and the far side reads 1006.
-const codeAborted duplex.Code = 0
+const codeAborted bitwire.Code = 0
 
 // end ends the peer once, whatever ended it: every pending call is released,
 // the connection is closed with the code this side decided on or aborted where
 // there is none, and the observer is told what the wire carried.
-func (p *Peer) end(err error, code duplex.Code, reason string) {
+func (p *Peer) end(err error, code bitwire.Code, reason string) {
 	p.once.Do(func() {
 		if err == nil {
 			err = ErrClosed

@@ -1,4 +1,5 @@
-import { mount, MemoryWireLog, type Endpoint } from '@nightseam/duplex';
+import { mount, MemoryWireLog } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { createDispatcher, forwardWire, jsonAdapter, wirePair } from '@nightseam/runtime';
 import * as client from './api/ts/cell-client/src/index.ts';
 import * as binding from './api/ts/cell-binding/src/index.ts';

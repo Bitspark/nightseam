@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"sync"
@@ -334,7 +335,7 @@ func (t *testee) seamOps() map[string]func(request) (any, error) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), within)
 			defer cancel()
-			err = c.Close(ctx, duplex.Code(code), reason)
+			err = c.Close(ctx, bitwire.Code(code), reason)
 			c.finish(duplex.ErrClosed)
 			if err != nil && !errors.Is(err, duplex.ErrClosed) {
 				if errors.Is(err, context.DeadlineExceeded) {

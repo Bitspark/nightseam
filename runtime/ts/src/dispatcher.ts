@@ -1,5 +1,5 @@
 import { encodePath, WireError } from '@nightseam/duplex';
-import type { Endpoint, Message, Path, Receiver, Wire } from '@nightseam/duplex';
+import type { Endpoint, Message, Path, Receiver, Wire } from '@bitspark/bitwire';
 import { DuplexError } from './error.ts';
 import { InvocationError, captureInvocation, relayInvocationControl } from './invocation.ts';
 import { response } from './wire.ts';
