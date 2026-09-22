@@ -128,6 +128,7 @@ public actor Peer {
     private var nextID: UInt64 = 0
     private var receivedSerial = ""
     private var publications: [UUID] = []
+    private var callSlots = 0
     private var readTask: Task<Void, Never>?
     private var writeTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
@@ -178,6 +179,9 @@ public actor Peer {
         try Task.checkCancellation()
         guard context?.cancellation.isCancelled != true else { throw PublicError(code: "cancelled", message: "Request cancelled") }
         guard end == nil else { throw disconnected() }
+        guard callSlots < options.maxPendingRequests else { throw PublicError(code: "busy", message: "Outstanding call limit reached") }
+        callSlots += 1
+        defer { callSlots -= 1 }
         // Actor isolation ends at each await. Keep a FIFO publication turn
         // across queue waits so later callers cannot publish earlier serials.
         let publication = UUID()
@@ -191,7 +195,6 @@ public actor Peer {
             guard ContinuousClock.now < deadline else { throw PublicError(code: "request_timeout", message: "Request deadline passed") }
             try await Task.sleep(for: .milliseconds(1))
         }
-        guard pending.count < options.maxPendingRequests else { throw PublicError(code: "busy", message: "Outstanding call limit reached") }
         guard nextID < UInt64(Int64.max) else {
             await finish(code: 4011, reason: "Request serials exhausted", send: true)
             throw PublicError(code: "identifier_exhausted", message: "Create a new peer before further calls")
