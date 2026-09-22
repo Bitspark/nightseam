@@ -21,6 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -39,6 +40,7 @@ public final class Peer implements AutoCloseable {
     private long next;
     private String receivedSerial="";
     private final ReentrantLock publication = new ReentrantLock(true);
+    private final Semaphore callSlots;
     private final AtomicBoolean ended = new AtomicBoolean();
     private final CompletableFuture<CloseInfo> closed = new CompletableFuture<>();
     private final ArrayBlockingQueue<Queued> output;
@@ -59,6 +61,7 @@ public final class Peer implements AutoCloseable {
     public Peer(Connection connection,String role,PeerOptions options) {
         if (!role.equals("client") && !role.equals("server")) throw new IllegalArgumentException("invalid role");
         this.connection=connection; this.role=role; this.prefix=role.equals("client")?"c:":"s:"; this.options=options;
+        callSlots=new Semaphore(options.maxPendingRequests());
         deadlines.setRemoveOnCancelPolicy(true);
         output=new ArrayBlockingQueue<>(options.queueCapacity()); events=new ArrayBlockingQueue<>(options.queueCapacity());
         observe(map("type","connection.opened","role",role));
@@ -89,12 +92,13 @@ public final class Peer implements AutoCloseable {
     }
     public final class Call {
         private final String id,method;
+        private final boolean reserved;
         private final Map<String,Object> frame;
         private final CompletableFuture<Object> result = new CompletableFuture<>();
         private final AtomicBoolean completed = new AtomicBoolean();
         private volatile ScheduledFuture<?> timer;
         private volatile Runnable detachCancellation=() -> {};
-        private Call(String id,String method,Map<String,Object> frame) { this.id=id;this.method=method;this.frame=frame; }
+        private Call(String id,String method,Map<String,Object> frame,boolean reserved) { this.id=id;this.method=method;this.frame=frame;this.reserved=reserved; }
         public CompletableFuture<Object> result() { return result; }
         public void cancel() { complete(null,new PublicError("cancelled","The caller gave up"),true); }
         private void complete(Object value,PublicError error,boolean withdraw) {
@@ -102,6 +106,7 @@ public final class Peer implements AutoCloseable {
             if(timer!=null) timer.cancel(false);
             detachCancellation.run();
             pending.remove(id,this);
+            if(reserved) callSlots.release();
             requestEnded(frame,false,error);
             if (withdraw && !ended.get()) {
                 var cancel=map("version",1,"kind","cancel","id",id); copyTrace(frame,cancel);
@@ -119,7 +124,9 @@ public final class Peer implements AutoCloseable {
         if (method==null || method.isEmpty()) throw new IllegalArgumentException("a call requires a method");
         Duration limit=timeout==null || timeout.compareTo(options.requestTimeout())>0?options.requestTimeout():timeout;
         long deadline=System.nanoTime()+limit.toNanos();
-        boolean acquired=false;
+        if(ended.get()) return refusedCall(method,new PublicError("disconnected","Connection closed"));
+        if(!callSlots.tryAcquire()) return refusedCall(method,new PublicError("busy","Outstanding call limit reached"));
+        boolean acquired=false, slotOwned=true;
         try {
             if(publication.isHeldByCurrentThread()) return refusedCall(method,new PublicError("busy","Request publication is reentrant"));
             while(!acquired) {
@@ -139,14 +146,15 @@ public final class Peer implements AutoCloseable {
             var frame=map("version",1,"kind","request","id",id,"method",method,"params",params);
             if (carried==null) inject(context,frame); else copyTrace(carried,frame);
             metadata(meta,frame);
-            var call=new Call(id,method,frame);
+            var call=new Call(id,method,frame,true);
+            slotOwned=false;
             if(context.isCancelled()) {
-                call.completed.set(true); call.result.completeExceptionally(new PublicError("cancelled","The caller gave up")); return call;
+                call.completed.set(true); callSlots.release(); call.result.completeExceptionally(new PublicError("cancelled","The caller gave up")); return call;
             }
             synchronized(pending) {
-                if (ended.get() || pending.size()>=options.maxPendingRequests()) {
-                    call.completed.set(true);
-                    call.result.completeExceptionally(new PublicError(ended.get()?"disconnected":"busy",ended.get()?"Connection closed":"Outstanding call limit reached"));
+                if (ended.get()) {
+                    call.completed.set(true); callSlots.release();
+                    call.result.completeExceptionally(new PublicError("disconnected","Connection closed"));
                     return call;
                 }
                 pending.put(id,call);
@@ -163,10 +171,10 @@ public final class Peer implements AutoCloseable {
         } catch(InterruptedException error) {
             Thread.currentThread().interrupt();
             return refusedCall(method,new PublicError("cancelled","Request publication interrupted"));
-        } finally { if(acquired) publication.unlock(); }
+        } finally { if(acquired) publication.unlock(); if(slotOwned) callSlots.release(); }
     }
     private Call refusedCall(String method,PublicError error) {
-        var call=new Call("",method,Map.of());
+        var call=new Call("",method,Map.of(),false);
         call.completed.set(true); call.result.completeExceptionally(error); return call;
     }
     public void emit(String name,Object data) throws Exception { emit(RequestContext.empty(),name,data,null,options.writeTimeout()); }

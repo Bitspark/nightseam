@@ -46,6 +46,23 @@ final class SerialTest {
                 check(frame.get("id").equals("c:"+n),"serial publication inverted: "+frame);
             }
         } finally { release.countDown(); }
+        var waiting=new CountDownLatch(1); var unblock=new CountDownLatch(1);
+        var bounded=new PeerOptions(defaults.maxConcurrentHandlers(),1,1,
+            defaults.maxFrameBytes(),defaults.requestTimeout(),defaults.writeTimeout(),Map.of(),event->{
+                if(event.get("type").equals("request.started")) {
+                    waiting.countDown();
+                    try { unblock.await(2,TimeUnit.SECONDS); } catch(InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
+            });
+        pair=Pipe.pair(1<<20,8);
+        try(var peer=new Peer(pair[0],"client",bounded)) {
+            var first=Thread.ofVirtual().start(()->peer.call("held",null));
+            check(waiting.await(2,TimeUnit.SECONDS),"publication did not enter");
+            try { peer.call("over-budget",null).result().get(200,TimeUnit.MILLISECONDS); throw new AssertionError("publication exceeded pending limit"); }
+            catch(ExecutionException error) { check(Peer.asError(error).code().equals("busy"),"publication waiter escaped pending limit"); }
+            finally { unblock.countDown(); }
+            first.join(2000);
+        }
         pair=Pipe.pair(1<<20,8);
         try(var peer=new Peer(pair[0],"client",PeerOptions.defaults())) {
             var next=Peer.class.getDeclaredField("next"); next.setAccessible(true);
