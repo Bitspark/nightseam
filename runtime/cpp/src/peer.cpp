@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <limits>
 #include <random>
 #include <thread>
 
@@ -76,6 +77,9 @@ struct Peer::Impl {
     std::exception_ptr failure;
     CloseInfo close_info;
     std::uint64_t next_id = 0;
+    std::string received_serial;
+    struct Publication;
+    std::deque<Publication*> publications;
     std::map<std::string,std::shared_ptr<Pending>> pending;
     std::map<std::string,std::shared_ptr<Incoming>> incoming;
     std::map<std::string,RawHandler> raw_handlers;
@@ -84,6 +88,35 @@ struct Peer::Impl {
     std::size_t output_data = 0, output_control = 0;
     std::thread reader, writer, event_worker, timer;
     std::vector<Worker> workers; // reader owns and reaps completed handlers
+
+    // A cancellable FIFO gate spans reservation, encoding, and queue admission.
+    // Entries remain queued while capacity is awaited; new calls cannot pass them.
+    struct Publication {
+        Impl& peer;
+        std::thread::id thread = std::this_thread::get_id();
+        Publication(Impl& peer, duplex::Wait wait) : peer(peer) {
+            std::unique_lock lock(peer.mutex);
+            peer.check_open(); wait.check();
+            if (!peer.publications.empty() && peer.publications.front()->thread == thread)
+                throw PublicError("busy","Request publication is reentrant");
+            peer.publications.push_back(this);
+            try {
+                while (peer.publications.front() != this) {
+                    peer.check_open(); wait.check();
+                    peer.cv.wait_until(lock,wait.stop,wait.deadline,[&]{return peer.closed || peer.publications.front()==this;});
+                }
+                peer.check_open(); wait.check();
+            } catch (...) {
+                std::erase(peer.publications,this); peer.cv.notify_all(); throw;
+            }
+        }
+        ~Publication() {
+            std::lock_guard lock(peer.mutex);
+            std::erase(peer.publications,this); peer.cv.notify_all();
+        }
+        Publication(const Publication&) = delete;
+        Publication& operator=(const Publication&) = delete;
+    };
 
     Impl(Peer& owner, std::shared_ptr<duplex::Conn> connection, Role role, PeerOptions options)
         : owner(owner), connection(std::move(connection)), role(role), options(std::move(options)) {
@@ -230,7 +263,14 @@ struct Peer::Impl {
                     std::shared_ptr<Incoming> call;
                     { std::lock_guard lock(mutex); auto found=incoming.find(frame.id); if (found!=incoming.end()) call=found->second; }
                     if (call) call->stop.request_stop();
-                } else if (frame.kind=="request") start_request(std::move(frame));
+                } else if (frame.kind=="request") {
+                    auto serial=frame.id.substr(2);
+                    if (serial.size()<received_serial.size() || (serial.size()==received_serial.size() && serial<=received_serial)) {
+                        end(std::make_exception_ptr(std::runtime_error("request serial did not increase")),4011,"request serial did not increase"); return;
+                    }
+                    received_serial=std::move(serial);
+                    start_request(std::move(frame));
+                }
                 else {
                     std::unique_lock lock(mutex);
                     if (events.size()>=options.queue_capacity) {
@@ -266,7 +306,6 @@ struct Peer::Impl {
         std::exception_ptr rejection;
         {
             std::unique_lock lock(mutex);
-            if (incoming.contains(frame.id)) { lock.unlock(); end(std::make_exception_ptr(std::runtime_error("duplicate active duplex request identifier")),4011,"duplicate active duplex request identifier"); return; }
             if (auto found=options.handlers.find(frame.method); found!=options.handlers.end()) handler=found->second;
             if (auto found=raw_handlers.find(frame.method); found!=raw_handlers.end()) raw_handler=found->second;
             if (!handler && !raw_handler) rejection=std::make_exception_ptr(PublicError("method_not_found","Unknown method"));
@@ -374,9 +413,15 @@ Value Peer::call_raw(std::string method, std::optional<std::string> params, Call
     frame.params=parse_value(*frame.raw_params); frame.meta=options.meta; frame.trace=p.options.propagator->inject(parent);
     auto pending=std::make_shared<Impl::Pending>();
     Impl::Queued queued;
+    std::optional<Impl::Publication> publication(std::in_place,p,wait);
     {
-        std::lock_guard lock(p.mutex); p.check_open();
+        std::unique_lock lock(p.mutex); p.check_open();
         if (p.pending.size()>=p.options.max_pending_requests) throw PublicError("busy","Too many outstanding requests");
+        if (p.next_id==static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+            lock.unlock(); publication.reset();
+            p.end(std::make_exception_ptr(std::runtime_error("request serials exhausted")),4011,"request serials exhausted");
+            throw PublicError("identifier_exhausted","Create a new peer before further calls");
+        }
         frame.id=(p.role==Role::client?"c:":"s:")+std::to_string(++p.next_id);
         queued=p.encode(frame); p.pending.emplace(frame.id,pending);
     }
@@ -384,6 +429,7 @@ Value Peer::call_raw(std::string method, std::optional<std::string> params, Call
     bool sent=false;
     try {
         p.enqueue(std::move(queued),wait); sent=true;
+        publication.reset();
         std::unique_lock lock(p.mutex);
         while (!pending->ready) {
             p.check_open(); wait.check();
@@ -395,6 +441,7 @@ Value Peer::call_raw(std::string method, std::optional<std::string> params, Call
         p.request_ended(frame,false,started,{}); return result.value_or(Value::null());
     } catch (...) {
         auto error=std::current_exception();
+        publication.reset();
         { std::lock_guard lock(p.mutex); p.pending.erase(frame.id); }
         p.request_ended(frame,false,started,error);
         if (sent && !p.stop.stop_requested() && (stop.stop_requested() || Clock::now()>=wait.deadline)) p.cancel(frame);
