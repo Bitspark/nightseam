@@ -21,7 +21,7 @@ async function registry(t, respond) {
     const path = decodeURIComponent(req.url);
     const count = (calls.get(path) ?? 0) + 1;
     calls.set(path, count);
-    respond(path, count, res);
+    respond(path, count, res, req);
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -65,6 +65,22 @@ test("the release waits through missing manifests and stale versions in both reg
   assert.ok(fake.calls.get(core) >= 2, "the root module must propagate too");
   assert.ok(fake.calls.get(adapter) >= 2, "the nested module must serve the requested version");
   assert.match(fake.messages.join("\n"), /available after [\d.]+s/);
+});
+
+test("the wait reads the abbreviated document an install reads, not the full one", { timeout: 15_000 }, async t => {
+  // npm serves the abbreviated document from an index that lags the full one
+  // for a new name; a registry that has the full document and not yet the
+  // abbreviated one is one an install still fails against.
+  const fake = await registry(t, (path, count, res, req) => {
+    if (path.startsWith("/npm/") && !/application\/vnd\.npm\.install-v1\+json/.test(req.headers.accept ?? "")) {
+      res.writeHead(404).end();
+      return;
+    }
+    ready(path, res);
+  });
+  await waitForRegistries(tag, fake.options);
+  assert.ok(fake.calls.get(runtime) >= 1);
+  assert.match(fake.messages.join("\n"), /@nightseam\/runtime@0\.4\.0 available after/);
 });
 
 test("a propagation timeout names every package still unavailable and the last response", { timeout: 5_000 }, async t => {
