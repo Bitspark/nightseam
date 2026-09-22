@@ -106,7 +106,7 @@
   <!-- the contract: the second shared thing, spanning both realizations -->
   <text class="tag muted" x="82" y="430" text-anchor="end">AGNOSTIC</text>
   <rect class="box contract" x="90" y="392" width="1160" height="70" rx="8"/>
-  <text class="l1 t" x="670" y="414" text-anchor="middle">Bitwire 0.2.0 — the access contract, owned by Bitspark/bitwire; its packages adopted by alias in Go and by re-export in TypeScript, never redefined</text>
+  <text class="l1 t" x="670" y="414" text-anchor="middle">Bitwire 0.2.0 — the access contract, owned by Bitspark/bitwire; named directly in every language, never copied, aliased or re-exported</text>
   <text class="l2 t" x="670" y="432" text-anchor="middle">Wire { send(path, message) } · Endpoint extends Wire { receive(receiver) → detach, close(code, reason) } · Receiver { message(path, message), closed(code, reason) }</text>
   <text class="l2 t" x="670" y="450" text-anchor="middle">a ReturnAddress carries send-only Wire; one owning receive attachment per Endpoint; registration, prefix routing and precedence are a composed dispatcher's, not the contract's</text>
 
