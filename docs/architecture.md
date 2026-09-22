@@ -22,16 +22,20 @@ reference, the figure is the map.
 | generated packages | the types and validators, the per-side model factories, and the recorded-wire and transparency helpers | `<family>-protocol`, `-client`, `-binding`, `familytest` | `<family>-client`, `-binding`, their `test.ts` | [generated code](declaration/generated.md) |
 | native model | the family's sides as records of native functions — a callable is a function, a record of callables a record; the caller supplies the lifetime its live values live under | `protocol.ClientModel`, `protocol.ServerModel`, `runtime.AdapterContext` | `ClientModel`, `ServerModel`, the value environment | [generated code](declaration/generated.md#live-values), [the live layer](runtime/live.md) |
 | adapter boundary | the crossing between a model and a wire: validation, the `identity.check` exchange, and value conversion under the caller's owner | `ToWire(model, env)`, `PrepareFromWire(endpoint, env)`, `FromWire(ctx, endpoint, env)`, `Record` | `toWire`, `prepareFromWire(…).complete()`, `record` | [the wire](runtime/wire.md#models-values-and-context), [generated code](declaration/generated.md) |
-| wire and dispatcher | the shared access contract, Bitwire 0.2.0: send-only `Wire`, `Endpoint` with one owning receive attachment and closure; above it one dispatcher that registers, selects, mounts and forwards; the invocation lifecycle spoken at a request's return capability | `bitwire.Wire`, `bitwire.Endpoint`, `runtime.NewDispatcher`, `duplex.At`, `duplex.Mount`, `runtime.ForwardWire` | `wire.send`, `endpoint.receive`, `createDispatcher`, `at`, `mount`, `forwardWire` | [the wire](runtime/wire.md) |
+| the access contract | **the second shared thing**, drawn as a band across both columns: Bitwire 0.2.0, owned by [Bitspark/bitwire](https://github.com/Bitspark/bitwire) and adopted here by alias in Go and re-export in TypeScript, never redefined — send-only `Wire { send(path, message) }`; `Endpoint extends Wire { receive(receiver) → detach, close(code, reason) }` with one owning receive attachment; `Receiver { message, closed }`; a `ReturnAddress` carrying send-only `Wire`. Registration, prefix routing and precedence are a composed dispatcher's, not the contract's | `bitwire.Wire`, `bitwire.Endpoint`, `bitwire.Receiver` (aliases) | `Wire`, `Endpoint`, `Receiver` (re-exports of `@bitspark/bitwire`) | [the wire](runtime/wire.md), [the adoption decision](decisions/the-reusable-foundation-lives-in-nightseam.md) |
+| wire realizations, and the dispatcher | what each realization makes of the contract: the peer's own endpoint, a tunnel channel, a model endpoint from `ToWire`, a bounded local pair — each an `Endpoint`; and above them one dispatcher that registers, selects, mounts and forwards, with the invocation lifecycle spoken at a request's return capability | `peer.Wire()`, `runtime.NewWirePair`, `runtime.NewDispatcher`, `duplex.At`, `duplex.Mount`, `runtime.ForwardWire` | `peer.wire()`, `wirePair`, `createDispatcher`, `at`, `mount`, `forwardWire` | [the wire](runtime/wire.md) |
 | layers over the peer | compositions a consumer could write and every consumer would write the same way: live bindings in a scope, and channels multiplexed over one peer | `live.Over` → `Scope`, `Owner`; `tunnel.Tunnel` | `liveOver` → `LiveScope`, `LiveOwner`; `Tunnel` | [the live layer](runtime/live.md), [the tunnel](runtime/tunnel.md), [admission](admission.md) |
 | peer | the profile's primitives: correlated requests, events, cancellation, coded refusals, bounds, the `meta` header, trace context, and one observer told at the write | `runtime.Peer` | `DuplexPeer` | [the peer](runtime/peer.md), [the profile](wire/profile.md), [the observer](runtime/observer.md) |
 | seam | a connection that sends, receives and closes frames — a WebSocket, a pipe, a tunnel channel; the floor, not Nightseam's to decompose | `duplex.Conn` | `FrameConnection` | [the profile](wire/profile.md#the-connection-beneath) |
 
-Between the two columns the figure names what each stage *is* in the
-tree's own terms — rendered not written, native in its own idiom, the
-crossing, the shared contract, compositions over the peer, the envelope,
-any connection of the seam — and at the bottom what crosses between two
-realizations: the profile's four frame kinds with their header and trace
+Three things on the figure are shared, and the figure draws each across
+both columns: the declaration at the top, the Bitwire contract at the wire
+row, and the profile's frames at the bottom. Everything else is one
+realization's. Between the two columns the figure names what each stage
+*is* in the tree's own terms — rendered not written, native in its own
+idiom, the crossing, realizations of the contract, compositions over the
+peer, the envelope, any connection of the seam — and at the bottom what
+crosses between two realizations: the profile's four frame kinds with their header and trace
 context, the reserved vocabularies `channel.*`, `live.*` and `identity.*`
 as ordinary frames, request serials that increase per direction, and the
 declaration's digest at `channel.open`, at `identity.check` and on a
@@ -64,8 +68,9 @@ capability and never reaches a peer root.
   [a layer takes a wire](decisions/the-session-runs-over-any-connection-of-the-seam.md)
   names.
 - **One definition, held in one place.** Both columns are realizations of
-  the same thing — the profile, the Bitwire contract, the declaration —
-  and neither is its home; what a language promises is a tier, and the
+  the same three things — the declaration, the Bitwire contract, the
+  profile — and neither column is the home of any of them: the contract's
+  home is Bitspark/bitwire, adopted here at v0.2.0 and never redefined; what a language promises is a tier, and the
   conformance suite holds every language to the same scenarios and the
   same tables ([tiers](languages/tiers.md),
   [agnosticism](goals/agnosticism.md)).

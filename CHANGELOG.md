@@ -6,6 +6,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Clarified
+
+- The architecture figure draws the Bitwire access contract as the second of
+  three shared things — a band across both realizations, beside the
+  declaration at the top and the profile's frames at the bottom — spelling
+  `Wire`, `Endpoint` and `Receiver` and naming their owner, with each
+  column's wire row beneath it as a realization of that contract.
+
 ### Added
 
 - A workflow that files an issue for every workflow run that fails after its
