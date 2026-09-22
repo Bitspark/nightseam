@@ -26,10 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
+      # No pnpm cache here: the install below runs on Linux alone, and the
+      # post step of a cached setup fails on a runner with no store to save.
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
-          cache: pnpm
       # The scripts before the tiers that run them, on both platforms and in
       # the first minute: every one loads, the script tests hold — the
       # release gate and the round trip on fixture registries and matrices
