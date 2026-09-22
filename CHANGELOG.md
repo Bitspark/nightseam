@@ -16,9 +16,7 @@ are one number. Entries are in the words of the commits that landed them.
   table's declaration is a function, the script's steps are importable, and
   a script test exercises that step without a registry.
 - duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.
-
 - conformance: attribute missing pair capabilities to their participant and report nightly failures without assuming a cause.
-
 - All eight language ports use Bitwire wire types directly. Remove Nightseam
   aliases, re-exports and duplicate declarations; generated adapters import
   Bitwire, and native ports separate send access from endpoint attachment and
