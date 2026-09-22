@@ -1,1 +1,1 @@
-{"dependencies":{"@nightseam/duplex":"0.5.0","@nightseam/runtime":"0.5.0"},"exports":{".":"./src/index.ts","./test":"./src/test.ts","./types":"./src/types.ts"},"name":"@example/ledger-client","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}
+{"dependencies":{"@bitspark/bitwire":"0.2.0","@nightseam/duplex":"0.5.0","@nightseam/runtime":"0.5.0"},"exports":{".":"./src/index.ts","./test":"./src/test.ts","./types":"./src/types.ts"},"name":"@example/ledger-client","private":true,"scripts":{"check":"tsc --noEmit"},"type":"module","version":"0.0.0"}

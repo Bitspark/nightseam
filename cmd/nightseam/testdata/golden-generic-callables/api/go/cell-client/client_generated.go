@@ -7,23 +7,24 @@ import (
 	errors "errors"
 	protocol "example.test/generated/api/go/cell-protocol"
 	fmt "fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	atomic "sync/atomic"
 )
 
 type serverMethods[T any] struct {
-	wire        duplex.Wire
+	wire        bitwire.Wire
 	environment runtime.AdapterContext
 	adapterT    runtime.ValueAdapter[T]
 }
 type serverEvents[T any] struct {
-	wire        duplex.Wire
+	wire        bitwire.Wire
 	environment runtime.AdapterContext
 	adapterT    runtime.ValueAdapter[T]
 }
 
-func accessServer[T any](wire duplex.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) protocol.Server[T] {
+func accessServer[T any](wire bitwire.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) protocol.Server[T] {
 	return protocol.Server[T]{Methods: &serverMethods[T]{wire: wire, environment: environment, adapterT: adapterT}, Events: &serverEvents[T]{wire: wire, environment: environment, adapterT: adapterT}}
 }
 func (c *serverMethods[T]) Get(ctx context.Context) (T, error) {
@@ -272,17 +273,17 @@ func bindServer[T any](wire runtime.HandlerRegistry, lookup func() protocol.Serv
 }
 
 type clientMethods[T any] struct {
-	wire        duplex.Wire
+	wire        bitwire.Wire
 	environment runtime.AdapterContext
 	adapterT    runtime.ValueAdapter[T]
 }
 type clientEvents[T any] struct {
-	wire        duplex.Wire
+	wire        bitwire.Wire
 	environment runtime.AdapterContext
 	adapterT    runtime.ValueAdapter[T]
 }
 
-func accessClient[T any](wire duplex.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) protocol.Client[T] {
+func accessClient[T any](wire bitwire.Wire, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) protocol.Client[T] {
 	return protocol.Client[T]{Methods: &clientMethods[T]{wire: wire, environment: environment, adapterT: adapterT}, Events: &clientEvents[T]{wire: wire, environment: environment, adapterT: adapterT}}
 }
 func bindClient[T any](wire runtime.HandlerRegistry, lookup func() protocol.Client[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) error {
@@ -309,7 +310,7 @@ func normalizeContext[T any](environment runtime.AdapterContext, adapterT runtim
 }
 
 // ToWire binds one model factory and returns its owned access endpoint.
-func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (duplex.Endpoint, error) {
+func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (bitwire.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -375,7 +376,7 @@ func registerIdentity(wire runtime.HandlerRegistry, identity runtime.Declaration
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[T any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (complete func(context.Context) (protocol.ClientModel[T], error), cleanup func(), err error) {
+func PrepareFromWire[T any](wire bitwire.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (complete func(context.Context) (protocol.ClientModel[T], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -433,7 +434,7 @@ func PrepareFromWire[T any](wire duplex.Endpoint, environment runtime.AdapterCon
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[T any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (protocol.ClientModel[T], error) {
+func FromWire[T any](ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (protocol.ClientModel[T], error) {
 	complete, cleanup, err := PrepareFromWire[T](wire, environment, adapterT)
 	if err != nil {
 		return nil, err
@@ -462,7 +463,7 @@ func (r *Recorder[T]) Append(ctx context.Context, event RecordedEvent[T]) error 
 }
 
 // Follow checks the subscriber's declaration before registering any replay.
-func (r *Recorder[T]) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+func (r *Recorder[T]) Follow(ctx context.Context, after uint64, target bitwire.Wire) (*duplex.Follower, error) {
 	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
 		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
 	}, r.identity); err != nil {
@@ -473,7 +474,7 @@ func (r *Recorder[T]) Follow(ctx context.Context, after uint64, target duplex.Wi
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[T any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (*Recorder[T], error) {
+func Record[T any](ctx context.Context, target bitwire.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterT runtime.ValueAdapter[T]) (*Recorder[T], error) {
 	environment, err := normalizeContext[T](environment, adapterT)
 	if err != nil {
 		return nil, err

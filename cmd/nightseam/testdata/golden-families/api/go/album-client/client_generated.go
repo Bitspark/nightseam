@@ -7,25 +7,26 @@ import (
 	errors "errors"
 	protocol "example.test/generated/api/go/album-protocol"
 	fmt "fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	atomic "sync/atomic"
 )
 
 type serverMethods[AEnvelope, BEnvelope any] struct {
-	wire             duplex.Wire
+	wire             bitwire.Wire
 	environment      runtime.AdapterContext
 	adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 	adapterBEnvelope runtime.ValueAdapter[BEnvelope]
 }
 type serverEvents[AEnvelope, BEnvelope any] struct {
-	wire             duplex.Wire
+	wire             bitwire.Wire
 	environment      runtime.AdapterContext
 	adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 	adapterBEnvelope runtime.ValueAdapter[BEnvelope]
 }
 
-func accessServer[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) protocol.Server[AEnvelope, BEnvelope] {
+func accessServer[AEnvelope, BEnvelope any](wire bitwire.Wire, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) protocol.Server[AEnvelope, BEnvelope] {
 	return protocol.Server[AEnvelope, BEnvelope]{Methods: &serverMethods[AEnvelope, BEnvelope]{wire: wire, environment: environment, adapterAEnvelope: adapterAEnvelope, adapterBEnvelope: adapterBEnvelope}, Events: &serverEvents[AEnvelope, BEnvelope]{wire: wire, environment: environment, adapterAEnvelope: adapterAEnvelope, adapterBEnvelope: adapterBEnvelope}}
 }
 func (c *serverMethods[AEnvelope, BEnvelope]) Look(ctx context.Context, params protocol.Mine[AEnvelope]) (protocol.Both[AEnvelope, BEnvelope], error) {
@@ -245,19 +246,19 @@ func bindServer[AEnvelope, BEnvelope any](wire runtime.HandlerRegistry, lookup f
 }
 
 type clientMethods[AEnvelope, BEnvelope any] struct {
-	wire             duplex.Wire
+	wire             bitwire.Wire
 	environment      runtime.AdapterContext
 	adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 	adapterBEnvelope runtime.ValueAdapter[BEnvelope]
 }
 type clientEvents[AEnvelope, BEnvelope any] struct {
-	wire             duplex.Wire
+	wire             bitwire.Wire
 	environment      runtime.AdapterContext
 	adapterAEnvelope runtime.ValueAdapter[AEnvelope]
 	adapterBEnvelope runtime.ValueAdapter[BEnvelope]
 }
 
-func accessClient[AEnvelope, BEnvelope any](wire duplex.Wire, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) protocol.Client[AEnvelope, BEnvelope] {
+func accessClient[AEnvelope, BEnvelope any](wire bitwire.Wire, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) protocol.Client[AEnvelope, BEnvelope] {
 	return protocol.Client[AEnvelope, BEnvelope]{Methods: &clientMethods[AEnvelope, BEnvelope]{wire: wire, environment: environment, adapterAEnvelope: adapterAEnvelope, adapterBEnvelope: adapterBEnvelope}, Events: &clientEvents[AEnvelope, BEnvelope]{wire: wire, environment: environment, adapterAEnvelope: adapterAEnvelope, adapterBEnvelope: adapterBEnvelope}}
 }
 func bindClient[AEnvelope, BEnvelope any](wire runtime.HandlerRegistry, lookup func() protocol.Client[AEnvelope, BEnvelope], environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) error {
@@ -287,7 +288,7 @@ func normalizeContext[AEnvelope, BEnvelope any](environment runtime.AdapterConte
 }
 
 // ToWire binds one model factory and returns its owned access endpoint.
-func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](model protocol.ClientModel[AEnvelope, BEnvelope], environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (duplex.Endpoint, error) {
+func ToWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](model protocol.ClientModel[AEnvelope, BEnvelope], environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (bitwire.Endpoint, error) {
 	if model == nil {
 		return nil, fmt.Errorf("model factory is required")
 	}
@@ -352,7 +353,7 @@ func registerIdentity(wire runtime.HandlerRegistry, identity runtime.Declaration
 // Complete checks identity and returns a factory that may be bound once. Both steps
 // must finish within environment.Options.RequestTimeout. Cleanup detaches this
 // interpretation's registrations, including after success, and never closes the wire.
-func PrepareFromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](wire duplex.Endpoint, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (complete func(context.Context) (protocol.ClientModel[AEnvelope, BEnvelope], error), cleanup func(), err error) {
+func PrepareFromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](wire bitwire.Endpoint, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (complete func(context.Context) (protocol.ClientModel[AEnvelope, BEnvelope], error), cleanup func(), err error) {
 	if wire == nil {
 		return nil, nil, fmt.Errorf("wire is required")
 	}
@@ -410,7 +411,7 @@ func PrepareFromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATa
 
 // FromWire checks identity and returns a factory that may be bound once.
 // Use PrepareFromWire before attachment when incoming delivery can begin immediately.
-func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (protocol.ClientModel[AEnvelope, BEnvelope], error) {
+func FromWire[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (protocol.ClientModel[AEnvelope, BEnvelope], error) {
 	complete, cleanup, err := PrepareFromWire[AEnvelope, BEnvelope](wire, environment, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return nil, err
@@ -439,7 +440,7 @@ func (r *Recorder[AEnvelope, BEnvelope]) Append(ctx context.Context, event Recor
 }
 
 // Follow checks the subscriber's declaration before registering any replay.
-func (r *Recorder[AEnvelope, BEnvelope]) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error) {
+func (r *Recorder[AEnvelope, BEnvelope]) Follow(ctx context.Context, after uint64, target bitwire.Wire) (*duplex.Follower, error) {
 	if err := runtime.CheckIdentity(ctx, func(ctx context.Context, method string, params, result any) error {
 		return runtime.CallWire(ctx, target, []string{method}, params, result, runtime.WireCallOptions{RequestTimeout: r.options.RequestTimeout, Observer: r.options.Observer, Propagator: r.options.Propagator})
 	}, r.identity); err != nil {
@@ -450,7 +451,7 @@ func (r *Recorder[AEnvelope, BEnvelope]) Follow(ctx context.Context, after uint6
 
 // Record checks a prepared origin before exposing typed event append. Setup
 // failure detaches this interpretation and leaves the borrowed target usable.
-func Record[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (*Recorder[AEnvelope, BEnvelope], error) {
+func Record[AEnvelope runtime.Of[ATag], BEnvelope runtime.Of[BTag], ATag, BTag any](ctx context.Context, target bitwire.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext, adapterAEnvelope runtime.ValueAdapter[AEnvelope], adapterBEnvelope runtime.ValueAdapter[BEnvelope]) (*Recorder[AEnvelope, BEnvelope], error) {
 	environment, err := normalizeContext[AEnvelope, BEnvelope](environment, adapterAEnvelope, adapterBEnvelope)
 	if err != nil {
 		return nil, err
