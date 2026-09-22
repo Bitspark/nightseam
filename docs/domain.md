@@ -136,7 +136,7 @@ deliberate.
 | concept | Nightseam today |
 | --- | --- |
 | ModelContract | a family — `model.json`, `protocol.json`, `live.json` ([families](declaration/families.md)); built-in families for the tunnel, live, identity and auth vocabularies |
-| WireContract | Bitwire 0.2.0 for access, adopted by alias in Go and re-export in TypeScript ([the wire](runtime/wire.md)); `nightseam.duplex/1` for invocation: request, response, event, cancel, the meta header, serials, coded refusals ([the profile](wire/profile.md)) |
+| WireContract | Bitwire 0.2.0 for access, named directly in every language, never copied, aliased or re-exported ([the wire](runtime/wire.md)); `nightseam.duplex/1` for invocation: request, response, event, cancel, the meta header, serials, coded refusals ([the profile](wire/profile.md)) |
 | ModelType | the generated family in the language: its types, `ServerModel`, `ClientModel` ([generated code](declaration/generated.md)) |
 | WireType | the wire schema and its digest ([declaration identity](declaration/declaration-identity.md)); the frames |
 | Adapter | the sides' adapters: `<family>-binding` is `Adapter[C, wire]` (`ToWire`), `<family>-client` is `Adapter[wire, C]` (`FromWire`); the language identifier is the generator's target and the conformance matrix's row ([tiers](languages/tiers.md)) |
