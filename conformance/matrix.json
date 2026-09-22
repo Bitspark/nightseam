@@ -9,12 +9,12 @@
   "languages": {
     "cpp": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
@@ -71,12 +71,12 @@
     },
     "haskell": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
@@ -102,12 +102,12 @@
     },
     "java": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
@@ -133,12 +133,12 @@
     },
     "python": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
@@ -164,12 +164,12 @@
     },
     "rust": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
@@ -195,12 +195,12 @@
     },
     "swift": {
       "tier": 4,
-      "verdict": "provisional",
+      "verdict": "ok",
       "cells": {
         "core": {
-          "passed": 220,
+          "passed": 222,
           "skipped": 0,
-          "failed": 2
+          "failed": 0
         },
         "generator": {
           "passed": 0,
