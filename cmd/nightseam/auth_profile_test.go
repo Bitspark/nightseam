@@ -65,15 +65,6 @@ func TestAuthProfile(t *testing.T) {
 func fixtureModuleWithProfile(t *testing.T, directory, root string) {
 	t.Helper()
 	fixtureModule(t, directory, root)
-	// The fixture builds with the proxy off, from the module cache alone;
-	// the nested module's identity layer reaches the cache here, once, the
-	// way the root module's own requirements did before any fixture ran.
-	warm := exec.Command("go", "mod", "download", "all")
-	warm.Dir = filepath.Join(root, "auth", "go")
-	warm.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := warm.CombinedOutput(); err != nil {
-		t.Fatalf("warming the identity layer's modules: %v\n%s", err, output)
-	}
 	authModule, err := os.ReadFile(filepath.Join(root, "auth", "go", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +97,18 @@ func fixtureModuleWithProfile(t *testing.T, directory, root string) {
 		t.Fatal(err)
 	}
 	writeFixture(t, directory, "go.sum", append(append([]byte{}, rootSum...), authSum...))
+	// The fixture builds with the proxy off, from the module cache alone;
+	// its graph — the root module's requirements and the nested module's
+	// identity layer — reaches the cache here, once. The download runs in
+	// the fixture, so the sums it writes for what the two go.sum files did
+	// not already carry land in the fixture's go.sum and not in the
+	// checkout's, which a run of this test used to leave modified (#470).
+	warm := exec.Command("go", "mod", "download", "all")
+	warm.Dir = directory
+	warm.Env = append(os.Environ(), "GOWORK=off")
+	if output, err := warm.CombinedOutput(); err != nil {
+		t.Fatalf("warming the fixture's modules: %v\n%s", err, output)
+	}
 }
 
 // requirement is the version a go.mod requires a module at.
