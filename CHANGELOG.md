@@ -12,7 +12,10 @@ are one number. Entries are in the words of the commits that landed them.
   three shared things — a band across both realizations, beside the
   declaration at the top and the profile's frames at the bottom — spelling
   `Wire`, `Endpoint` and `Receiver` and naming their owner, with each
-  column's wire row beneath it as a realization of that contract.
+  column's wire row beneath it as a realization of that contract; its
+  rendered rows are named by what they are — the family in the language
+  and the sides' adapters, the packages a consumer imports — not by their
+  provenance.
 
 ### Added
 
