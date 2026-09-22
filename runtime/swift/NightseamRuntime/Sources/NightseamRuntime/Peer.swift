@@ -126,6 +126,9 @@ public actor Peer {
     private var outgoing: [Data] = []
     private var events: [(RequestContext, Data?)] = []
     private var nextID: UInt64 = 0
+    private var receivedSerial = ""
+    private var publications: [UUID] = []
+    private var callSlots = 0
     private var readTask: Task<Void, Never>?
     private var writeTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
@@ -176,7 +179,26 @@ public actor Peer {
         try Task.checkCancellation()
         guard context?.cancellation.isCancelled != true else { throw PublicError(code: "cancelled", message: "Request cancelled") }
         guard end == nil else { throw disconnected() }
-        guard pending.count < options.maxPendingRequests else { throw PublicError(code: "busy", message: "Outstanding call limit reached") }
+        guard callSlots < options.maxPendingRequests else { throw PublicError(code: "busy", message: "Outstanding call limit reached") }
+        callSlots += 1
+        defer { callSlots -= 1 }
+        // Actor isolation ends at each await. Keep a FIFO publication turn
+        // across queue waits so later callers cannot publish earlier serials.
+        let publication = UUID()
+        publications.append(publication)
+        var publishing = true
+        defer { if publishing { publications.removeAll { $0 == publication } } }
+        while publications.first != publication {
+            try Task.checkCancellation()
+            guard context?.cancellation.isCancelled != true else { throw PublicError(code: "cancelled", message: "Request cancelled") }
+            guard end == nil else { throw disconnected() }
+            guard ContinuousClock.now < deadline else { throw PublicError(code: "request_timeout", message: "Request deadline passed") }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        guard nextID < UInt64(Int64.max) else {
+            await finish(code: 4011, reason: "Request serials exhausted", send: true)
+            throw PublicError(code: "identifier_exhausted", message: "Create a new peer before further calls")
+        }
         nextID += 1
         let id = (role == "client" ? "c:" : "s:") + String(nextID)
         let trace = preservingTrace ? carriedTrace(context) : childTrace(context)
@@ -193,6 +215,8 @@ public actor Peer {
             if error is CancellationError { throw PublicError(code: "cancelled", message: "Request cancelled") }
             throw error
         }
+        publications.removeFirst()
+        publishing = false
         admitted?()
         let remove = context?.cancellation.onCancel { Task { await self.withdraw(id: id, code: "cancelled"); withdrawn?() } }
         defer { remove?() }
@@ -309,7 +333,11 @@ public actor Peer {
             }
         case "cancel": incoming[id]?.cancel()
         case "request":
-            guard incoming[id] == nil else { await finish(code: 4011, reason: "Duplicate active request", send: true); return }
+            let serial = String(id.dropFirst(2))
+            guard serial.count > receivedSerial.count || (serial.count == receivedSerial.count && serial > receivedSerial) else {
+                await finish(code: 4011, reason: "Request serial did not increase", send: true); return
+            }
+            receivedSerial = serial
             let method = frame["method"]?.string ?? ""
             let context = contextFor(frame, method: method)
             guard let handler = handlers[Data(method.utf8)] ?? requestFallback?(method) else {

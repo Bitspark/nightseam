@@ -16,13 +16,17 @@ are one number. Entries are in the words of the commits that landed them.
   and a repeat of the same failure comments on the open issue. The decision
   is a function of the run's JSON, held by a script test on runs no workflow
   has produced.
+- A figure of the projection stages and their interfaces — the declaration,
+  its rendering, the generated packages, the native model, the adapter
+  boundary, the wire and the dispatcher, the layers over the peer, the peer
+  and the seam, as two realizations meeting at the frames — with a page that
+  reads it stage by stage and links each stage to the page that documents it
+  (`docs/architecture.md`).
 
 ### Fixed
 
 - duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.
-
 - conformance: attribute missing pair capabilities to their participant and report nightly failures without assuming a cause.
-
 - All eight language ports use Bitwire wire types directly. Remove Nightseam
   aliases, re-exports and duplicate declarations; generated adapters import
   Bitwire, and native ports separate send access from endpoint attachment and

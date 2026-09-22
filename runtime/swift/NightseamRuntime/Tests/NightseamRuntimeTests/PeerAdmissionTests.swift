@@ -76,6 +76,24 @@ private func assertAdmissionCarrierUsable(_ peer: Peer, _ connection: AdmissionC
 }
 
 @Suite struct PeerAdmissionTests {
+    @Test func publicationWaitersRetainTheirPendingBudget() async throws {
+        let connection = AdmissionConnection()
+        var options = admissionOptions(); options.maxPendingRequests = 2
+        let peer = try Peer(connection: connection, role: "client", options: options)
+        await peer.start()
+        try await fillAdmissionQueue(peer, connection)
+        let first = Task { try await peer.call(method: "first", params: nil) }
+        try await Task.sleep(for: .milliseconds(20))
+        let second = Task { try await peer.call(method: "second", params: nil) }
+        try await Task.sleep(for: .milliseconds(20))
+        do {
+            _ = try await withTimeout(milliseconds: 300) { try await peer.call(method: "over-budget", params: nil) }
+            Issue.record("Publication waiters escaped the pending limit")
+        } catch let error as PublicError { #expect(error.code == "busy") }
+        await peer.close()
+        _ = try? await first.value; _ = try? await second.value
+    }
+
     @Test func unadmittedCallDeadlineDoesNotPublishOrEndCarrier() async throws {
         let connection = AdmissionConnection()
         let peer = try Peer(connection: connection, role: "client", options: admissionOptions())

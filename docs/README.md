@@ -17,6 +17,18 @@ contract, adopted at v0.2.0 in 0.6.0 under
 describe today's implementation; public contracts, builds and examples remain
 usable without private repository access.
 
+## The whole, in one figure — `architecture.md`
+
+Before the sets: one picture of the projection stages — the declaration,
+its rendering, the generated packages, the native model, the adapter
+boundary, the wire and the dispatcher, the layers over the peer, the peer
+and the seam — as two realizations meeting at the frames, with the
+interface at each stage and the page that documents it.
+
+| page | what |
+| --- | --- |
+| [architecture.md](architecture.md) | the figure, read stage by stage: what each stage is, its Go and TypeScript surface, where it is described, and how the stages relate |
+
 ## Where it is going — `goals/`
 
 The north stars, abstract and never done: what Nightseam is for, in one
