@@ -21,6 +21,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- The conformance runner records one outcome per scenario per language,
+  with the commit and CI run it came from, beside the matrix's per-profile
+  counts: the rows a table expands and both orientations collapse into one
+  entry per scenario file, which reads failed with the run, pairing and
+  step it failed at, skipped with its reason, or passed, with the counts.
+  It is written as `conformance/results.json` only when the run held the
+  whole suite, is held to `conformance/results.schema.json`, gates nothing,
+  and is uploaded with the matrix as the run's artifact; no lane commits it.
 - A page of the domain Nightseam targets, modeled as a typed graph over the
   published laws — the node types in three kinds, the
   edges with their laws, the rewrite rules that close the instance graph,
