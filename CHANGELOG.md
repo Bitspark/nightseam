@@ -6,6 +6,37 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+## 0.6.0 - 2026-09-22
+
+### Clarified
+
+- The shared Wire contract's home is Bitwire, adopted from it once its handover
+  was ready — which this release does, at v0.2.0 — while Nightseam retains its
+  runtime, generator, declaration/identity and optional-auth implementation.
+  The repository-home decision distinguishes the readiness conditions from
+  completed contract adoption.
+- The profile documentation names 4011 for a binary frame rejected by the
+  JSON peer, matching both reference runtimes. A shared core scenario holds
+  the close code at both ends and verifies the request is never dispatched.
+- Nightseam is the implementation home for its reusable typed-access
+  foundation and optional rooted-grant authentication, with public
+  self-contained contracts and consumer-owned application policy. The
+  decision distinguishes adopted scope from completed implementation.
+- Language onboarding includes the live runtime and generated boundary
+  conversion, with shared scenario evidence for every profile. It separates
+  declaration tiers, planned language assignments and achieved support, and
+  explains that live needs a peer rather than a tunnel.
+- The built-in family index lists `live` beside `duplex` and `tunnel`, the page
+  the spec target has rendered for it since the live tier landed. `RELEASING.md`
+  names `live/go/livetest` beside `duplex/go/duplextest` among the root module's
+  suites, and `@nightseam/otel`'s README counts `@nightseam/live` among the
+  packages it exists as a package of its own to keep free of every dependency.
+- The specification carries each composed language target's spelling, and the
+  generator pages say what disabling one withdraws.
+- The credit claim exempts ordinary contractions — `It's`, `That's`, `There's`
+  and their kin — which it had read as possessive proper nouns, and its
+  fixtures name nothing outside themselves.
+
 ### Added
 
 - The authority profile over a peer, in both languages: the built-in family
@@ -90,40 +121,11 @@ are one number. Entries are in the words of the commits that landed them.
   and their refusals, issuance with inherit, the interface both verifiers
   export, and a table of 72 cases both are held to — specified before either
   verifier is written.
-
-## 0.6.0 - 2026-09-22
-
-### Clarified
-
-- The shared Wire contract's home is Bitwire, adopted from it once its handover
-  was ready — which this release does, at v0.2.0 — while Nightseam retains its
-  runtime, generator, declaration/identity and optional-auth implementation.
-  The repository-home decision distinguishes the readiness conditions from
-  completed contract adoption.
-- The profile documentation names 4011 for a binary frame rejected by the
-  JSON peer, matching both reference runtimes. A shared core scenario holds
-  the close code at both ends and verifies the request is never dispatched.
-- Nightseam is the implementation home for its reusable typed-access
-  foundation and optional rooted-grant authentication, with public
-  self-contained contracts and consumer-owned application policy. The
-  decision distinguishes adopted scope from completed implementation.
-- Language onboarding includes the live runtime and generated boundary
-  conversion, with shared scenario evidence for every profile. It separates
-  declaration tiers, planned language assignments and achieved support, and
-  explains that live needs a peer rather than a tunnel.
-- The built-in family index lists `live` beside `duplex` and `tunnel`, the page
-  the spec target has rendered for it since the live tier landed. `RELEASING.md`
-  names `live/go/livetest` beside `duplex/go/duplextest` among the root module's
-  suites, and `@nightseam/otel`'s README counts `@nightseam/live` among the
-  packages it exists as a package of its own to keep free of every dependency.
-- The specification carries each composed language target's spelling, and the
-  generator pages say what disabling one withdraws.
-- The credit claim exempts ordinary contractions — `It's`, `That's`, `There's`
-  and their kin — which it had read as possessive proper nouns, and its
-  fixtures name nothing outside themselves.
-
-### Added
-
+- The authority profile ships in this release as `auth/go` and `@nightseam/auth`
+  at its packets — the grant, the connection and the exposure, each held to its
+  table by both verifiers — while its independent conformance and its release
+  evidence are 0.7.0's ([#345](https://github.com/Bitspark/nightseam/issues/345),
+  [#357](https://github.com/Bitspark/nightseam/issues/357)).
 - Go and TypeScript access surfaces adopt public Bitwire v0.2.0 through exact
   shared types — send-only `Wire`, receiving and closing `Endpoint`, and the
   named types that go with them — held to its independent composition cases
