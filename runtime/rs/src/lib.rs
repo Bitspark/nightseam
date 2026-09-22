@@ -9,7 +9,10 @@ mod wire;
 pub use identity::{DeclarationIdentity, IDENTITY_METHOD};
 pub use peer::{Call, Context, Options, Peer, Subscription};
 pub use validate::{Schema, ValidationError};
-pub use wire::{Payload, PublicError, Role, Trace};
+pub use wire::Role;
 
 mod access;
 pub use access::{call_wire, emit_wire, forward_wire, handle_wire, wire_pair};
+
+mod dispatcher;
+pub use dispatcher::Dispatcher;

@@ -88,7 +88,7 @@ that reached the peer before the generated receivers were installed.
 
 ## Structured Wire access
 
-`peer.Wire()` / `peer.wire()` returns the peer's root `duplex.Wire` / `Wire`.
+`peer.Wire()` / `peer.wire()` returns the peer's root Bitwire `Endpoint`.
 The same root shares its queues, correlation and carrier lifetime. Generated
 models consume this surface, a prepared tunnel channel, or a local Wire pair.
 The complete routing contract is [relative-path wires](wire.md).

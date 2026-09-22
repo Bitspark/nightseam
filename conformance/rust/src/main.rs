@@ -1,9 +1,8 @@
 //! Private driver: control the public Rust components, retaining payload bytes.
 mod recorded_wire;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use nightseam::{
-    Call, Context, DeclarationIdentity, Options, Payload, Peer, PublicError, Role, Subscription,
-};
+use bitwire::{Payload, PublicError};
+use nightseam::{Call, Context, DeclarationIdentity, Options, Peer, Role, Subscription};
 use nightseam_duplex::{Close, Frame, SharedConnection, pipe, ws};
 use serde::Deserialize;
 use serde_json::{Value, json, value::RawValue};

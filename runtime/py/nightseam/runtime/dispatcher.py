@@ -57,6 +57,7 @@ class Dispatcher:
         def detach():
             if self._routes.get(key) is registration:
                 del self._routes[key]
+
         return detach
 
     def _deliver(self, path, message):
@@ -64,12 +65,15 @@ class Dispatcher:
         kind = message.frame["kind"]
         captured = self._captured.get(address, {}) if address is not None else {}
         if kind == "cancel":
-            registration = captured.get(message.frame["id"])
+            registration = captured.pop(message.frame["id"], None)
         else:
             registration = self._routes.get((tuple(path), False))
             if registration is None:
-                candidates = [r for (prefix, is_prefix), r in self._routes.items()
-                              if is_prefix and tuple(path[:len(prefix)]) == prefix]
+                candidates = [
+                    r
+                    for (prefix, is_prefix), r in self._routes.items()
+                    if is_prefix and tuple(path[: len(prefix)]) == prefix
+                ]
                 registration = max(candidates, key=lambda r: len(r.path), default=None)
             if kind == "request" and address is not None and registration is not None:
                 captured[message.frame["id"]] = registration
@@ -79,6 +83,7 @@ class Dispatcher:
         if kind == "request":
             from .peer import PublicError
             from .wire import response
+
             response(message, error=PublicError("method_not_found", "No handler at this path"))
         return None
 
@@ -108,6 +113,7 @@ class _SelectedEndpoint:
         self._prefix = prefix
         self._closed = False
         self._receiver = None
+        self._token = None
         self._detach = None
 
     def send(self, path, message):
@@ -120,31 +126,37 @@ class _SelectedEndpoint:
             raise WireError("closed")
         if self._receiver is not None:
             raise WireError("receiver_exists")
+        token = object()
+        self._token = token
         self._receiver = receiver
 
         def delivered(path, message):
             if receiver.message:
-                return receiver.message(path[len(self._prefix):], message)
+                return receiver.message(path[len(self._prefix) :], message)
 
         def ended(code, reason):
-            if self._receiver is receiver:
+            if self._token is token:
                 self._receiver = None
+                self._token = None
                 self._detach = None
                 if receiver.closed:
                     receiver.closed(code, reason)
 
         try:
-            stop = self._dispatcher.register_prefix(self._prefix,
-                bitwire.Receiver(message=delivered, closed=ended))
+            stop = self._dispatcher.register_prefix(
+                self._prefix, bitwire.Receiver(message=delivered if receiver.message else None, closed=ended)
+            )
         except BaseException:
             self._receiver = None
             raise
 
         def detach():
-            if self._receiver is receiver:
+            if self._token is token:
                 self._receiver = None
+                self._token = None
                 self._detach = None
                 stop()
+
         self._detach = detach
         return detach
 

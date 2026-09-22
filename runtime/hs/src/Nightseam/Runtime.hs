@@ -5,7 +5,7 @@ module Nightseam.Runtime
   ( Peer, Role(..), Options(..), defaultOptions, CallContext(..), newCallContext
   , cancelContext, awaitCancellation, PublicError(..), Handler, newPeer, call
   , emit, handle, handleEvent, onEvent, closePeer, awaitClosed, peerWire
-  , peerSubprotocol, publicErrorValue
+  , peerSubprotocol, publicErrorValue, receivedContext
   ) where
 
 import Control.Concurrent
@@ -18,13 +18,16 @@ import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
-import Data.Dynamic
-import Data.List (sortOn)
+import Bitwire hiding (errorCode, errorMessage, errorData)
+import Nightseam.Runtime.WireFrames
+import System.Mem.Weak
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import qualified Data.Sequence as S
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Typeable (Typeable)
 import Data.Word
 import Data.Unique (Unique, newUnique)
 import Numeric (showHex)
@@ -173,7 +176,7 @@ finish peer reason = mask_ $ do
         `catch` \(_ :: SomeException) -> pure Nothing
       when (isNothing result) (abortConnection connection `catch` \(_ :: SomeException) -> pure ())
     forM_ receivers $ \(WireRegistration _ receiver) -> spawnCleanup peer $
-      receiverClosed receiver (closeCode reason) (closeReason reason) `catch` \(_ :: SomeException) -> pure ()
+      maybe (pure ()) (\f -> f (Code (closeCode reason)) (closeReason reason)) (onClosed receiver) `catch` \(_ :: SomeException) -> pure ()
 
 closePeer :: Peer -> IO ()
 closePeer peer = do
@@ -367,7 +370,7 @@ handle peer name handler = atomically $ do
   when (T.null name) (throwSTM (failure "invalid" "empty method"))
   handlers <- readTVar (pHandlers peer)
   receivers <- readTVar (pReceivers peer)
-  let wireExists = either (const False) (\path -> M.member (path, False) receivers) (decodePath name)
+  let wireExists = not (M.null receivers)
   when (M.member name handlers || wireExists) (throwSTM (failure "invalid" "duplicate method"))
   writeTVar (pHandlers peer) (M.insert name handler handlers)
 
@@ -376,7 +379,7 @@ handleEvent peer name handler = atomically $ do
   openSTM peer
   handlers <- readTVar (pEventHandlers peer)
   receivers <- readTVar (pReceivers peer)
-  let wireExists = either (const False) (\path -> M.member (path, False) receivers) (decodePath name)
+  let wireExists = not (M.null receivers)
   when (M.member name handlers || wireExists) (throwSTM (failure "invalid" "duplicate event"))
   writeTVar (pEventHandlers peer) (M.insert name handler handlers)
 
@@ -398,9 +401,10 @@ matchReceiver peer method = case decodePath method of
   Left _ -> pure Nothing
   Right path -> do
     receivers <- readTVarIO (pReceivers peer)
-    pure $ case M.lookup (path, False) receivers of
-      Just (WireRegistration _ receiver) -> Just (path, receiver)
-      Nothing -> listToMaybe [(path, r) | ((prefix, namespace), WireRegistration _ r) <- reverse (sortOn (length . fst . fst) (M.toList receivers)), namespace, prefix == take (length prefix) path]
+    pure $ case M.lookup ([], False) receivers of
+      Just (WireRegistration _ receiver) | isJust (onMessage receiver) -> Just (path, receiver)
+      _ -> Nothing
+
 
 incomingRequest :: Peer -> Value -> IO ()
 incomingRequest peer frame = do
@@ -457,24 +461,27 @@ invokeIncoming peer ctx frame = do
           result <- newEmptyTMVarIO
           ended <- newTVarIO False
           address <- newReturnAddress Wire
-            { wireSend = \returnPath answer -> do
-                when (not (null returnPath) || str (get "kind" (messageFrame answer)) /= "response" || str (get "id" (messageFrame answer)) /= ident)
+            { send = \returnPath answer -> do
+                when (not (null returnPath) || str (get "kind" (frameValue (messageFrame answer))) /= "response" || str (get "id" (frameValue (messageFrame answer))) /= ident)
                   (throwIO (failure "invalid_message" "invalid Wire response"))
-                _ <- validateWireFrame peer [] (messageFrame answer)
+                _ <- validateWireFrame peer [] (frameValue (messageFrame answer))
                 atomically $ do
                   closed <- readTVar ended
                   when closed (throwSTM WireClosed)
-                  accepted <- tryPutTMVar result (messageFrame answer)
+                  accepted <- tryPutTMVar result (frameValue (messageFrame answer))
                   unless accepted (throwSTM (failure "invalid_message" "duplicate Wire response"))
-            , wireReceive = \_ _ -> throwIO NoRoute, wireClose = \_ _ -> atomically (writeTVar ended True) }
+            }
           flip finally (atomically (writeTVar ended True)) $ do
             let localFrame = Object (KM.delete "method" (case frame of Object xs -> xs; _ -> KM.empty))
-            receiverMessage receiver path (Message localFrame (Just address) (Just (toDyn ctx)))
+            associateContext address ctx
+            typed <- either (throwIO . failure "invalid_message") pure (parseWireFrame localFrame)
+            forM_ (onMessage receiver) (\f -> f path (Message typed (Just address)))
             answer <- atomically ((Just <$> readTMVar result) `orElse` (readTMVar (contextCancelled ctx) >> pure Nothing)
               `orElse` (readTVar ended >>= check >> throwSTM WireClosed))
               >>= maybe (do
                 let cancelFrame = object (["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ident] ++ traceFields ctx)
-                receiverMessage receiver path (Message cancelFrame (Just address) (Just (toDyn ctx)))
+                typedCancel <- either (throwIO . failure "invalid_message") pure (parseWireFrame cancelFrame)
+                forM_ (onMessage receiver) (\f -> f path (Message typedCancel (Just address)))
                 atomically (readTMVar result `orElse` (readTVar ended >>= check >> throwSTM WireClosed))) pure
             case get "error" answer of
               Null -> pure (get "result" answer)
@@ -494,7 +501,10 @@ eventLoop peer = forever $ do
     mapM_ (\(_, f) -> safely (f ctx name payload)) (M.elems receivers)
     target <- matchReceiver peer name
     let localFrame = Object (KM.delete "event" (case frame of Object xs -> xs; _ -> KM.empty))
-    forM_ target $ \(path,r) -> safely (receiverMessage r path (Message localFrame Nothing (Just (toDyn ctx))))
+    typed <- either (throwIO . failure "invalid_message") pure (parseWireFrame localFrame)
+    address <- newReturnAddress (Wire (\_ _ -> throwIO NoRoute))
+    associateContext address ctx
+    forM_ target $ \(path,r) -> forM_ (onMessage r) (\f -> safely (f path (Message typed (Just address))))
 
 -- Local identifiers are independent of a carrier's role. Reuse the strict
 -- profile decoder with the role appropriate to this frame's identifier.
@@ -516,12 +526,12 @@ validateWireFrame peer path value = do
   when (B.length bytes > maxFrameBytes (pOptions peer)) (throwIO (failure "frame_too_large" "frame exceeds configured limit"))
   either (throwIO . failure "invalid_message") (const (pure routed)) (decodeFrame role bytes)
 
-peerWire :: Peer -> Wire
-peerWire peer = Wire
-  { wireSend = \path message -> do
-      routed <- validateWireFrame peer path (messageFrame message)
-      ctx <- maybe (fromFrame (messageFrame message)) pure (messageContext message >>= fromDynamic)
-      let frame = messageFrame message; ident = str (get "id" frame); address = messageReturn message
+peerWire :: Peer -> Endpoint
+peerWire peer = Endpoint
+  { endpointWire = Wire $ \path message -> do
+      routed <- validateWireFrame peer path (frameValue (messageFrame message))
+      ctx <- receivedContext message >>= maybe (fromFrame (frameValue (messageFrame message))) pure
+      let frame = frameValue (messageFrame message); ident = str (get "id" frame); address = messageReturn message
       case str (get "kind" frame) of
         "request" -> mask_ $ do
           returnTo <- maybe (throwIO (failure "invalid_message" "Wire request requires a return address")) pure address
@@ -544,7 +554,8 @@ peerWire peer = Wire
               result <- try (awaitPending peer ctx physicalID pending request)
               let trace = [(key, value) | key <- ["traceparent", "tracestate"], Just value <- [lookup key (members frame)]]
                   answer = object (["version" .= (1::Int), "kind" .= ("response"::Text), "id" .= ident] ++ trace ++ either (\(e::PublicError) -> ["error" .= publicErrorValue e]) (\v -> ["result" .= v]) result)
-              wireSend (returnWire returnTo) [] (Message answer Nothing (messageContext message)) `catch` \(_ :: SomeException) -> pure ()
+              typedAnswer <- either (throwIO . failure "invalid_message") pure (parseWireFrame answer)
+              send (returnWire returnTo) [] (Message typedAnswer Nothing) `catch` \(_ :: SomeException) -> pure ()
         "cancel" -> do
           returnTo <- maybe (throwIO (failure "invalid_message" "Wire cancel requires a return address")) pure address
           atomically $ do
@@ -561,22 +572,39 @@ peerWire peer = Wire
               pure True
           unless admitted (finish peer (CloseError 1008 "Wire queue full") >> throwIO WireClosed)
         _ -> throwIO NoRoute
-  , wireReceive = \path receiver -> do
-      _ <- either throwIO pure (encodePath path)
-      when (null path && not (receiverNamespace receiver)) (throwIO NoRoute)
+  , receive = \receiver -> do
       key <- newUnique
-      let route = (path, receiverNamespace receiver)
+      let route = ([], False)
       atomically $ do
         openSTM peer
         receivers <- readTVar (pReceivers peer)
         handlers <- readTVar (pHandlers peer)
         events <- readTVar (pEventHandlers peer)
-        let name = either (const "") id (encodePath path)
-        when (M.member route receivers || (not (receiverNamespace receiver) && (M.member name handlers || M.member name events))) (throwSTM ReceiverExists)
+        when (not (M.null receivers) || not (M.null handlers) || not (M.null events)) (throwSTM ReceiverExists)
         writeTVar (pReceivers peer) (M.insert route (WireRegistration key receiver) receivers)
       pure $ atomically $ modifyTVar' (pReceivers peer) $ \receivers ->
         case M.lookup route receivers of
           Just (WireRegistration current _) | key == current -> M.delete route receivers
           _ -> receivers
-  , wireClose = \code reason -> finish peer (CloseError code reason)
+  , close = \code reason -> finish peer (CloseError (unCode code) reason)
   }
+
+-- Verified context follows a local return identity through arbitrary Bitwire composition.
+-- Weak entries never retain a completed capability or its request context.
+{-# NOINLINE contexts #-}
+contexts :: MVar [Weak (ReturnAddress, CallContext)]
+contexts = unsafePerformIO (newMVar [])
+
+associateContext :: ReturnAddress -> CallContext -> IO ()
+associateContext address ctx = do
+  weak <- mkWeak (returnWire address) (address, ctx) Nothing
+  modifyMVar_ contexts $ \old -> do
+    live <- filterM (fmap isJust . deRefWeak) old
+    pure (weak : live)
+
+receivedContext :: Message -> IO (Maybe CallContext)
+receivedContext message = case messageReturn message of
+  Nothing -> pure Nothing
+  Just address -> withMVar contexts $ \entries -> do
+    live <- catMaybes <$> mapM deRefWeak entries
+    pure (listToMaybe [ctx | (held, ctx) <- live, held == address])

@@ -1,7 +1,8 @@
-use nightseam::{Options, Payload, Peer, PublicError, Role, handle_wire, wire_pair};
-use nightseam_duplex::{
-    Detach, Frame, Message, ProfileFrame, ProfileKind, Receiver, ReturnAddress, Wire, pipe,
-};
+use bitwire::{Message, ProfileFrame, ProfileKind, Receiver, ReturnAddress, Wire};
+use bitwire::{Payload, PublicError};
+use nightseam::Dispatcher;
+use nightseam::{Options, Peer, Role, handle_wire, wire_pair};
+use nightseam_duplex::{Frame, pipe};
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::timeout};
@@ -12,12 +13,6 @@ impl Wire for Replies {
         self.0
             .send(message)
             .map_err(|_| PublicError::new("closed", "test sink closed"))
-    }
-    fn receive(&self, _: &[String], _: Receiver) -> Result<Detach, PublicError> {
-        unreachable!()
-    }
-    fn close(&self, _: u16, _: &str) -> Result<(), PublicError> {
-        Ok(())
     }
 }
 fn request(id: &str, returning: &Arc<ReturnAddress>) -> Message {
@@ -39,13 +34,14 @@ async fn busy_refusals_keep_the_dispatch_order_and_consume_bounded_queue_capacit
         ..Options::default()
     })
     .unwrap();
+    let routes = Dispatcher::new(receiver.clone()).unwrap();
     let (reply_tx, mut reply_rx) = tokio::sync::mpsc::unbounded_channel();
     let returning = Arc::new(ReturnAddress {
         wire: Arc::new(Replies(reply_tx)),
     });
     let started = Arc::new(Notify::new());
-    receiver
-        .receive(
+    routes
+        .register(
             &["hold".into()],
             Receiver::new({
                 let started = started.clone();
@@ -58,8 +54,8 @@ async fn busy_refusals_keep_the_dispatch_order_and_consume_bounded_queue_capacit
     let entered = Arc::new(Notify::new());
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let release_rx = Arc::new(std::sync::Mutex::new(release_rx));
-    receiver
-        .receive(
+    routes
+        .register(
             &["block".into()],
             Receiver::new({
                 let entered = entered.clone();
@@ -115,15 +111,16 @@ async fn busy_refusals_keep_the_dispatch_order_and_consume_bounded_queue_capacit
 }
 
 #[tokio::test]
-async fn closing_a_return_capability_rejects_a_late_response() {
+async fn closing_an_endpoint_rejects_a_late_response() {
     let (sender, receiver) = wire_pair(Options::default()).unwrap();
+    let routes = Dispatcher::new(receiver.clone()).unwrap();
     let (reply_tx, mut reply_rx) = tokio::sync::mpsc::unbounded_channel();
     let returning = Arc::new(ReturnAddress {
         wire: Arc::new(Replies(reply_tx)),
     });
     let (captured_tx, mut captured_rx) = tokio::sync::mpsc::unbounded_channel();
-    receiver
-        .receive(
+    routes
+        .register(
             &["hold".into()],
             Receiver::new(move |_, message| {
                 captured_tx.send(message).unwrap();
@@ -138,7 +135,7 @@ async fn closing_a_return_capability_rejects_a_late_response() {
         .unwrap()
         .unwrap();
     let address = captured.returning.unwrap();
-    address.wire.close(1000, "done").unwrap();
+    sender.close(1000, "done").unwrap();
     let mut frame = ProfileFrame::new(ProfileKind::Response);
     frame.id = "c:1".into();
     frame.result = Payload::from_json("null").unwrap();
@@ -150,7 +147,17 @@ async fn closing_a_return_capability_rejects_a_late_response() {
             .code,
         "disconnected"
     );
-    assert!(reply_rx.try_recv().is_err());
+    assert_eq!(
+        timeout(Duration::from_secs(1), reply_rx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .frame
+            .error
+            .unwrap()
+            .code,
+        "disconnected"
+    );
     sender.close(1000, "done").unwrap();
 }
 
@@ -169,7 +176,8 @@ async fn cancelled_routed_handler_keeps_its_slot_until_it_returns() {
     let started = Arc::new(Notify::new());
     let cancelled = Arc::new(Notify::new());
     let release = Arc::new(Notify::new());
-    handle_wire(server.wire(), &["hold".into()], {
+    let routes = Dispatcher::new(server.wire()).unwrap();
+    handle_wire(routes.clone(), &["hold".into()], {
         let (started, cancelled, release) = (started.clone(), cancelled.clone(), release.clone());
         move |ctx, _| {
             let (started, cancelled, release) =
@@ -184,7 +192,7 @@ async fn cancelled_routed_handler_keeps_its_slot_until_it_returns() {
         }
     })
     .unwrap();
-    handle_wire(server.wire(), &["echo".into()], |_, value| async move {
+    handle_wire(routes.clone(), &["echo".into()], |_, value| async move {
         Ok(value)
     })
     .unwrap();
@@ -269,16 +277,28 @@ async fn receiver_deadline_answers_once_while_raw_and_routed_work_keep_their_slo
                 }
             }
         };
+        let routes = if routed {
+            Some(Dispatcher::new(server.wire()).unwrap())
+        } else {
+            None
+        };
         let method = if routed {
-            handle_wire(server.wire(), &["hold".into()], handler).unwrap();
+            handle_wire(routes.clone().unwrap(), &["hold".into()], handler).unwrap();
             "4:hold"
         } else {
             server.handle("hold", handler).unwrap();
             "hold"
         };
-        server
-            .handle("echo", |_, value| async move { Ok(value) })
+        if let Some(routes) = &routes {
+            handle_wire(routes.clone(), &["echo".into()], |_, value| async move {
+                Ok(value)
+            })
             .unwrap();
+        } else {
+            server
+                .handle("echo", |_, value| async move { Ok(value) })
+                .unwrap();
+        }
         let request = |id: &str, method: &str| {
             Frame::Text(
                 serde_json::to_vec(&json!({
@@ -301,7 +321,9 @@ async fn receiver_deadline_answers_once_while_raw_and_routed_work_keep_their_slo
         let answer: Value = serde_json::from_slice(answer.unwrap().unwrap().data()).unwrap();
         assert_eq!(answer["id"], "c:1");
         assert_eq!(answer["error"]["code"], "cancelled");
-        raw.send(request("c:2", "echo")).await.unwrap();
+        raw.send(request("c:2", if routed { "4:echo" } else { "echo" }))
+            .await
+            .unwrap();
         let busy = timeout(Duration::from_secs(1), raw.receive())
             .await
             .unwrap()
@@ -313,7 +335,9 @@ async fn receiver_deadline_answers_once_while_raw_and_routed_work_keep_their_slo
         timeout(Duration::from_secs(1), async {
             for n in 3.. {
                 let id = format!("c:{n}");
-                raw.send(request(&id, "echo")).await.unwrap();
+                raw.send(request(&id, if routed { "4:echo" } else { "echo" }))
+                    .await
+                    .unwrap();
                 let reply = raw.receive().await.unwrap();
                 let reply: Value = serde_json::from_slice(reply.data()).unwrap();
                 assert_eq!(reply["id"], id, "a completed deadline replied twice");

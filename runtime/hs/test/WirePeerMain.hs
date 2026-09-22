@@ -10,11 +10,13 @@ import Data.Aeson hiding (Options, defaultOptions)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as L
-import Data.Dynamic (fromDynamic, toDyn)
 import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import Nightseam.Duplex
+import Bitwire hiding (errorCode, errorMessage, errorData)
+import Nightseam.Runtime.WireFrames
+import Nightseam.Duplex.Dispatcher
 import Nightseam.Duplex.Wire
 import Nightseam.Runtime
 import System.Timeout
@@ -50,14 +52,14 @@ fixture opts held = do
   peer <- newPeer conn Client opts
   pure (peer, sent, \v -> atomically (writeTQueue incoming (Frame TextFrame (L.toStrict (encode v)))), atomically (writeTVar released True))
 
-message :: Text -> Text -> Value -> Maybe ReturnAddress -> Maybe CallContext -> Message
-message kind ident payload returning ctx = Message
-  (object (["version" .= (1 :: Int), "kind" .= kind] ++
-    (if kind == "event" then ["data" .= payload] else ["id" .= ident] ++ if kind == "request" then ["params" .= payload] else [])))
-  returning (toDyn <$> ctx)
+message :: Text -> Text -> Value -> Maybe ReturnAddress -> Message
+message kind ident payload returning = Message
+  (frame (object (["version" .= (1 :: Int), "kind" .= kind] ++
+    (if kind == "event" then ["data" .= payload] else ["id" .= ident] ++ if kind == "request" then ["params" .= payload] else []))))
+  returning
 
 returningTo :: TQueue Value -> IO ReturnAddress
-returningTo replies = newReturnAddress (Wire (\_ m -> atomically (writeTQueue replies (messageFrame m))) (\_ _ -> throwIO NoRoute) (\_ _ -> pure ()))
+returningTo replies = newReturnAddress (Wire (\_ m -> atomically (writeTQueue replies (frameValue (messageFrame m)))))
 
 refused :: IO a -> IO ()
 refused action = do
@@ -107,13 +109,13 @@ incomingBudget routed deadline declines = do
       refusal ident code answer = field "id" answer == String ident && field "code" (field "error" answer) == String code
   flip finally cleanup $ do
     incomingBody peer routed body
-    handle peer "echo" (\_ _ _ -> pure (String "released"))
+    unless routed $ handle peer "echo" (\_ _ _ -> pure (String "released"))
     request ("s:1" :: Text) (if routed then "4:hold" else "hold")
     within (atomically (readTMVar entered))
     unless deadline $ inject (object ["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ("s:1" :: Text)])
     within (atomically (readTMVar cancelled))
     when deadline $ next >>= assert "receiver deadline answers before application return" . refusal "s:1" "cancelled"
-    request ("s:2" :: Text) ("echo" :: Text)
+    request ("s:2" :: Text) (if routed then "4:echo" else "echo")
     next >>= assert "cancelled application still owns its handler slot" . refusal "s:2" "busy"
     premature <- timeout 50000 (atomically (readTQueue sent))
     assert "no early or duplicate answer while the body remains active" (premature == Nothing)
@@ -121,7 +123,7 @@ incomingBudget routed deadline declines = do
     unless deadline $ next >>= assert "explicit cancellation preserves an application refusal" . refusal "s:1" (if declines then "declined" else "cancelled")
     let retryEcho n = do
           let ident = "s:" <> T.pack (show n)
-          request ident ("echo" :: Text)
+          request ident (if routed then "4:echo" else "echo")
           answer <- next
           assert "deadline response is sent only once" (field "id" answer == String ident)
           if refusal ident "busy" answer then threadDelay 1000 >> retryEcho (n + 1)
@@ -130,16 +132,14 @@ incomingBudget routed deadline declines = do
 
 incomingBody :: Peer -> Bool -> (CallContext -> IO Value) -> IO ()
 incomingBody peer routed body =
-  if routed then void $ wireReceive (peerWire peer) ["hold"] (Receiver False
-    (\_ incoming -> when (field "kind" (messageFrame incoming) == String "request") $ do
-      ctx <- maybe (fail "incoming Wire lost its context") pure (messageContext incoming >>= fromDynamic)
+  if routed then void $ receive (peerWire peer) (Receiver (Just (\path incoming -> when (field "kind" (frameValue (messageFrame incoming)) == String "request") $ do
+      ctx <- receivedContext incoming >>= maybe (fail "incoming Wire lost its context") pure
       address <- maybe (fail "incoming Wire lost its return address") pure (messageReturn incoming)
       void $ forkIO $ void (try (do
-        outcome <- try (body ctx) :: IO (Either PublicError Value)
+        outcome <- try (if path == ["echo"] then pure (String "released") else body ctx) :: IO (Either PublicError Value)
         let answer = either (\err -> ["error" .= publicErrorValue err]) (\value -> ["result" .= value]) outcome
-        wireSend (returnWire address) [] (Message (object (["version" .= (1 :: Int), "kind" .= ("response" :: Text),
-          "id" .= field "id" (messageFrame incoming)] ++ answer)) Nothing Nothing)) :: IO (Either SomeException ())))
-    (\_ _ -> pure ()))
+        send (returnWire address) [] (Message (frame (object (["version" .= (1 :: Int), "kind" .= ("response" :: Text),
+          "id" .= field "id" (frameValue (messageFrame incoming))] ++ answer))) Nothing)) :: IO (Either SomeException ())))) (Just (\_ _ -> pure ())))
   else handle peer "hold" (\ctx _ _ -> body ctx)
 
 -- The body refuses as soon as its receiver deadline wakes it. The deadline
@@ -163,12 +163,11 @@ requestOrderAndCancellation = do
   flip finally (closePeer peer) $ do
     replies <- newTQueueIO
     address <- returningTo replies
-    ctx <- newCallContext
     let wire = peerWire peer
-        sendRequest ident = wireSend wire ["op"] (message "request" ident Null (Just address) (Just ctx))
-    refused (wireSend wire ["op"] (message "request" "c:9" Null Nothing Nothing))
+        sendRequest ident = send (endpointWire wire) ["op"] (message "request" ident Null (Just address))
+    refused (send (endpointWire wire) ["op"] (message "request" "c:9" Null Nothing))
     sendRequest "c:1"
-    wireSend wire ["op"] (message "event" "" Null Nothing Nothing)
+    send (endpointWire wire) ["op"] (message "event" "" Null Nothing)
     sendRequest "c:2"
     refused (sendRequest "c:2")
     first <- within (atomically (readTQueue sent))
@@ -176,9 +175,7 @@ requestOrderAndCancellation = do
     third <- within (atomically (readTQueue sent))
     assert "sequential Wire request/event/request preserves publication order"
       (map (field "kind") [first, second, third] == [String "request", String "event", String "request"])
-    wireSend wire [] (message "cancel" "c:1" Null (Just address) Nothing)
-    wasCancelled <- atomically (not <$> isEmptyTMVar (contextCancelled ctx))
-    assert "withdrawing one Wire request does not cancel shared context" (not wasCancelled)
+    send (endpointWire wire) [] (message "cancel" "c:1" Null (Just address))
     cancel <- within (atomically (readTQueue sent))
     assert "cancel retains physical request correlation" (field "id" cancel == field "id" first)
     inject (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text), "id" .= field "id" third, "result" .= ("alive" :: Text)])
@@ -189,7 +186,7 @@ requestOrderAndCancellation = do
     inject (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text), "id" .= field "id" refusedRequest,
       "error" .= object ["code" .= ("cancelled" :: Text), "message" .= ("refused" :: Text)]])
     _ <- within (atomically (readTQueue replies))
-    wireSend wire ["op"] (message "event" "" Null Nothing Nothing)
+    send (endpointWire wire) ["op"] (message "event" "" Null Nothing)
     fence <- within (atomically (readTQueue sent))
     assert "a remote public cancelled error does not fabricate a withdrawal" (field "kind" fence == String "event")
     sendRequest "c:4"
@@ -205,21 +202,21 @@ reservedCancellation = do
     replies <- newTQueueIO
     address <- returningTo replies
     let wire = peerWire peer
-        request ident = message "request" ident Null (Just address) Nothing
-        cancel ident = message "cancel" ident Null (Just address) Nothing
-    wireSend wire ["op"] (request "c:1")
+        request ident = message "request" ident Null (Just address)
+        cancel ident = message "cancel" ident Null (Just address)
+    send (endpointWire wire) ["op"] (request "c:1")
     _ <- within (atomically (readTQueue sent))
-    wireSend wire ["op"] (message "event" "" Null Nothing Nothing)
-    wireSend wire [] (cancel "c:1")
-    replicateM_ 100 (wireSend wire [] (cancel "c:1") >> wireSend wire [] (cancel "c:9"))
+    send (endpointWire wire) ["op"] (message "event" "" Null Nothing)
+    send (endpointWire wire) [] (cancel "c:1")
+    replicateM_ 100 (send (endpointWire wire) [] (cancel "c:1") >> send (endpointWire wire) [] (cancel "c:9"))
     answer <- within (atomically (readTQueue replies))
     assert "cancellation settles while data queue is full" (field "code" (field "error" answer) == String "cancelled")
-    refused (wireSend wire ["op"] (request "c:2"))
+    refused (send (endpointWire wire) ["op"] (request "c:2"))
     release
     event <- within (atomically (readTQueue sent))
     control <- within (atomically (readTQueue sent))
     assert "reserved cancellation follows previously admitted data" (field "kind" event == String "event" && field "kind" control == String "cancel")
-    wireSend wire ["op"] (request "c:2")
+    send (endpointWire wire) ["op"] (request "c:2")
     next <- within (atomically (readTQueue sent))
     assert "duplicate and unknown cancels occupy no extra slots" (field "kind" next == String "request")
 
@@ -230,12 +227,13 @@ overflowIsAsynchronous = do
     callback <- newEmptyTMVarIO
     released <- newEmptyTMVarIO
     let wire = peerWire peer
-        event = message "event" "" Null Nothing Nothing
-    _ <- wireReceive wire ["end"] (Receiver False (\_ _ -> pure ()) (\_ _ -> atomically (putTMVar callback ()) >> atomically (readTMVar released)))
-    wireSend wire ["op"] event
+        event = message "event" "" Null Nothing
+    routes <- newDispatcher wire
+    _ <- register routes ["end"] (Receiver (Just (\_ _ -> pure ())) (Just (\_ _ -> atomically (putTMVar callback ()) >> atomically (readTMVar released))))
+    send (endpointWire wire) ["op"] event
     _ <- within (atomically (readTQueue sent))
-    wireSend wire ["op"] event
-    within (refused (wireSend wire ["op"] event))
+    send (endpointWire wire) ["op"] event
+    within (refused (send (endpointWire wire) ["op"] event))
     within (atomically (readTMVar callback))
     atomically (putTMVar released ())
 
@@ -245,13 +243,14 @@ registrationLifetime = do
   flip finally (closePeer peer) $ do
     received <- newTQueueIO
     let wire = peerWire peer
-        receiver label namespace = Receiver namespace (\_ _ -> atomically (writeTQueue received label)) (\_ _ -> pure ())
+        receiver label = Receiver (Just (\_ _ -> atomically (writeTQueue received label))) (Just (\_ _ -> pure ()))
         event path = let name = either (error . show) id (encodePath path) in object
           ["version" .= (1 :: Int), "kind" .= ("event" :: Text), "event" .= name, "data" .= Null]
-    detach <- wireReceive wire ["a"] (receiver ("old" :: Text) False)
+    routes <- newDispatcher wire
+    detach <- register routes ["a"] (receiver ("old" :: Text))
     detach
-    _ <- wireReceive wire ["a"] (receiver "exact" False)
-    _ <- wireReceive wire ["a"] (receiver "namespace" True)
+    _ <- register routes ["a"] (receiver "exact")
+    _ <- registerPrefix routes ["a"] (receiver "namespace")
     detach
     inject (event ["a"])
     inject (event ["a", "b"])
@@ -276,18 +275,17 @@ validateReturns = do
   (peer, sent, inject, _) <- fixture defaultOptions False
   flip finally (closePeer peer) $ do
     received <- newEmptyTMVarIO
-    _ <- wireReceive (peerWire peer) ["op"] (Receiver False
-      (\_ m -> maybe (fail "no return address") (atomically . putTMVar received) (messageReturn m)) (\_ _ -> pure ()))
+    _ <- receive (peerWire peer) (Receiver (Just (\_ m -> maybe (fail "no return address") (atomically . putTMVar received) (messageReturn m))) (Just (\_ _ -> pure ())))
     inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text), "id" .= ("s:1" :: Text), "method" .= ("2:op" :: Text), "params" .= Null])
     address <- within (atomically (readTMVar received))
-    let reply ident = Message (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text), "id" .= ident,
-          "error" .= object ["code" .= ("denied" :: Text), "message" .= ("No" :: Text), "data" .= (7 :: Int)]]) Nothing Nothing
+    let reply ident = Message (frame (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text), "id" .= ident,
+          "error" .= object ["code" .= ("denied" :: Text), "message" .= ("No" :: Text), "data" .= (7 :: Int)]])) Nothing
         returnTo = returnWire address
-    refused (wireSend returnTo ["wrong"] (reply ("s:1" :: Text)))
-    refused (wireSend returnTo [] (reply ("s:2" :: Text)))
-    refused (wireSend returnTo [] (message "event" "" Null Nothing Nothing))
-    wireSend returnTo [] (reply ("s:1" :: Text))
-    refused (wireSend returnTo [] (reply ("s:1" :: Text)))
+    refused (send returnTo ["wrong"] (reply ("s:1" :: Text)))
+    refused (send returnTo [] (reply ("s:2" :: Text)))
+    refused (send returnTo [] (message "event" "" Null Nothing))
+    send returnTo [] (reply ("s:1" :: Text))
+    refused (send returnTo [] (reply ("s:1" :: Text)))
     response <- within (atomically (readTQueue sent))
     assert "Wire return preserves public error data" (field "data" (field "error" response) == Number 7)
 
@@ -296,12 +294,12 @@ validateLocalFrames = do
   (peer, sent, _, _) <- fixture defaultOptions {maxFrameBytes = 400} False
   flip finally (closePeer peer) $ do
     let wire = peerWire peer
-    refused (wireSend wire ["op"] (Message (object ["kind" .= ("event" :: Text), "data" .= Null]) Nothing Nothing))
-    refused (wireSend wire ["op"] (message "event" "" (String (T.replicate 500 "a")) Nothing Nothing))
+    refused (send (endpointWire wire) ["op"] (Message (frame (object ["kind" .= ("event" :: Text), "data" .= Null])) Nothing))
+    refused (send (endpointWire wire) ["op"] (message "event" "" (String (T.replicate 500 "a")) Nothing))
     let trace = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01" :: Text
         event = object ["version" .= (1 :: Int), "kind" .= ("event" :: Text), "data" .= Null,
           "traceparent" .= trace, "meta" .= M.singleton ("header" :: Text) ("value" :: Text)]
-    wireSend wire ["op"] (Message event Nothing Nothing)
+    send (endpointWire wire) ["op"] (Message (frame event) Nothing)
     published <- within (atomically (readTQueue sent))
     assert "Wire retains explicit profile context without private context" (field "traceparent" published == String trace && field "meta" published == field "meta" event)
 
@@ -312,20 +310,21 @@ cancellationAfterDetach = do
     captured <- newTQueueIO
     replacements <- newTQueueIO
     let wire = peerWire peer
-    detach <- wireReceive wire ["op"] (Receiver False (\_ m -> atomically (writeTQueue captured m)) (\_ _ -> pure ()))
+    routes <- newDispatcher wire
+    detach <- register routes ["op"] (Receiver (Just (\_ m -> atomically (writeTQueue captured m))) (Just (\_ _ -> pure ())))
     inject (object ["version" .= (1 :: Int), "kind" .= ("request" :: Text), "id" .= ("s:1" :: Text), "method" .= ("2:op" :: Text), "params" .= Null])
     request <- within (atomically (readTQueue captured))
-    assert "request reaches original receiver" (field "kind" (messageFrame request) == String "request")
+    assert "request reaches original receiver" (field "kind" (frameValue (messageFrame request)) == String "request")
     detach
-    _ <- wireReceive wire ["op"] (Receiver False (\_ m -> atomically (writeTQueue replacements (messageFrame m))) (\_ _ -> pure ()))
+    _ <- register routes ["op"] (Receiver (Just (\_ m -> atomically (writeTQueue replacements (frameValue (messageFrame m))))) (Just (\_ _ -> pure ())))
     inject (object ["version" .= (1 :: Int), "kind" .= ("cancel" :: Text), "id" .= ("s:1" :: Text)])
     cancelled <- within (atomically (readTQueue captured))
-    assert "cancel retains receiver captured before detach" (field "kind" (messageFrame cancelled) == String "cancel")
+    assert "cancel retains receiver captured before detach" (field "kind" (frameValue (messageFrame cancelled)) == String "cancel")
     premature <- timeout 50000 (atomically (readTQueue sent))
     assert "detaching does not finish the captured application" (premature == Nothing)
     address <- maybe (fail "captured request has no return address") pure (messageReturn request)
-    wireSend (returnWire address) [] (Message (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text),
-      "id" .= ("s:1" :: Text), "result" .= Null]) Nothing Nothing)
+    send (returnWire address) [] (Message (frame (object ["version" .= (1 :: Int), "kind" .= ("response" :: Text),
+      "id" .= ("s:1" :: Text), "result" .= Null])) Nothing)
     response <- within (atomically (readTQueue sent))
     assert "captured cancel completes once" (field "code" (field "error" response) == String "cancelled")
     empty <- atomically (isEmptyTQueue replacements)
@@ -350,3 +349,6 @@ boundedExplicitClose = do
   within (atomically (readTMVar requestStarted >> readTMVar eventStarted))
   within (closePeer peer)
   within (atomically (readTMVar requestEnded >> readTMVar eventEnded))
+
+frame :: Value -> ProfileFrame
+frame = either (error . show) id . parseWireFrame

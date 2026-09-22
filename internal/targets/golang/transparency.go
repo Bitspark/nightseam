@@ -26,7 +26,7 @@ func (f *file) emitTransparency(side, opposite, role string) {
 		dir = layout.Client
 	}
 	f.use("adapter", f.config.Module+"/"+expand(dir, f.family.Name))
-	f.linef("type Presentation func(context.Context, %s.Endpoint) (%s.Endpoint, func(), error)",  f.bitwire(), f.bitwire())
+	f.linef("type Presentation func(context.Context, %s.Endpoint) (%s.Endpoint, func(), error)", f.bitwire(), f.bitwire())
 	f.linef("type Options struct { Context %s.AdapterContext; RemoteContext %s.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error }", rt, rt)
 	f.bitwire()
 	f.line(goTransparencySupport)

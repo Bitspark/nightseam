@@ -124,6 +124,7 @@ func TestGeneratedDrawnAdaptersInterpretBeforeConversion(t *testing.T) {
 
 const drawnAdapterGoProgram = `package drawn_test
 import (
+ duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "fmt"

@@ -15,3 +15,10 @@ FetchContent_Declare(jsoncons
   URL_HASH SHA256=44742915ad9fa93fa33680be56cadd77ee2c81c2740d790f538a93c084fe6f6a
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(Boost jsoncons)
+
+# The shared contract is a public immutable source dependency.
+set(BITWIRE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(Bitwire
+  GIT_REPOSITORY https://github.com/Bitspark/bitwire.git
+  GIT_TAG 616a2fc5e3a0972f67f40331a9d9ca102bc9698d)
+FetchContent_MakeAvailable(Bitwire)

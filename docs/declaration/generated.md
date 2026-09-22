@@ -160,9 +160,9 @@ the same native signatures whether called directly or through a Wire.
 The server adapter exports:
 
 ```go
-func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (duplex.Endpoint, error)
-func FromWire(ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
-func PrepareFromWire(wire duplex.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
+func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (bitwire.Endpoint, error)
+func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
+func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
 ```
 
 These take an `Endpoint` because they attach: the binding owns the dispatcher
@@ -189,9 +189,9 @@ operation name is one relative path segment; dotted names are not split.
 The client adapter is the mirror:
 
 ```go
-func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Wire, error)
-func FromWire(ctx context.Context, wire duplex.Wire, environment runtime.AdapterContext) (protocol.ClientModel, error)
-func PrepareFromWire(wire duplex.Wire, environment runtime.AdapterContext) (func(context.Context) (protocol.ClientModel, error), func(), error)
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (bitwire.Endpoint, error)
+func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ClientModel, error)
+func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ClientModel, error), func(), error)
 ```
 
 Both packages share the protocol's side and model types. Neither has
@@ -675,7 +675,7 @@ are built-in alternatives. `Options.Presentation` / `options.presentation`
 is the same typed host hook for a socket, prepared tunnel channel, or a
 composition of carrier and view: it receives the model Wire and returns the
 presented Wire with its cleanup. In Go its signature is
-`func(context.Context, duplex.Wire) (duplex.Wire, func(), error)`; TypeScript
+`func(context.Context, bitwire.Endpoint) (bitwire.Endpoint, func(), error)`; TypeScript
 accepts a synchronous or asynchronous `{ wire, close }`. A host installs
 `ForwardWire` / `forwardWire` in peer preparation before frames arrive, and
 owns cleanup of any resources it acquired before reporting failure. The

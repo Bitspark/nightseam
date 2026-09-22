@@ -208,9 +208,11 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
 
         client, server = await self.peers()
         root = server.wire()
-        dispatcher(root).register_prefix([], Receiver( message=lambda path, message: response(message, "root")))
-        dispatcher(root).register_prefix(["a"], Receiver( message=lambda path, message: response(message, "a")))
-        detach = dispatcher(root).register(["a", "b"], Receiver(message=lambda path, message: response(message, "exact")))
+        dispatcher(root).register_prefix([], Receiver(message=lambda path, message: response(message, "root")))
+        dispatcher(root).register_prefix(["a"], Receiver(message=lambda path, message: response(message, "a")))
+        detach = dispatcher(root).register(
+            ["a", "b"], Receiver(message=lambda path, message: response(message, "exact"))
+        )
         self.assertEqual(await call_wire(client.wire(), ["a", "b"]), "exact")
         detach()
         self.assertEqual(await call_wire(client.wire(), ["a", "b"]), "a")

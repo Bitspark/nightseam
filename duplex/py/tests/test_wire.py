@@ -25,9 +25,11 @@ class QueuedRoot:
         if self.receivers:
             raise WireError("receiver_exists")
         self.receivers[None] = receiver
+
         def detach():
             if self.receivers.get(None) is receiver:
                 del self.receivers[None]
+
         return detach
 
     def close(self, code=1000, reason=""):
@@ -86,6 +88,7 @@ class WireTests(unittest.TestCase):
 
     def test_views_preserve_frames_return_identity_and_async_dispatch(self):
         from nightseam.runtime import Dispatcher
+
         root, reply = QueuedRoot(), QueuedRoot()
         address = ReturnAddress(reply)
         router = Dispatcher(root)
@@ -128,8 +131,9 @@ class WireTests(unittest.TestCase):
         left, right = QueuedRoot(), QueuedRoot()
         mounted = mount({"left": left, "": right})
         received, closed = [], []
-        detach = mounted.receive(Receiver(message=lambda path, message: received.append(path),
-            closed=lambda *ending: closed.append(ending)))
+        detach = mounted.receive(
+            Receiver(message=lambda path, message: received.append(path), closed=lambda *ending: closed.append(ending))
+        )
         message = Message({"version": 1, "kind": "event", "data": None})
         mounted.send(["left", "nested", "call"], message)
         left.drain()
@@ -182,6 +186,7 @@ class WireTests(unittest.TestCase):
 
     def test_selection_only_grants_send_and_mount_borrows_children(self):
         from bitwire import Endpoint, Wire
+
         root = QueuedRoot()
         mounted = mount({"": root})
         selected = at(mounted, [""])
@@ -191,7 +196,9 @@ class WireTests(unittest.TestCase):
         closed = []
         mounted.receive(Receiver(closed=lambda *ending: closed.append(ending)))
         self.assert_wire_error("receiver_exists", lambda: mounted.receive(Receiver()))
-        self.assert_wire_error("no_route", lambda: mounted.send([], Message({"version": 1, "kind": "event", "data": None})))
+        self.assert_wire_error(
+            "no_route", lambda: mounted.send([], Message({"version": 1, "kind": "event", "data": None}))
+        )
         mounted.close(1000, "mount ended")
         mounted.close(1000, "again")
         self.assertEqual(closed, [(1000, "mount ended")])
@@ -202,13 +209,17 @@ class WireTests(unittest.TestCase):
     def test_mount_close_during_receive_leaves_no_child_attachment(self):
         root = QueuedRoot()
         closed = []
+
         class Child:
             def receive(self, receiver):
                 detach = root.receive(receiver)
                 mounted.close(1000, "done")
                 return detach
+
         mounted = mount({"x": Child()})
-        self.assert_wire_error("closed", lambda: mounted.receive(Receiver(closed=lambda *ending: closed.append(ending))))
+        self.assert_wire_error(
+            "closed", lambda: mounted.receive(Receiver(closed=lambda *ending: closed.append(ending)))
+        )
         self.assertEqual(root.receivers, {})
         self.assertEqual(root.closes, 0)
         self.assertEqual(closed, [(1000, "done")])

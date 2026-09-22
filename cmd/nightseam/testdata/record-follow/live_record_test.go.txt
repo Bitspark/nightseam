@@ -1,6 +1,7 @@
 package recording_test
 
 import (
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"context"
 	binding "example.test/generated/api/go/handles-binding"
 	client "example.test/generated/api/go/handles-client"
@@ -34,7 +35,7 @@ func localScope(t *testing.T) *live.Scope {
 	t.Cleanup(func() { a.Close(); b.Close() })
 	return scope
 }
-func handleTarget(t *testing.T, scope *live.Scope) (duplex.Endpoint, chan protocol.Callback) {
+func handleTarget(t *testing.T, scope *live.Scope) (bitwire.Endpoint, chan protocol.Callback) {
 	t.Helper()
 	values := make(chan protocol.Callback, 4)
 	wire, err := client.ToWire(func(protocol.Server) (protocol.Client, error) {

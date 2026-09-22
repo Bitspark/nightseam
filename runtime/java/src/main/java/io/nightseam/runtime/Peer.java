@@ -1,10 +1,11 @@
 package io.nightseam.runtime;
 
+import dev.bitspark.bitwire.*;
+
 import io.nightseam.duplex.CloseException;
 import io.nightseam.duplex.CloseInfo;
 import io.nightseam.duplex.Connection;
 import io.nightseam.duplex.Frame;
-import io.nightseam.duplex.Wire;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -65,11 +66,12 @@ public final class Peer implements AutoCloseable {
         loops.add(Thread.ofVirtual().name("nightseam-reader").unstarted(this::readLoop));
         for (Thread loop:loops) loop.start();
     }
+    boolean hasRawHandlers() { return !handlers.isEmpty() || !eventHandlers.isEmpty(); }
     boolean hasHandlerOrEvent(String name) { return handlers.containsKey(name) || eventHandlers.containsKey(name); }
     public String subprotocol() { return connection.subprotocol(); }
     public CompletableFuture<CloseInfo> closed() { return closed; }
     public PeerOptions options() { return options; }
-    public synchronized Wire wire() { if(wire==null) wire=new PeerWire(this); return wire; }
+    public synchronized Endpoint wire() { if(wire==null) wire=new PeerWire(this); return wire; }
     public synchronized void handle(String name,Handler handler) {
         if (name.isEmpty() || handler==null) throw new IllegalArgumentException("invalid method");
         if(wire!=null && wire.hasExactReceiver(name)) throw new IllegalStateException("operation already has a wire receiver");

@@ -1,9 +1,11 @@
 package io.nightseam.conformance;
 
-import io.nightseam.duplex.Message;
-import io.nightseam.duplex.Receiver;
-import io.nightseam.duplex.Wire;
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import io.nightseam.duplex.Wires;
+import io.nightseam.duplex.Dispatcher;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -101,7 +103,7 @@ public final class RecordedWire {
             } finally { append.unlock(); }
         }
 
-        Attachment attach(int after, Wire target, int bound, boolean pause) {
+        Attachment attach(int after, Endpoint target, int bound, boolean pause) {
             var follower = new Follower(target, bound);
             List<Entry> history;
             int head;
@@ -115,10 +117,7 @@ public final class RecordedWire {
             return new Attachment(head, follower);
         }
 
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
-            throw new IllegalArgumentException("append store has no receive route");
-        }
-        @Override public void close(int code, String reason) {
+        public void close(int code, String reason) {
             append.lock();
             try { followers.forEach(Follower::stop); followers.clear(); }
             finally { append.unlock(); }
@@ -127,7 +126,7 @@ public final class RecordedWire {
     }
 
     private static final class Follower implements AutoCloseable {
-        final Wire target;
+        final Endpoint target;
         final BlockingQueue<Entry> live;
         final BlockingQueue<Integer> sent = new ArrayBlockingQueue<>(32);
         final CountDownLatch paused = new CountDownLatch(1);
@@ -136,7 +135,7 @@ public final class RecordedWire {
         final AtomicBoolean stopped = new AtomicBoolean();
         volatile Thread writer;
 
-        Follower(Wire target, int bound) {
+        Follower(Endpoint target, int bound) {
             this.target = target;
             live = new ArrayBlockingQueue<>(bound);
         }
@@ -182,7 +181,7 @@ public final class RecordedWire {
 
     // A fixture-only asynchronous root. Production selection and mounting
     // route into it; it dispatches the original root-relative path unchanged.
-    private static final class Root implements Wire, AutoCloseable {
+    private static final class Root implements Endpoint, AutoCloseable {
         final Map<List<String>,Receiver> receivers = new HashMap<>();
         final BlockingQueue<Entry> queue = new ArrayBlockingQueue<>(16);
         final AtomicBoolean stopped = new AtomicBoolean();
@@ -195,7 +194,7 @@ public final class RecordedWire {
                     while (!stopped.get()) {
                         Entry entry = queue.take();
                         Receiver receiver;
-                        synchronized (receivers) { receiver = receivers.get(entry.path()); }
+                        synchronized (receivers) { receiver = receivers.get(List.of()); }
                         if (receiver != null && receiver.message() != null)
                             receiver.message().accept(entry.path(), entry.message());
                     }
@@ -209,9 +208,8 @@ public final class RecordedWire {
             if (!queue.offer(new Entry(List.copyOf(path), message, 0)))
                 throw new IllegalStateException("witness output queue full");
         }
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
-            Wires.encodePath(path);
-            List<String> key = List.copyOf(path);
+        @Override public Runnable receive(Receiver receiver) {
+            List<String> key = List.of();
             synchronized (receivers) {
                 if (receivers.putIfAbsent(key, receiver) != null)
                     throw new IllegalStateException("witness receiver exists");
@@ -228,24 +226,29 @@ public final class RecordedWire {
     private static final class Presentation implements AutoCloseable {
         final Root root = new Root();
         final Root end = new Root();
-        final Wire wire;
+        final Endpoint wire;
+        final Dispatcher rootRoutes = new Dispatcher(root);
+        final Dispatcher endRoutes = new Dispatcher(end);
+        final List<Dispatcher> routes = new ArrayList<>();
         final BlockingQueue<Integer> values = new ArrayBlockingQueue<>(32);
         final BlockingQueue<Integer> closed = new ArrayBlockingQueue<>(4);
         final BlockingQueue<RuntimeException> errors = new ArrayBlockingQueue<>(4);
 
         Presentation(Store store) {
-            Wire destination = Wires.at(Wires.mount(Map.of("out", Wires.at(end, List.of("destination")))), List.of("out"));
-            wire = Wires.at(Wires.mount(Map.of("outer", Wires.mount(Map.of("in", Wires.at(root, List.of("source")))))),
-                List.of("outer", "in"));
-            destination.receive(List.of("tick"), new Receiver(false, (path, message) -> {
+            var destinationRoutes = new Dispatcher(Wires.mount(Map.of("out", endRoutes.select(List.of("destination")))));
+            var sourceRoutes = new Dispatcher(Wires.mount(Map.of("outer", Wires.mount(Map.of("in", rootRoutes.select(List.of("source")))))));
+            routes.add(destinationRoutes); routes.add(sourceRoutes);
+            Endpoint destination = destinationRoutes.select(List.of("out"));
+            wire = sourceRoutes.select(List.of("outer", "in"));
+            destination.receive(new Receiver( (path, message) -> {
                 try {
                     if (!path.equals(List.of("tick"))) throw new IllegalStateException("destination path: " + path);
                     store.callback();
-                    if (!values.offer(((Number)message.frame().get("data")).intValue()))
+                    if (!values.offer(((Number)fields(message.frame()).get("data")).intValue()))
                         throw new IllegalStateException("witness values full");
                 } catch (RuntimeException failure) { errors.offer(failure); }
             }, null));
-            wire.receive(List.of("tick"), new Receiver(false, (path, message) -> {
+            wire.receive(new Receiver( (path, message) -> {
                 try { destination.send(path, message); }
                 catch (RuntimeException failure) { errors.offer(failure); }
             }, (code, reason) -> { store.callback(); closed.offer(code); }));
@@ -264,18 +267,19 @@ public final class RecordedWire {
         }
         @Override public void close() {
             wire.close(1000, "done");
+            routes.forEach(Dispatcher::close); rootRoutes.close(); endRoutes.close();
             root.close();
             end.close();
         }
     }
 
     private static Message message(int value) {
-        return new Message(Map.of("version", 1, "kind", "event", "data", value), null);
+        return new Message(frame(Map.of("version", 1, "kind", "event", "data", value)), null);
     }
 
     private static Map<String,Object> headCase(Deadline deadline, boolean appendBeforeHead) {
         try (var store = new Store(); var first = new Presentation(store)) {
-            Wire source = Wires.at(Wires.mount(Map.of("record", store)), List.of("record"));
+            Wire source = Wires.at(store, List.of());
             for (int value = 1; value <= 3; value++) source.send(List.of("tick"), message(value));
             if (appendBeforeHead) source.send(List.of("tick"), message(4));
             Attachment attachment = store.attach(0, first.wire, 2, true);
@@ -325,8 +329,8 @@ public final class RecordedWire {
                     catch (IllegalStateException expected) { refused = true; }
                     if (!refused) throw new IllegalStateException("stalled carrier accepted after close");
                     var underneath = new ArrayBlockingQueue<Integer>(1);
-                    stalled.root.receive(List.of("probe"), new Receiver(false,
-                        (path, message) -> underneath.offer(((Number)message.frame().get("data")).intValue()), null));
+                    stalled.rootRoutes.register(List.of("probe"), new Receiver(
+                        (path, message) -> underneath.offer(((Number)fields(message.frame()).get("data")).intValue()), null));
                     stalled.root.send(List.of("probe"), message(99));
                     int probe = deadline.take(underneath);
                     store.send(List.of("tick"), message(7));

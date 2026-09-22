@@ -72,6 +72,7 @@ func TestProofAndBuiltinGoFamiliesCompileAndCommunicate(t *testing.T) {
 
 const proofGoProgram = `package proof_test
 import (
+ duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "errors"
  "testing"

@@ -1,5 +1,5 @@
 /** Acceptance-only recorded wire; the generated record/follow API is a later lane. */
-import { at, mount, WireError,  } from '@nightseam/duplex';
+import { at, mount, WireError } from '@nightseam/duplex';
 import type { Message, Path, Receiver, Wire, Endpoint } from '@bitspark/bitwire';
 import { createDispatcher, type HandlerRegistry, type WireDispatcher } from '@nightseam/runtime';
 

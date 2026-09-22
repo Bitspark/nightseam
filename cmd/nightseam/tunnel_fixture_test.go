@@ -4,6 +4,7 @@ package main
 // tunnel owns their one peer, while a handle is resolved by the consumer.
 const goTunnelFixture = `package generated_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "net/http"

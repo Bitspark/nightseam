@@ -19,7 +19,8 @@ only when explicitly supplied.
 
 `await peer.wire()` prepares and reuses access to the same peer through relative
 paths. `wirePair(options:)` supplies bounded local access without a socket or peer.
-`callWire`, `emitWire`, `handleWire`, and `forwardWire` work with any Wire;
+`callWire` and `emitWire` accept any Bitwire `Wire`. `handleWire` registers
+on an explicit `Dispatcher`, while `forwardWire` attaches two Bitwire Endpoints;
 `NightseamDuplex.at` and `mount` compose paths without allocating a carrier. Paths
 are opaque Unicode scalar strings, compared by their UTF-8 bytes. Cancellation
 retains an admitted handler's active-work budget until it exits, and the local Wire

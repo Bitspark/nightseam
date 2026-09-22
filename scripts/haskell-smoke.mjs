@@ -29,6 +29,10 @@ packages:
   - .
   - nightseam-duplex-${version}
   - nightseam-runtime-${version}
+extra-deps:
+  - git: https://github.com/Bitspark/bitwire.git
+    commit: 616a2fc5e3a0972f67f40331a9d9ca102bc9698d
+    subdirs: [wire/hs]
 `);
   writeFileSync(join(scratch, "nightseam-consumer-smoke.cabal"), `cabal-version: 2.4
 name: nightseam-consumer-smoke
@@ -36,13 +40,14 @@ version: 0.0.0
 build-type: Simple
 executable consumer
   main-is: Main.hs
-  build-depends: base, aeson, nightseam-duplex, nightseam-runtime
+  build-depends: base, aeson, bitspark-bitwire ==0.2.0, nightseam-duplex, nightseam-runtime
   default-language: Haskell2010
   ghc-options: -threaded
 `);
   writeFileSync(join(scratch, "Main.hs"), `{-# LANGUAGE OverloadedStrings #-}
 module Main where
 import Control.Monad
+import Bitwire
 import Data.Aeson hiding (defaultOptions, Options)
 import Nightseam.Duplex
 import qualified Nightseam.Duplex.WebSocket as WS
@@ -55,6 +60,9 @@ main = do
   client <- newPeer connection Client defaultOptions
   server <- newPeer accepted Server defaultOptions
   handle server "echo" (\\_ _ value -> pure value)
+  let endpoint = peerWire client :: Endpoint
+  detached <- receive endpoint (Receiver Nothing Nothing)
+  detached
   ctx <- newCallContext
   answer <- call client ctx "echo" (object ["installed" .= True])
   unless (answer == object ["installed" .= True]) (error "installed request failed")

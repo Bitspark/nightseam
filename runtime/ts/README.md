@@ -6,14 +6,15 @@ npm install @nightseam/runtime
 
 The peer of the `nightseam.duplex/1` profile for the browser and Node: JSON
 frames carrying requests, responses, events and cancellations both ways over
-a `FrameConnection` of `@nightseam/duplex`, with no third-party dependency.
+a `FrameConnection` of `@nightseam/duplex`. Shared wire types are imported
+directly from `@bitspark/bitwire`.
 Generated models use its structured Wire helpers; it is also usable on its own.
 
 `peer.wire()` exposes the existing peer's relative origin. `wirePair(options)`
 constructs two bounded asynchronous local Wire endpoints without a physical
 peer or serialized frame connection. `callWire`, `emitWire` and `registerWire`
 share profile request, event and cancellation behavior. `forwardWire(left,
-right)` forwards two origins through namespace receivers and returns a detach
+right)` forwards two origins through their single endpoint attachments and returns a detach
 function. Selection and mounting come from `@nightseam/duplex` and allocate no
 peer. The generated per-side `toWire`/`fromWire` pair converts the same complete
 model factory in both directions; the host owns carrier setup and closure.

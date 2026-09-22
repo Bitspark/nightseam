@@ -66,6 +66,7 @@ func TestGeneratedDrawnFamilyIdentity(t *testing.T) {
 
 const goDrawnIdentityFixture = `package generated_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "os"

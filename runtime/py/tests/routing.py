@@ -1,4 +1,5 @@
 """Test fixtures share one explicitly owned dispatcher per endpoint."""
+
 from nightseam.runtime import Dispatcher
 
 

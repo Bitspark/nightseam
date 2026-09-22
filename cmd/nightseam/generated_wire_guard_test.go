@@ -45,6 +45,7 @@ func TestGeneratedWireConsumerGuards(t *testing.T) {
 
 const goGeneratedGuardProgram = `package guard_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "errors"

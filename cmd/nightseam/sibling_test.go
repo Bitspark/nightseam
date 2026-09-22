@@ -49,7 +49,7 @@ func TestGeneratedSiblingsInstallLocally(t *testing.T) {
 		t.Run(manager, func(t *testing.T) {
 			dir := t.TempDir()
 			writeAll(t, dir, renderTool(t, corpusRoot))
-			// Every @nightseam package any generated manifest declares gets a
+			// Every external package any generated manifest declares gets a
 			// stub, read off the manifests rather than listed here: a family that
 			// gains a tier gains a dependency, and the fixture that installs it
 			// offline should not have to be told which.
@@ -68,7 +68,7 @@ func TestGeneratedSiblingsInstallLocally(t *testing.T) {
 					t.Fatal(err)
 				}
 				for name, version := range manifest.Dependencies {
-					if strings.HasPrefix(name, "@nightseam/") {
+					if strings.HasPrefix(name, "@nightseam/") || name == "@bitspark/bitwire" {
 						runtimes[name] = version
 					}
 				}
@@ -84,7 +84,7 @@ func TestGeneratedSiblingsInstallLocally(t *testing.T) {
 			var overrides strings.Builder
 			for _, name := range names {
 				fmt.Fprintf(&overrides, "  '%s': 'workspace:*'\n", name)
-				writeFixture(t, dir, "stubs/"+strings.TrimPrefix(name, "@nightseam/")+"/package.json", []byte(`{"name":"`+name+`","version":"`+runtimes[name]+`","private":true}`))
+				writeFixture(t, dir, "stubs/"+strings.ReplaceAll(strings.TrimPrefix(name, "@"), "/", "-")+"/package.json", []byte(`{"name":"`+name+`","version":"`+runtimes[name]+`","private":true}`))
 			}
 			writeFixture(t, dir, "package.json", []byte(`{"name":"sibling-install","private":true,"workspaces":["api/ts/*","stubs/*"]}`))
 			writeFixture(t, dir, "pnpm-workspace.yaml", []byte("packages:\n  - 'api/ts/*'\n  - 'stubs/*'\nlinkWorkspacePackages: false\noverrides:\n"+overrides.String()))

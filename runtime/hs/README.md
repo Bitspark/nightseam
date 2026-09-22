@@ -16,7 +16,10 @@ is explicit: `contextReceivedMeta` exposes incoming fields, while `contextMeta`
 supplies outgoing fields. Received metadata does not automatically accompany reverse calls.
 The context carries trace information for child calls.
 
-`peerWire` supplies the relative-path interface used by future generated
+`peerWire` supplies a Bitwire `Endpoint`, whose `endpointWire` grants send-only
+access. `receivedContext` retrieves verified context associated with an incoming
+message's return identity, preserved through Bitwire composition. This supplies
+the relative-path interface used by future generated
 adapters. Declaration identity is checked with `identityHandler` and
 `checkIdentity`; a missing identity method is accepted, while malformed or
 mismatched identities fail the interpretation.

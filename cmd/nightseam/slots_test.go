@@ -99,6 +99,7 @@ peer.close();
 
 const goDiagramFixture = `package generated
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "encoding/json"

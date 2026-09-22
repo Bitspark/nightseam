@@ -16,3 +16,8 @@ published to crates.io. See the
 for installation from a checkout and the packaged consumer smoke.
 
 Licensed under Apache-2.0; the package includes `LICENSE` and `NOTICE`.
+
+Import shared access and profile types from `bitwire`, the dependency named
+`bitspark-bitwire` on crates.io (version 0.2.0). `at` accepts send-only access;
+`mount` borrows `Arc<dyn bitwire::Endpoint>` children. The runtime's `Dispatcher`
+owns one endpoint attachment and supplies receiving selections.

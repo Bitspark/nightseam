@@ -1,7 +1,7 @@
 add_library(nightseam_duplex src/pipe.cpp src/ws.cpp src/wire.cpp)
 add_library(Nightseam::duplex ALIAS nightseam_duplex)
 target_include_directories(nightseam_duplex PUBLIC include)
-target_link_libraries(nightseam_duplex PUBLIC Threads::Threads)
+target_link_libraries(nightseam_duplex PUBLIC Threads::Threads Bitwire::wire)
 target_link_libraries(nightseam_duplex PRIVATE Boost::asio Boost::beast)
 target_compile_features(nightseam_duplex PUBLIC cxx_std_20)
 if(WIN32)

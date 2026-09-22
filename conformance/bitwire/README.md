@@ -1,12 +1,15 @@
 # Bitwire adoption evidence
 
-Nightseam's Go and TypeScript Wire surfaces use
+All eight Nightseam language ports import the declarations of
 [Bitwire v0.2.0](https://github.com/Bitspark/bitwire/releases/tag/v0.2.0), revision
 `616a2fc5e3a0972f67f40331a9d9ca102bc9698d`. The public artifacts are Go module
 `github.com/Bitspark/bitwire@v0.2.0` (package `wire/go`) and
 `@bitspark/bitwire@0.2.0` on npmjs. Installation requires no sibling checkout
-or private credentials. Both implementations use the complete shared type
-family, including send-only Wire and receiving/closing Endpoint.
+or private credentials. The [wire documentation](../../docs/runtime/wire.md) lists the other six
+package coordinates. No port aliases or redeclares the shared Wire, Endpoint,
+Message, Receiver or return capability. Native suites exercise their direct
+use; the independent upstream observation gate below currently covers Go and
+TypeScript.
 
 Run `node scripts/bitwire-conformance.mjs`, or `go test ./conformance/go -run
 TestPublishedBitwireConformance -v`. The full Go tier runs this gate. It resolves

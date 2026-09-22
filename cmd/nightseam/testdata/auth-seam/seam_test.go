@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -564,7 +565,7 @@ type served struct {
 // first, the generated ToWire around the implementation, forwarded onto the
 // endpoint — the peer's own, or a view of its dispatcher at the root or
 // under a prefix the server chooses.
-func (s *served) mount(peer *runtime.Peer, scope *live.Scope, g *gate, target duplex.Endpoint) error {
+func (s *served) mount(peer *runtime.Peer, scope *live.Scope, g *gate, target bitwire.Endpoint) error {
 	if s.exposure == nil {
 		return errors.New("no exposure: the connection is refused, nothing partial is attached")
 	}
@@ -670,7 +671,7 @@ type client struct {
 // endpoint is a fresh receiving view of the connection at the model's
 // prefix: the peer's own endpoint at the root, a selection of its
 // dispatcher under a prefix.
-func (c *client) endpoint() duplex.Endpoint {
+func (c *client) endpoint() bitwire.Endpoint {
 	if c.dispatcher != nil {
 		return c.dispatcher.Select(c.prefix)
 	}
@@ -853,7 +854,7 @@ func TestAUTHSEAM002SamePolicyEveryPresentation(t *testing.T) {
 		err := runtime.CallWire(ctx, c.peer.Wire(), []string{"list"}, protocol.ListRequest{ProjectId: "7"}, &out)
 		expect(t, "outside the prefix", err, "method_not_found")
 		// A client-side mount over the selected endpoint changes nothing either.
-		mounted := duplex.At(duplex.Mount(map[string]duplex.Endpoint{"admin": c.endpoint()}), []string{"admin"})
+		mounted := duplex.At(duplex.Mount(map[string]bitwire.Endpoint{"admin": c.endpoint()}), []string{"admin"})
 		if err := runtime.CallWire(ctx, mounted, []string{"list"}, protocol.ListRequest{ProjectId: "7"}, &out); err != nil {
 			t.Fatalf("mounted route: %v", err)
 		}
@@ -1525,7 +1526,7 @@ func TestAUTHSEAM004EmissionsAreGuarded(t *testing.T) {
 }
 
 // serverPeerWire finds the server-side peer of the connection whose gate this is.
-func serverPeerWire(t *testing.T, s *served, g *gate) duplex.Wire {
+func serverPeerWire(t *testing.T, s *served, g *gate) bitwire.Wire {
 	t.Helper()
 	value, ok := s.peers.Load(g)
 	if !ok {
@@ -1538,12 +1539,12 @@ func serverPeerWire(t *testing.T, s *served, g *gate) duplex.Wire {
 // every other frame passes. It is the owner's composition over the public
 // Wire, placed where a replay meets a recipient.
 type guardingWire struct {
-	duplex.Wire
+	bitwire.Wire
 	decide func(data json.RawMessage) bool
 }
 
-func (w *guardingWire) Send(path []string, message duplex.Message) error {
-	if message.Frame.Kind == duplex.ProfileEvent && !w.decide(message.Frame.Data) {
+func (w *guardingWire) Send(path []string, message bitwire.Message) error {
+	if message.Frame.Kind == bitwire.ProfileEvent && !w.decide(message.Frame.Data) {
 		return nil
 	}
 	return w.Wire.Send(path, message)

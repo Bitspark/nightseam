@@ -1,6 +1,5 @@
 import type { Endpoint, Path, Receiver, Wire } from '@bitspark/bitwire';
 
-
 export class WireError extends Error {
   readonly code: 'closed' | 'no_route' | 'receiver_exists' | 'invalid_path';
   constructor(code: WireError['code']) {

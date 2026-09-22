@@ -15,6 +15,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import Data.Foldable (toList)
 import Data.Text (Text)
+import Bitwire hiding (errorCode, errorMessage, errorData)
+import Nightseam.Runtime.WireFrames
+import Nightseam.Duplex.Dispatcher
 import Nightseam.Duplex.Wire
 import System.Timeout (timeout)
 
@@ -45,15 +48,11 @@ storeHead (Store state) = withMVar state (pure . Seq.length . storedEntries)
 
 storeWire :: Store -> Wire
 storeWire (Store state) = Wire
-  { wireSend = \path message -> modifyMVar_ state $ \current -> do
+  { send = \path message -> modifyMVar_ state $ \current -> do
       let sequenceNumber = Seq.length (storedEntries current) + 1
           entry = Entry path message sequenceNumber
       followers <- fmap Map.fromList $ fmap concat $ mapM (admit entry) (Map.toList (storedFollowers current))
       pure current {storedEntries = storedEntries current Seq.|> entry, storedFollowers = followers}
-  , wireReceive = \_ _ -> throwIO NoRoute
-  , wireClose = \_ _ -> modifyMVar_ state $ \current -> do
-      forM_ (Map.elems (storedFollowers current)) (\follower -> atomically (writeTVar (followerStop follower) True))
-      pure current {storedFollowers = Map.empty}
   }
   where
     admit entry (identifier, follower) = atomically $ do
@@ -67,7 +66,12 @@ storeWire (Store state) = Wire
         writeTBQueue (followerLive follower) entry
         pure [(identifier, follower)]
 
-attach :: Store -> Int -> Wire -> Int -> Bool -> IO (Int, Follower)
+closeStore :: Store -> IO ()
+closeStore (Store state) = modifyMVar_ state $ \current -> do
+  forM_ (Map.elems (storedFollowers current)) (\follower -> atomically (writeTVar (followerStop follower) True))
+  pure current {storedFollowers = Map.empty}
+
+attach :: Store -> Int -> Endpoint -> Int -> Bool -> IO (Int, Follower)
 attach (Store state) after target bound pause = do
   follower <- Follower <$> newTBQueueIO (fromIntegral bound) <*> newTVarIO False <*> newEmptyTMVarIO
     <*> newTBQueueIO 32 <*> newEmptyTMVarIO <*> newEmptyTMVarIO
@@ -83,7 +87,7 @@ attach (Store state) after target bound pause = do
       sendEntry (Entry path message sequenceNumber) = do
         stop <- readTVarIO (followerStop follower)
         if stop then pure False else do
-          wireSend target path message
+          send (endpointWire target) path message
           atomically (writeTBQueue (followerSent follower) sequenceNumber)
           pure True
       replay _ [] = follow
@@ -100,7 +104,7 @@ attach (Store state) after target bound pause = do
         case entry of
           Nothing -> pure ()
           Just item -> sendEntry item >>= \sent -> when sent follow
-      finish = wireClose target 1008 "recorded handoff ended" `finally` atomically (putTMVar (followerDone follower) ())
+      finish = close target (Code 1008) "recorded handoff ended" `finally` atomically (putTMVar (followerDone follower) ())
   _ <- forkIO (replay 0 history `finally` finish)
   pure (headValue, follower)
 
@@ -114,9 +118,9 @@ awaitSent follower lastSequence = do
 
 -- A fixture root supplies bounded asynchronous delivery. Its receivers may
 -- reenter the store, proving callback execution is outside append exclusion.
-newRoot :: IO Wire
+newRoot :: IO Endpoint
 newRoot = do
-  receivers <- newMVar Map.empty
+  receivers <- newMVar (Map.empty :: Map.Map Path Receiver)
   queue <- newTBQueueIO 16
   stopped <- newTVarIO False
   done <- newEmptyTMVarIO
@@ -125,27 +129,28 @@ newRoot = do
         case next of
           Nothing -> pure ()
           Just (Entry path message _) -> do
-            receiver <- withMVar receivers (pure . Map.lookup path)
-            forM_ receiver (\held -> receiverMessage held path message)
+            receiver <- withMVar receivers (pure . Map.lookup [])
+            forM_ receiver (\held -> maybe (pure ()) (\f -> f path message) (onMessage held))
             run
   _ <- forkIO (run `finally` atomically (putTMVar done ()))
-  pure Wire
-    { wireSend = \path message -> atomically $ do
+  pure Endpoint
+    { endpointWire = Wire $ \path message -> atomically $ do
         closed <- readTVar stopped
         when closed (throwSTM WireClosed)
         full <- isFullTBQueue queue
         when full (throwSTM (userError "recorded witness output queue full"))
         writeTBQueue queue (Entry path message 0)
-    , wireReceive = \path receiver -> modifyMVar receivers $ \current ->
-        if Map.member path current then throwIO ReceiverExists else
-          pure (Map.insert path receiver current, modifyMVar_ receivers (pure . Map.delete path))
-    , wireClose = \_ _ -> atomically (writeTVar stopped True) >> atomically (readTMVar done)
+    , receive = \receiver -> modifyMVar receivers $ \current ->
+        if Map.member [] current then throwIO ReceiverExists else
+          pure (Map.insert [] receiver current, modifyMVar_ receivers (pure . Map.delete []))
+    , close = \_ _ -> atomically (writeTVar stopped True) >> atomically (readTMVar done)
     }
 
 data Presentation = Presentation
-  { presentationWire :: Wire
-  , presentationRoot :: Wire
-  , presentationEnd :: Wire
+  { presentationWire :: Endpoint
+  , presentationRoot :: Endpoint
+  , presentationEnd :: Endpoint
+  , presentationRoutes :: [Dispatcher]
   , presentationValues :: TQueue Int
   , presentationClosed :: TQueue Int
   , presentationErrors :: TQueue Text
@@ -156,15 +161,22 @@ present :: Store -> IO Presentation
 present store = do
   root <- newRoot
   end <- newRoot
-  destination <- (`at` ["out"]) <$> mount (Map.singleton "out" (at end ["destination"]))
-  inner <- mount (Map.singleton "in" (at root ["source"]))
-  origin <- (`at` ["outer", "in"]) <$> mount (Map.singleton "outer" inner)
+  rootRoutes <- newDispatcher root
+  endRoutes <- newDispatcher end
+  endView <- selectEndpoint endRoutes ["destination"]
+  destinationMount <- mount (Map.singleton "out" endView)
+  destinationRoutes <- newDispatcher destinationMount
+  destination <- selectEndpoint destinationRoutes ["out"]
+  rootView <- selectEndpoint rootRoutes ["source"]
+  inner <- mount (Map.singleton "in" rootView)
+  originMount <- mount (Map.singleton "outer" inner)
+  originRoutes <- newDispatcher originMount
+  origin <- selectEndpoint originRoutes ["outer", "in"]
   values <- newTQueueIO
   closed <- newTQueueIO
   errors <- newTQueueIO
   callbacks <- newTVarIO 0
-  _ <- wireReceive destination ["tick"] (Receiver False
-    (\path message -> do
+  _ <- receive destination (Receiver (Just (\path message -> do
       if path /= ["tick"] then atomically (writeTQueue errors "recorded destination path mismatch") else do
         -- Must acquire the same lock as append. A callback on the producer's
         -- stack under that lock deadlocks and fails the witness deadline.
@@ -173,26 +185,24 @@ present store = do
           Nothing -> atomically (writeTQueue errors "recorded destination data is not an integer")
           Just value -> atomically $ do
             modifyTVar' callbacks (+ 1)
-            writeTQueue values value)
-    (\_ _ -> pure ()))
-  _ <- wireReceive origin ["tick"] (Receiver False
-    (wireSend destination)
-    (\code _ -> do
+            writeTQueue values value)) (Just (\_ _ -> pure ())))
+  _ <- receive origin (Receiver (Just (send (endpointWire destination))) (Just (\code _ -> do
       _ <- storeHead store
-      atomically (writeTQueue closed code)))
-  pure (Presentation origin root end values closed errors callbacks)
+      atomically (writeTQueue closed (unCode code)))))
+  pure (Presentation origin root end [rootRoutes, endRoutes, destinationRoutes, originRoutes] values closed errors callbacks)
 
 closePresentation :: Presentation -> IO ()
 closePresentation presentation = do
-  wireClose (presentationWire presentation) 1000 "done"
-  wireClose (presentationRoot presentation) 1000 "done"
-  wireClose (presentationEnd presentation) 1000 "done"
+  forM_ (presentationRoutes presentation) (\routes -> closeDispatcher routes (Code 1000) "done")
+  close (presentationWire presentation) (Code 1000) "done"
+  close (presentationRoot presentation) (Code 1000) "done"
+  close (presentationEnd presentation) (Code 1000) "done"
 
 recordedMessage :: Int -> Message
-recordedMessage value = Message (object ["version" .= (1 :: Int), "kind" .= ("event" :: Text), "data" .= value]) Nothing Nothing
+recordedMessage value = Message (frame (object ["version" .= (1 :: Int), "kind" .= ("event" :: Text), "data" .= value])) Nothing
 
 messageNumber :: Message -> Maybe Int
-messageNumber message = case messageFrame message of
+messageNumber message = case frameValue (messageFrame message) of
   Object fields -> case KM.lookup "data" fields of
     Just (Number number) -> let integer = truncate number :: Int
       in if fromIntegral integer == number then Just integer else Nothing
@@ -201,7 +211,7 @@ messageNumber message = case messageFrame message of
 
 collect :: Presentation -> IO [Int]
 collect presentation = do
-  wireSend (presentationWire presentation) ["tick"] (recordedMessage 0)
+  send (endpointWire (presentationWire presentation)) ["tick"] (recordedMessage 0)
   let loop values = do
         next <- atomically ((Left <$> readTQueue (presentationErrors presentation)) `orElse`
           (Right <$> readTQueue (presentationValues presentation)))
@@ -212,10 +222,10 @@ collect presentation = do
   loop []
 
 headCase :: Bool -> IO Value
-headCase before = bracket newStore (\store -> wireClose (storeWire store) 1000 "done") $ \store ->
+headCase before = bracket newStore closeStore $ \store ->
   bracket (present store) closePresentation $ \presentation -> do
-    source <- (`at` ["record"]) <$> mount (Map.singleton "record" (storeWire store))
-    let appendValue value = wireSend source ["tick"] (recordedMessage value)
+    let source = at (storeWire store) []
+    let appendValue value = send source ["tick"] (recordedMessage value)
     mapM_ appendValue [1 .. 3]
     when before (appendValue 4)
     bracket (attach store 0 (presentationWire presentation) 2 True) (stopFollower . snd) $ \(headValue, follower) -> do
@@ -244,8 +254,8 @@ headCase before = bracket newStore (\store -> wireClose (storeWire store) 1000 "
             ])
 
 stallCase :: IO Value
-stallCase = bracket newStore (\store -> wireClose (storeWire store) 1000 "done") $ \store -> do
-  let appendValue value = wireSend (storeWire store) ["tick"] (recordedMessage value)
+stallCase = bracket newStore closeStore $ \store -> do
+  let appendValue value = send (storeWire store) ["tick"] (recordedMessage value)
   mapM_ appendValue [1 .. 3]
   bracket (present store) closePresentation $ \stalled ->
     bracket (present store) closePresentation $ \healthy ->
@@ -259,12 +269,11 @@ stallCase = bracket newStore (\store -> wireClose (storeWire store) 1000 "done")
           atomically (readTMVar (followerDone slow))
           code <- atomically (readTQueue (presentationClosed stalled))
           remainingCloses <- atomically (flushTQueue (presentationClosed stalled))
-          refused <- try (wireSend (presentationWire stalled) ["tick"] (recordedMessage 99))
+          refused <- try (send (endpointWire (presentationWire stalled)) ["tick"] (recordedMessage 99))
           unless (refused == Left WireClosed) (fail "stalled carrier accepted after close")
           underneath <- newEmptyTMVarIO
-          _ <- wireReceive (presentationRoot stalled) ["probe"] (Receiver False
-            (\_ message -> forM_ (messageNumber message) (atomically . putTMVar underneath)) (\_ _ -> pure ()))
-          wireSend (presentationRoot stalled) ["probe"] (recordedMessage 99)
+          _ <- register (head (presentationRoutes stalled)) ["probe"] (Receiver (Just (\_ message -> forM_ (messageNumber message) (atomically . putTMVar underneath))) (Just (\_ _ -> pure ())))
+          send (endpointWire (presentationRoot stalled)) ["probe"] (recordedMessage 99)
           probe <- atomically (readTMVar underneath)
           appendValue 7
           awaitSent fast 7
@@ -284,3 +293,6 @@ recordedWireWitness = do
     stalled <- stallCase
     pure (object ["cases" .= cases, "stalled" .= stalled])
   maybe (fail "recorded wire witness timed out") pure result
+
+frame :: Value -> ProfileFrame
+frame = either (error . show) id . parseWireFrame

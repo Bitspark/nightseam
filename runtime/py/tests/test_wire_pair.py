@@ -55,7 +55,9 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
     async def test_dispatch_is_deferred_and_snapshots_paths_payloads_and_metadata(self):
         left, right = self.pair()
         received = asyncio.Queue()
-        dispatcher(right).register_prefix([], Receiver( message=lambda path, message: received.put_nowait((path, message))))
+        dispatcher(right).register_prefix(
+            [], Receiver(message=lambda path, message: received.put_nowait((path, message)))
+        )
         path = ["event"]
         frame = {"version": 1, "kind": "event", "data": {"nested": ["before"]}, "meta": {"name": "before"}}
         left.send(path, Message(frame))
@@ -83,7 +85,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             else:
                 delivered.set()
 
-        dispatcher(right).register_prefix([], Receiver( message=receiver))
+        dispatcher(right).register_prefix([], Receiver(message=receiver))
         sink = Sink()
         loop.set_task_factory(asyncio.eager_task_factory)
         try:
@@ -172,7 +174,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
 
         left, right = self.pair(propagator=Propagator())
         held = asyncio.Queue()
-        dispatcher(right).register_prefix([], Receiver( message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register_prefix([], Receiver(message=lambda path, message: held.put_nowait(message)))
         sink = Sink()
         address = ReturnAddress(sink)
         source = WireRequestContext(wire=left, request_id="physical:17", cancelled=asyncio.Event())

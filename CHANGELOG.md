@@ -8,6 +8,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- All eight language ports use Bitwire wire types directly. Remove Nightseam
+  aliases, re-exports and duplicate declarations; generated adapters import
+  Bitwire, and native ports separate send access from endpoint attachment and
+  explicit path dispatch.
+
 - A testee that will not build in a language whose tier ships provisional is
   recorded absent — the testee named, with its build's exit status and last
   output lines, in the matrix and the job summary — and the star continues

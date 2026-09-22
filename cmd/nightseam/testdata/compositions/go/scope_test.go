@@ -27,6 +27,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 
 	jobbinding "example.test/generated/api/go/job-binding"
@@ -63,7 +64,7 @@ type scope struct {
 // channel knows its own family, so the binding does not repeat it.
 type binding struct {
 	channel *tunnel.Channel
-	wire    duplex.Endpoint
+	wire    bitwire.Endpoint
 }
 
 // proxy is the one attachment this side has over an imported binding, and the
@@ -86,7 +87,7 @@ func (s *scope) context() context.Context { return s.carrier.Peer().Context() }
 
 // export publishes a model Wire over one prepared channel. The model is ready
 // before the channel's peer begins reading, and its lifetime follows the channel.
-func (s *scope) export(ctx context.Context, family, digest string, model duplex.Endpoint) (int64, error) {
+func (s *scope) export(ctx context.Context, family, digest string, model bitwire.Endpoint) (int64, error) {
 	s.mu.Lock()
 	closed := s.closed
 	s.mu.Unlock()
@@ -119,7 +120,7 @@ func (s *scope) export(ctx context.Context, family, digest string, model duplex.
 // imported keeps the consumer's model and aliases per channel. Interpretation
 // creates no second peer and runs while holding the consumer table lock, so two
 // simultaneous imports cannot install competing reverse handlers.
-func (s *scope) imported(ctx context.Context, id int64, family string, interpret func(duplex.Endpoint) (any, error)) (any, error) {
+func (s *scope) imported(ctx context.Context, id int64, family string, interpret func(bitwire.Endpoint) (any, error)) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -236,7 +237,7 @@ func (s *scope) exportSink(ctx context.Context, impl sinkprotocol.ClientMethods)
 	return s.export(ctx, "sink", sinkprotocol.WireDigest(), wire)
 }
 func (s *scope) importSink(ctx context.Context, id int64) (sinkprotocol.ClientMethods, error) {
-	value, err := s.imported(ctx, id, "sink", func(wire duplex.Endpoint) (any, error) {
+	value, err := s.imported(ctx, id, "sink", func(wire bitwire.Endpoint) (any, error) {
 		factory, err := sinkclient.FromWire(ctx, wire, runtime.AdapterContext{})
 		if err != nil {
 			return nil, err
@@ -262,7 +263,7 @@ func (s *scope) exportJob(ctx context.Context, impl jobprotocol.ServerMethods) (
 	return s.export(ctx, "job", jobprotocol.WireDigest(), wire)
 }
 func (s *scope) importJob(ctx context.Context, id int64) (jobprotocol.ServerMethods, error) {
-	value, err := s.imported(ctx, id, "job", func(wire duplex.Endpoint) (any, error) {
+	value, err := s.imported(ctx, id, "job", func(wire bitwire.Endpoint) (any, error) {
 		factory, err := jobbinding.FromWire(ctx, wire, runtime.AdapterContext{})
 		if err != nil {
 			return nil, err

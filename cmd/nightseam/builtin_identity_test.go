@@ -93,6 +93,7 @@ func TestGeneratedTypeScriptBootstrapIdentity(t *testing.T) {
 
 const goBootstrapIdentity = `package identity_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "crypto/sha256"
  "encoding/hex"

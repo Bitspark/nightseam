@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+bitwire = { package = "bitspark-bitwire", version = "=0.2.0" }
 nightseam = { path = "../../runtime/rs" }
 nightseam-duplex = { path = "../../duplex/rs" }
 tokio = { workspace = true, features = ["io-std"] }

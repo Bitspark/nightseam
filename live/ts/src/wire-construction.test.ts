@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer, createConnection, type Socket } from 'node:net';
 import test, { type TestContext } from 'node:test';
-import { at, mount, pipe, type FrameConnection, type ConnectionHandlers,  } from '@nightseam/duplex';
+import { at, mount, pipe, type FrameConnection, type ConnectionHandlers } from '@nightseam/duplex';
 import type { Wire, Endpoint } from '@bitspark/bitwire';
 import {
   callWire,

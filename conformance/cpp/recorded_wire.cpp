@@ -9,6 +9,7 @@
 namespace nightseam::conformance {
 namespace {
 using namespace duplex;
+using namespace bitwire;
 using runtime::Value;
 
 template<class T> class Channel {
@@ -40,7 +41,7 @@ struct Entry { Path path; Message message; int sequence = 0; };
 
 // This is the witness's asynchronous fixture root, not a transport or public
 // record/follow primitive. Production selection and mounting do all routing.
-class Root final : public Wire, public std::enable_shared_from_this<Root> {
+class Root final : public Endpoint, public std::enable_shared_from_this<Root> {
     std::mutex mutex_;
     std::condition_variable changed_;
     std::map<std::string, Receiver> receivers_;
@@ -56,7 +57,7 @@ class Root final : public Wire, public std::enable_shared_from_this<Root> {
                 changed_.wait(lock, [&] { return stopped_ || !queue_.empty(); });
                 if (stopped_) return;
                 entry = std::move(queue_.front()); queue_.pop_front();
-                auto found = receivers_.find(encode_path(entry.path));
+                auto found = receivers_.find("");
                 if (found != receivers_.end()) receiver = found->second;
             }
             if (receiver.message) receiver.message(entry.path, entry.message);
@@ -75,8 +76,8 @@ public:
         }
         changed_.notify_one();
     }
-    Detach receive(const Path& path, Receiver receiver) override {
-        const auto key = encode_path(path);
+    Detach receive(Receiver receiver) override {
+        const std::string key = "";
         std::lock_guard lock(mutex_);
         if (stopped_) throw Closed();
         if (receivers_.contains(key)) throw ReceiverExists();
@@ -95,7 +96,7 @@ public:
 };
 
 class Follower {
-    WirePtr target_;
+    std::shared_ptr<Endpoint> target_;
     std::size_t bound_;
     std::mutex mutex_;
     std::condition_variable changed_;
@@ -139,7 +140,7 @@ class Follower {
 public:
     Channel<int> sent;
     Channel<bool> paused, done;
-    Follower(WirePtr target, std::size_t bound) : target_(std::move(target)), bound_(bound) {}
+    Follower(std::shared_ptr<Endpoint> target, std::size_t bound) : target_(std::move(target)), bound_(bound) {}
     ~Follower() { stop(); if (worker_.joinable()) worker_.join(); }
     void start(std::vector<Entry> history, bool pause) {
         worker_ = std::thread([this, history = std::move(history), pause] { run(history, pause); });
@@ -179,13 +180,12 @@ public:
             else ++i;
         }
     }
-    Detach receive(const Path&, Receiver) override { throw NoRoute(); }
-    void close(int, std::string) override {
+    void close(int, std::string) {
         std::vector<std::weak_ptr<Follower>> followers;
         { std::lock_guard lock(mutex_); followers.swap(followers_); }
         for (const auto& weak : followers) if (auto follower = weak.lock()) follower->stop();
     }
-    std::pair<int, std::shared_ptr<Follower>> attach(int after, WirePtr target, std::size_t bound, bool pause) {
+    std::pair<int, std::shared_ptr<Follower>> attach(int after, std::shared_ptr<Endpoint> target, std::size_t bound, bool pause) {
         auto follower = std::make_shared<Follower>(std::move(target), bound);
         std::vector<Entry> history;
         int head;
@@ -217,11 +217,13 @@ struct Presentation {
     std::shared_ptr<Root> root = std::make_shared<Root>();
     std::shared_ptr<Root> end = std::make_shared<Root>();
     std::shared_ptr<Observed> observed = std::make_shared<Observed>();
-    WirePtr wire, destination;
+    std::shared_ptr<Endpoint> wire, destination;
+    std::shared_ptr<Dispatcher> root_routes, end_routes;
     explicit Presentation(const std::shared_ptr<Store>& store) {
-        destination = at(mount({{"out", at(end, {"destination"})}}), {"out"});
-        wire = at(mount({{"outer", mount({{"in", at(root, {"source"})}})}}), {"outer", "in"});
-        destination->receive({"tick"}, {false, [store, state = observed](const Path& path, const Message& message) {
+        root_routes = Dispatcher::create(root); end_routes = Dispatcher::create(end);
+        destination = Dispatcher::create(mount({{"out", end_routes->select({"destination"})}}))->select({"out"});
+        wire = Dispatcher::create(mount({{"outer", mount({{"in", root_routes->select({"source"})}})}}))->select({"outer", "in"});
+        destination->receive({ [store, state = observed](const Path& path, const Message& message) {
             try {
                 if (path != Path{"tick"}) throw std::runtime_error("recorded destination received wrong relative path");
                 // This real callback reenters append. Calling it under append
@@ -231,7 +233,7 @@ struct Presentation {
                 state->values.push(runtime::parse_value(message.frame.data.value()).as<int>());
             } catch (...) { state->values.fail(std::current_exception()); }
         }, {}});
-        wire->receive({"tick"}, {false, [target = destination, state = observed](const Path& path, const Message& message) {
+        wire->receive({ [target = destination, state = observed](const Path& path, const Message& message) {
             // An opaque forwarding hop, not payload interpretation.
             try { target->send(path, message); }
             catch (...) { state->values.fail(std::current_exception()); }
@@ -261,7 +263,7 @@ struct Presentation {
 Value head_case(Wait wait, bool before) {
     auto store = std::make_shared<Store>();
     Presentation first(store);
-    auto source = at(mount({{"record", store}}), {"record"});
+    auto source = at(store, {});
     for (int value = 1; value <= 3; ++value) source->send({"tick"}, tick(value));
     const auto cut = before ? "append_before_head" : "head_before_append";
     int next = 4;
@@ -312,7 +314,8 @@ Value stall_case(Wait wait) {
     try { stalled.wire->send({"tick"}, tick(99)); } catch (const Closed&) { refused = true; }
     if (!refused) throw std::runtime_error("stalled carrier accepted after close");
     Channel<int> underneath;
-    stalled.root->receive({"probe"}, {false, [&](const Path&, const Message& message) {
+    auto probe_view = stalled.root_routes->select({"probe"});
+    probe_view->receive({ [&](const Path&, const Message& message) {
         try { underneath.push(runtime::parse_value(message.frame.data.value()).as<int>()); }
         catch (...) { underneath.fail(std::current_exception()); }
     }, {}});

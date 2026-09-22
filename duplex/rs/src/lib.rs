@@ -177,9 +177,4 @@ impl Drop for Pipe {
 }
 
 mod access;
-mod profile;
-pub use access::{
-    Detach, Message, ProfileFrame, ProfileKind, Receiver, ReturnAddress, SharedWire, Wire, at,
-    decode_path, encode_path, mount,
-};
-pub use profile::{Payload, PublicError, Trace, check_unicode};
+pub use access::{at, decode_path, encode_path, mount};

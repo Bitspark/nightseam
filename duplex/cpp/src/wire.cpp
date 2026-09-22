@@ -28,190 +28,79 @@ bool scalar_utf8(std::string_view text) {
     return true;
 }
 
-Path joined(const Path& prefix, const Path& path) {
-    Path result(prefix);
+bitwire::Path joined(const bitwire::Path& prefix, const bitwire::Path& path) {
+    bitwire::Path result(prefix);
     result.insert(result.end(), path.begin(), path.end());
     return result;
 }
 
-class SelectedWire final : public Wire {
-    WirePtr root_;
-    Path prefix_;
+class SelectedWire final : public bitwire::Wire {
+    bitwire::WirePtr root_;
+    bitwire::Path prefix_;
 public:
-    SelectedWire(WirePtr root, Path prefix) : root_(std::move(root)), prefix_(std::move(prefix)) {}
-    void send(const Path& path, const Message& message) override { root_->send(joined(prefix_, path), message); }
-    Detach receive(const Path& path, Receiver receiver) override {
-        auto callback = std::move(receiver.message);
-        receiver.message = [count = prefix_.size(), callback = std::move(callback)](const Path& delivered, const Message& message) {
-            if (callback) callback(Path(delivered.begin() + count, delivered.end()), message);
-        };
-        return root_->receive(joined(prefix_, path), std::move(receiver));
-    }
-    void close(int code, std::string reason) override { root_->close(code, std::move(reason)); }
+    SelectedWire(bitwire::WirePtr root, bitwire::Path prefix) : root_(std::move(root)), prefix_(std::move(prefix)) {}
+    void send(const bitwire::Path& path, const bitwire::Message& message) override { root_->send(joined(prefix_, path), message); }
 };
 
-class MountedWire final : public Wire, public std::enable_shared_from_this<MountedWire> {
-    struct Registration {
-        Receiver receiver;
-        Detach detach;
-        bool active = true;
+class MountedWire final : public bitwire::Endpoint, public std::enable_shared_from_this<MountedWire> {
+    struct Attachment {
+        bitwire::Receiver receiver;
+        std::vector<bitwire::Detach> detaches;
+        std::size_t remaining;
     };
-    std::map<std::string, WirePtr> children_;
+    std::map<std::string, std::shared_ptr<bitwire::Endpoint>> children_;
     std::mutex mutex_;
     bool closed_ = false;
-    std::set<std::shared_ptr<Registration>> registrations_;
-
-    WirePtr destination(const Path& path) {
-        if (closed_) throw Closed();
-        if (path.empty()) throw NoRoute();
-        encode_path(path);
-        auto child = children_.find(path.front());
-        if (child == children_.end() || !child->second) throw NoRoute();
-        return child->second;
+    std::shared_ptr<Attachment> attachment_;
+    void detach(const std::shared_ptr<Attachment>& held) {
+        std::vector<bitwire::Detach> stops;
+        { std::lock_guard lock(mutex_); if (attachment_ != held) return;
+          attachment_.reset(); stops.swap(held->detaches); }
+        for (auto& stop : stops) stop();
     }
-
-    void remove(const std::shared_ptr<Registration>& registration, bool tell, int code = 0, const std::string& reason = {}) {
-        Detach detach;
-        {
-            std::lock_guard lock(mutex_);
-            if (!registration->active) return;
-            registration->active = false;
-            registrations_.erase(registration);
-            detach = std::move(registration->detach);
-        }
-        if (detach) detach();
-        if (tell && registration->receiver.closed) registration->receiver.closed(code, reason);
-    }
-
-    Detach receive_namespace(Receiver receiver) {
-        struct Aggregate {
-            std::mutex mutex;
-            std::vector<Detach> detaches;
-            bool ended = false;
-            std::size_t remaining = 0;
-            void stop() {
-                std::vector<Detach> owned;
-                {
-                    std::lock_guard lock(mutex);
-                    ended = true;
-                    owned.swap(detaches);
-                }
-                for (const auto& detach : owned) detach();
-            }
-        };
-        auto group = std::make_shared<Aggregate>();
-        auto registration = std::make_shared<Registration>();
-        registration->receiver = receiver;
-        registration->detach = [group] { group->stop(); };
-        std::vector<std::string> keys;
-        {
-            std::lock_guard lock(mutex_);
-            if (closed_) throw Closed();
-            for (const auto& [key, child] : children_) if (child) keys.push_back(key);
-            group->remaining = keys.size();
-            registrations_.insert(registration);
-        }
-        const auto weak = weak_from_this();
-        try {
-            for (const auto& key : keys) {
-                Receiver child;
-                child.namespace_ = true;
-                child.message = receiver.message;
-                child.closed = [group, weak, registration](int code, const std::string& reason) {
-                    bool last;
-                    {
-                        std::lock_guard lock(group->mutex);
-                        last = --group->remaining == 0;
-                    }
-                    if (last) if (auto self = weak.lock()) self->remove(registration, true, code, reason);
-                };
-                auto detach = receive({key}, std::move(child));
-                bool ended;
-                {
-                    std::lock_guard lock(group->mutex);
-                    ended = group->ended;
-                    if (!ended) group->detaches.push_back(detach);
-                }
-                if (ended) { detach(); throw Closed(); }
-            }
-        } catch (...) {
-            remove(registration, false);
-            throw;
-        }
-        return [weak = weak_from_this(), held = std::weak_ptr<Registration>(registration)] {
-            if (auto self = weak.lock()) if (auto registration = held.lock()) self->remove(registration, false);
-        };
-    }
-
 public:
-    explicit MountedWire(std::map<std::string, WirePtr> children) : children_(std::move(children)) {}
-    ~MountedWire() override {
-        // Dropped views cannot strand registrations in their borrowed roots.
-        for (const auto& registration : registrations_) if (registration->detach) registration->detach();
+    explicit MountedWire(std::map<std::string, std::shared_ptr<bitwire::Endpoint>> children) : children_(std::move(children)) {}
+    ~MountedWire() override { if (attachment_) for (auto& stop : attachment_->detaches) stop(); }
+    void send(const bitwire::Path& path, const bitwire::Message& message) override {
+        std::shared_ptr<bitwire::Endpoint> child;
+        { std::lock_guard lock(mutex_); if (closed_) throw Closed();
+          encode_path(path); if (path.empty() || !children_.contains(path[0]) || !children_.at(path[0])) throw NoRoute();
+          child = children_.at(path[0]); }
+        child->send(bitwire::Path(path.begin()+1,path.end()), message);
     }
-    void send(const Path& path, const Message& message) override {
-        WirePtr child;
-        {
-            std::lock_guard lock(mutex_);
-            child = destination(path);
-        }
-        child->send(Path(path.begin() + 1, path.end()), message);
-    }
-    Detach receive(const Path& path, Receiver receiver) override {
-        if (path.empty() && receiver.namespace_) return receive_namespace(std::move(receiver));
-        WirePtr child;
-        auto registration = std::make_shared<Registration>();
-        registration->receiver = receiver;
-        {
-            std::lock_guard lock(mutex_);
-            child = destination(path);
-            registrations_.insert(registration);
-        }
-        Receiver child_receiver;
-        child_receiver.namespace_ = receiver.namespace_;
-        child_receiver.message = [key = path.front(), callback = std::move(receiver.message)](const Path& delivered, const Message& message) {
-            // The root may have captured this receiver for an admitted request;
-            // detachment must not discard its later cancellation.
-            if (callback) callback(joined({key}, delivered), message);
-        };
-        child_receiver.closed = [weak = weak_from_this(), registration](int code, const std::string& reason) {
-            if (auto self = weak.lock()) self->remove(registration, true, code, reason);
-        };
-        Detach detach;
+    bitwire::Detach receive(bitwire::Receiver receiver) override {
+        auto held = std::make_shared<Attachment>(Attachment{receiver, {}, children_.size()});
+        { std::lock_guard lock(mutex_); if (closed_) throw Closed(); if (attachment_) throw ReceiverExists(); attachment_=held; }
+        auto weak = weak_from_this();
         try {
-            detach = child->receive(Path(path.begin() + 1, path.end()), std::move(child_receiver));
-        } catch (...) {
-            remove(registration, false);
-            throw;
-        }
-        bool active;
-        {
-            std::lock_guard lock(mutex_);
-            active = registration->active;
-            if (active) registration->detach = detach;
-        }
-        if (!active) { if (detach) detach(); throw Closed(); }
-        return [weak = weak_from_this(), held = std::weak_ptr<Registration>(registration)] {
-            if (auto self = weak.lock()) if (auto registration = held.lock()) self->remove(registration, false);
-        };
+            for (const auto& [key, child] : children_) {
+                if (!child) throw NoRoute();
+                auto stop = child->receive({
+                    [callback=receiver.message,key](const bitwire::Path& path,const bitwire::Message& message) { if(callback) callback(joined({key},path),message); },
+                    [weak,held](int code,const std::string& reason) {
+                        if (auto self=weak.lock()) {
+                            bool last;
+                            {std::lock_guard lock(self->mutex_); last=self->attachment_==held && --held->remaining==0;}
+                            if(last) { self->detach(held); if(held->receiver.closed) held->receiver.closed(code,reason); }
+                        }
+                    }});
+                bool active;
+                {std::lock_guard lock(mutex_);active=attachment_==held;if(active)held->detaches.push_back(stop);}
+                if(!active){stop();throw Closed();}
+            }
+        } catch (...) { detach(held); throw; }
+        return [weak,held=std::weak_ptr<Attachment>(held)] {if(auto self=weak.lock())if(auto value=held.lock())self->detach(value);};
     }
-    void close(int code, std::string reason) override {
-        std::set<std::shared_ptr<Registration>> owned;
-        {
-            std::lock_guard lock(mutex_);
-            if (closed_) return;
-            closed_ = true;
-            owned.swap(registrations_);
-            for (const auto& registration : owned) registration->active = false;
-        }
-        for (const auto& registration : owned) if (registration->detach) registration->detach();
-        for (const auto& registration : owned) if (registration->receiver.closed) registration->receiver.closed(code, reason);
+    void close(int code,std::string reason) override {
+        std::shared_ptr<Attachment> held;
+        {std::lock_guard lock(mutex_);if(closed_)return;closed_=true;held=std::move(attachment_);}
+        if(held){for(auto& stop:held->detaches)stop();held->detaches.clear();if(held->receiver.closed)held->receiver.closed(code,reason);}
     }
 };
 
 } // namespace
 
-std::string encode_path(const Path& path) {
+std::string encode_path(const bitwire::Path& path) {
     std::string encoded;
     for (const auto& segment : path) {
         if (!scalar_utf8(segment)) throw InvalidPath();
@@ -220,8 +109,8 @@ std::string encode_path(const Path& path) {
     return encoded;
 }
 
-Path decode_path(std::string_view encoded) {
-    Path path;
+bitwire::Path decode_path(std::string_view encoded) {
+    bitwire::Path path;
     while (!encoded.empty()) {
         const auto colon = encoded.find(':');
         if (colon == std::string_view::npos || colon == 0 || (colon > 1 && encoded.front() == '0')) throw InvalidPath();
@@ -239,13 +128,124 @@ Path decode_path(std::string_view encoded) {
     return path;
 }
 
-WirePtr at(WirePtr root, Path path) {
+bitwire::WirePtr at(bitwire::WirePtr root, bitwire::Path path) {
     if (!root) throw std::invalid_argument("wire selection requires an origin");
     return std::make_shared<SelectedWire>(std::move(root), std::move(path));
 }
 
-WirePtr mount(std::map<std::string, WirePtr> children) {
+std::shared_ptr<bitwire::Endpoint> mount(std::map<std::string, std::shared_ptr<bitwire::Endpoint>> children) {
     return std::make_shared<MountedWire>(std::move(children));
+}
+
+struct Dispatcher::State {
+    struct Slot { bitwire::Receiver receiver; bitwire::Path prefix; };
+    std::shared_ptr<bitwire::Endpoint> root;
+    std::mutex mutex;
+    bool closed = false;
+    bitwire::Detach detach;
+    std::map<bitwire::Path, std::shared_ptr<Slot>> routes;
+    std::map<std::pair<const bitwire::ReturnAddress*, std::string>,
+        std::pair<std::weak_ptr<bitwire::ReturnAddress>, std::shared_ptr<Slot>>> captured;
+};
+
+Dispatcher::Dispatcher(std::shared_ptr<bitwire::Endpoint> root) : state_(std::make_shared<State>()) {
+    if (!root) throw std::invalid_argument("dispatcher requires an endpoint");
+    state_->root = std::move(root);
+}
+std::shared_ptr<Dispatcher> Dispatcher::create(std::shared_ptr<bitwire::Endpoint> root) {
+    auto owner = std::shared_ptr<Dispatcher>(new Dispatcher(std::move(root)));
+    owner->attach();
+    return owner;
+}
+Dispatcher::~Dispatcher() { close(); }
+void Dispatcher::attach() {
+    const auto weak = weak_from_this();
+    auto stop = state_->root->receive({
+        [weak](const bitwire::Path& path, const bitwire::Message& message) {
+            auto owner = weak.lock(); if (!owner) return;
+            auto state = owner->state_;
+            std::shared_ptr<State::Slot> slot;
+            {
+                std::lock_guard lock(state->mutex);
+                std::erase_if(state->captured, [](const auto& entry) { return entry.second.first.expired(); });
+                const auto key = std::make_pair(message.return_address.get(), message.frame.id);
+                if (message.frame.kind == bitwire::ProfileKind::cancel) {
+                    const auto found = state->captured.find(key);
+                    if (found != state->captured.end()) slot = found->second.second;
+                } else {
+                    for (const auto& [prefix, candidate] : state->routes) {
+                        if (prefix.size() <= path.size() && std::equal(prefix.begin(), prefix.end(), path.begin()) &&
+                            (!slot || prefix.size() > slot->prefix.size())) slot = candidate;
+                    }
+                    if (slot && message.frame.kind == bitwire::ProfileKind::request && message.return_address)
+                        state->captured[key] = {message.return_address, slot};
+                }
+            }
+            if (slot && slot->receiver.message)
+                slot->receiver.message(bitwire::Path(path.begin() + slot->prefix.size(), path.end()), message);
+        },
+        [weak](int code, const std::string& reason) { if (auto owner = weak.lock()) owner->close(code, reason); }
+    });
+    bool ended;
+    { std::lock_guard lock(state_->mutex); ended = state_->closed; if (!ended) state_->detach = stop; }
+    if (ended) { stop(); throw Closed(); }
+}
+void Dispatcher::close(int code, std::string reason) {
+    bitwire::Detach stop;
+    std::map<bitwire::Path, std::shared_ptr<State::Slot>> held;
+    {
+        std::lock_guard lock(state_->mutex);
+        if (state_->closed) return;
+        state_->closed = true; stop = std::move(state_->detach); held.swap(state_->routes);
+    }
+    if (stop) stop();
+    for (const auto& [_, slot] : held) if (slot->receiver.closed) slot->receiver.closed(code, reason);
+}
+std::shared_ptr<bitwire::Endpoint> Dispatcher::select(bitwire::Path prefix) {
+    encode_path(prefix);
+    class Selected final : public bitwire::Endpoint {
+        std::shared_ptr<Dispatcher> owner_;
+        std::shared_ptr<State> state_;
+        bitwire::Path prefix_;
+        bool closed_ = false;
+        std::weak_ptr<State::Slot> attachment_;
+    public:
+        Selected(std::shared_ptr<Dispatcher> owner, std::shared_ptr<State> state, bitwire::Path prefix)
+            : owner_(std::move(owner)), state_(std::move(state)), prefix_(std::move(prefix)) {}
+        void send(const bitwire::Path& path, const bitwire::Message& message) override {
+            { std::lock_guard lock(state_->mutex); if (closed_ || state_->closed) throw Closed(); }
+            state_->root->send(joined(prefix_, path), message);
+        }
+        bitwire::Detach receive(bitwire::Receiver receiver) override {
+            auto slot = std::make_shared<State::Slot>(State::Slot{std::move(receiver), prefix_});
+            {
+                std::lock_guard lock(state_->mutex);
+                if (closed_ || state_->closed) throw Closed();
+                if (state_->routes.contains(prefix_)) throw ReceiverExists();
+                state_->routes[prefix_] = slot; attachment_ = slot;
+            }
+            return [weak = std::weak_ptr<State>(state_), prefix = prefix_, slot = std::weak_ptr<State::Slot>(slot)] {
+                if (auto state = weak.lock()) {
+                    std::lock_guard lock(state->mutex);
+                    const auto found = state->routes.find(prefix);
+                    if (found != state->routes.end() && found->second == slot.lock()) state->routes.erase(found);
+                }
+            };
+        }
+        void close(int code, std::string reason) override {
+            std::shared_ptr<State::Slot> slot;
+            {
+                std::lock_guard lock(state_->mutex);
+                if (closed_) return; closed_ = true;
+                const auto found = state_->routes.find(prefix_);
+                if (found != state_->routes.end() && found->second == attachment_.lock()) {
+                    slot = found->second; state_->routes.erase(found);
+                }
+            }
+            if (slot && slot->receiver.closed) slot->receiver.closed(code, reason);
+        }
+    };
+    return std::make_shared<Selected>(shared_from_this(), state_, std::move(prefix));
 }
 
 } // namespace nightseam::duplex

@@ -56,6 +56,7 @@ func testTransparencyFixture(t *testing.T, tests string) {
 
 const goTransparencyProgram = `package consumer_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "encoding/json"

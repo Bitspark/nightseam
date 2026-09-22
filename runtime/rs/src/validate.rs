@@ -1,4 +1,5 @@
-use crate::{pattern, wire::check_unicode};
+use crate::pattern;
+use bitwire::check_unicode;
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},

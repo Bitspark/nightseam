@@ -195,9 +195,11 @@ class PeerWire:
             raise WireError("receiver_exists")
         registration = _Registration((), receiver)
         self._attachment = registration
+
         def detach():
             if self._attachment is registration:
                 self._attachment = None
+
         return detach
 
     def _lookup(self, name):
@@ -205,7 +207,7 @@ class PeerWire:
             path = tuple(decode_path(name))
         except WireError:
             return None
-        return (path, self._attachment) if self._attachment is not None else None
+        return (path, self._attachment) if self._attachment is not None and self._attachment.receiver.message else None
 
     def _panic(self, name, error, trace):
         self.peer._observe("handler.panic", method=name, value=str(error), trace=trace, family=self.peer._family(name))

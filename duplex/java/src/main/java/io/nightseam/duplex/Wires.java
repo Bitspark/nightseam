@@ -1,5 +1,7 @@
 package io.nightseam.duplex;
 
+import dev.bitspark.bitwire.*;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -74,20 +76,14 @@ public final class Wires {
         List<String> prefix = List.copyOf(path);
         return new Wire() {
             @Override public void send(List<String> relative, Message message) { root.send(join(prefix, relative), message); }
-            @Override public Runnable receive(List<String> relative, Receiver receiver) {
-                return root.receive(join(prefix, relative), new Receiver(receiver.namespace(),
-                        receiver.message() == null ? null : (delivered, message) ->
-                                receiver.message().accept(List.copyOf(delivered.subList(prefix.size(), delivered.size())), message),
-                        receiver.closed()));
-            }
-            @Override public void close(int code, String reason) { root.close(code, reason); }
+
         };
     }
 
-    public static Wire mount(Map<String, Wire> children) { return new Mount(children); }
+    public static Endpoint mount(Map<String, Endpoint> children) { return new Mount(children); }
 
-    private static final class Mount implements Wire {
-        private final Map<String, Wire> children;
+    private static final class Mount implements Endpoint {
+        private final Map<String, Endpoint> children;
         private final Set<Registration> registrations = new LinkedHashSet<>();
         private boolean closed;
 
@@ -98,7 +94,7 @@ public final class Wires {
             Registration(Receiver receiver) { this.receiver = receiver; }
         }
 
-        Mount(Map<String, Wire> children) {
+        Mount(Map<String, Endpoint> children) {
             this.children = new LinkedHashMap<>(children);
             for (String key : children.keySet()) scalar(key);
         }
@@ -115,35 +111,7 @@ public final class Wires {
             child.send(List.copyOf(path.subList(1, path.size())), message);
         }
 
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
-            if (path.isEmpty() && receiver.namespace()) return namespace(receiver);
-            Wire child;
-            Registration registration = new Registration(receiver);
-            synchronized (this) {
-                child = destination(path);
-                registrations.add(registration);
-            }
-            Runnable detach;
-            try {
-                String key = path.getFirst();
-                detach = child.receive(List.copyOf(path.subList(1, path.size())), new Receiver(receiver.namespace(),
-                        receiver.message() == null ? null : (delivered, message) -> receiver.message().accept(join(List.of(key), delivered), message),
-                        (code, reason) -> remove(registration, true, code, reason)));
-            } catch (RuntimeException error) {
-                remove(registration, false, 0, "");
-                throw error;
-            }
-            synchronized (this) {
-                if (registration.active) {
-                    registration.detach = detach;
-                    return () -> remove(registration, false, 0, "");
-                }
-            }
-            detach.run();
-            throw new IllegalStateException("wire closed");
-        }
-
-        private Runnable namespace(Receiver receiver) {
+        @Override public Runnable receive(Receiver receiver) {
             Registration registration = new Registration(receiver);
             List<String> keys;
             List<Runnable> detaches = new ArrayList<>();
@@ -151,6 +119,7 @@ public final class Wires {
             boolean[] ended = { false };
             synchronized (this) {
                 if (closed) throw new IllegalStateException("wire closed");
+                if (!registrations.isEmpty()) throw new IllegalStateException("wire receiver already attached");
                 keys = children.entrySet().stream().filter(e -> e.getValue() != null).map(Map.Entry::getKey).toList();
                 registration.detach = () -> {
                     List<Runnable> held;
@@ -166,7 +135,7 @@ public final class Wires {
             int[] remaining = { keys.size() };
             try {
                 for (String key : keys) {
-                    Runnable detach = receive(List.of(key), new Receiver(true, receiver.message(), (code, reason) -> {
+                    Runnable detach = children.get(key).receive(new Receiver(receiver.message() == null ? null : (path, message) -> receiver.message().accept(join(List.of(key), path), message), (code, reason) -> {
                         boolean last;
                         synchronized (guard) { last = --remaining[0] == 0; }
                         if (last) remove(registration, true, code, reason);

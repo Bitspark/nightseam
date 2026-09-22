@@ -10,6 +10,7 @@ readme = "README.md"
 include = ["src/**", "README.md", "LICENSE", "NOTICE"]
 
 [dependencies]
+bitwire = { package = "bitspark-bitwire", version = "=0.2.0" }
 nightseam-duplex = { path = "../../duplex/rs", version = "0.5.0" }
 tokio.workspace = true
 tokio-util.workspace = true

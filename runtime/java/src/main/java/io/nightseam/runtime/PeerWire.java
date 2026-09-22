@@ -1,9 +1,10 @@
 package io.nightseam.runtime;
 
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import io.nightseam.duplex.CloseInfo;
-import io.nightseam.duplex.Message;
-import io.nightseam.duplex.Receiver;
-import io.nightseam.duplex.Wire;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /** The peer's ordered local admission boundary, sharing its existing carrier. */
-final class PeerWire implements Wire {
+final class PeerWire implements Endpoint {
     private final Peer peer;
     private final PeerOptions options;
     private final Object lock = new Object();
@@ -43,9 +44,9 @@ final class PeerWire implements Wire {
         Outgoing outgoing, Incoming incoming, String refusal) {}
 
     private static final class ReturnKey {
-        final Wire address;
+        final ReturnAddress address;
         final String id;
-        ReturnKey(Wire address, String id) { this.address = address; this.id = id; }
+        ReturnKey(ReturnAddress address, String id) { this.address = address; this.id = id; }
         @Override public int hashCode() { return 31 * System.identityHashCode(address) + id.hashCode(); }
         @Override public boolean equals(Object other) {
             return other instanceof ReturnKey key && address == key.address && id.equals(key.id);
@@ -71,7 +72,7 @@ final class PeerWire implements Wire {
         final List<String> path;
         final RequestContext context;
         final CompletableFuture<Object> result = new CompletableFuture<>();
-        final Wire returning;
+        final ReturnAddress returning;
         boolean started;
         boolean cancelled;
         boolean cancelQueued;
@@ -83,10 +84,10 @@ final class PeerWire implements Wire {
             this.registration = registration;
             this.path = path;
             this.context = context;
-            returning = new Wire() {
+            returning = new ReturnAddress(new Wire() {
                 @Override public void send(List<String> path, Message message) {
-                    if (!path.isEmpty() || !"response".equals(message.frame().get("kind"))
-                        || !context.id().equals(message.frame().get("id")))
+                    if (!path.isEmpty() || !"response".equals(fields(message.frame()).get("kind"))
+                        || !context.id().equals(fields(message.frame()).get("id")))
                         throw new IllegalArgumentException("invalid wire response");
                     Map<String,Object> frame = Wires.validateFrame(path, message.frame(), options.maxFrameBytes());
                     synchronized (lock) {
@@ -96,17 +97,8 @@ final class PeerWire implements Wire {
                     if (frame.containsKey("error")) result.completeExceptionally(PublicError.from(Json.object(frame.get("error"))));
                     else result.complete(frame.get("result"));
                 }
-                @Override public Runnable receive(List<String> path, Receiver receiver) {
-                    throw new IllegalStateException("return addresses cannot receive registrations");
-                }
-                @Override public void close(int code, String reason) {
-                    synchronized (lock) {
-                        if (responded || result.isDone()) return;
-                        responded = true;
-                    }
-                    result.completeExceptionally(new PublicError("disconnected", "Return address closed"));
-                }
-            };
+
+            });
         }
     }
 
@@ -118,7 +110,7 @@ final class PeerWire implements Wire {
             throw new IllegalArgumentException("send a response to its return address");
         if (!kind.equals("event") && message.returnAddress() == null)
             throw new IllegalArgumentException("requests and cancels require a return address");
-        Message snapshot = new Message(frame, message.returnAddress());
+        Message snapshot = new Message(frame(frame), message.returnAddress());
         boolean overflow = false;
         synchronized (lock) {
             requireOpen();
@@ -193,7 +185,7 @@ final class PeerWire implements Wire {
             if (cancel != null) cancel.cancel();
             return;
         }
-        Map<String,Object> frame = delivery.message().frame();
+        Map<String,Object> frame = fields(delivery.message().frame());
         String name = io.nightseam.duplex.Wires.encodePath(delivery.path());
         Map<String,String> metadata = (Map<String,String>)(Map<?,?>)frame.get("meta");
         if (delivery.kind() == Kind.EVENT) {
@@ -232,14 +224,14 @@ final class PeerWire implements Wire {
         }
         var frame = new LinkedHashMap<String,Object>();
         frame.put("version", 1); frame.put("kind", "response"); frame.put("id", state.key.id);
-        copyTrace(state.original.frame(), frame);
+        copyTrace(fields(state.original.frame()), frame);
         if (state.failure == null) frame.put("result", state.result);
         else {
             PublicError error = Peer.asError(state.failure);
             if (error.code().equals("request_timeout")) error = new PublicError("cancelled", "Request cancelled");
             frame.put("error", error.value());
         }
-        try { state.key.address.send(List.of(), new Message(frame, null)); }
+        try { state.key.address.wire().send(List.of(), new Message(frame(frame), null)); }
         catch (Throwable ignored) { }
     }
 
@@ -249,38 +241,19 @@ final class PeerWire implements Wire {
         if (state.completed && !state.cancelQueued && !state.responseQueued) outgoing.remove(state.key, state);
     }
 
-    @Override public Runnable receive(List<String> path, Receiver receiver) {
-        String name = io.nightseam.duplex.Wires.encodePath(path);
-        if (receiver.message() == null || name.isEmpty() && !receiver.namespace())
-            throw new IllegalArgumentException("a peer receiver needs a callback and operation path or namespace");
-        var route = new Route(List.copyOf(path), receiver.namespace());
-        var registration = new Registration(route.path(), receiver);
+    @Override public Runnable receive(Receiver receiver) {
+        var route = new Route(List.of(), false);
+        var registration = new Registration(List.of(), receiver);
         synchronized (peer) { synchronized (lock) {
             requireOpen();
-            if (!receiver.namespace() && peer.hasHandlerOrEvent(name))
-                throw new IllegalStateException("wire operation already has a raw handler");
-            if (receivers.putIfAbsent(route, registration) != null) throw new IllegalStateException("wire receiver already registered");
+            if (peer.hasRawHandlers()) throw new IllegalStateException("peer already has raw handlers");
+            if (receivers.putIfAbsent(route, registration) != null) throw new IllegalStateException("wire receiver already attached");
         } }
         return () -> { synchronized (lock) { receivers.remove(route, registration); } };
     }
-
-    boolean hasExactReceiver(String name) {
-        List<String> decoded=path(name);
-        if(decoded==null) return false;
-        synchronized(lock) { return receivers.containsKey(new Route(decoded,false)); }
-    }
-
+    boolean hasExactReceiver(String name) { synchronized (lock) { return !receivers.isEmpty(); } }
     private Registration match(List<String> path) {
-        synchronized (lock) {
-            if (ended) return null;
-            Registration exact = receivers.get(new Route(path, false));
-            if (exact != null) return exact;
-            for (int size = path.size(); size >= 0; size--) {
-                Registration candidate = receivers.get(new Route(path.subList(0, size), true));
-                if (candidate != null) return candidate;
-            }
-            return null;
-        }
+        synchronized (lock) { return ended ? null : receivers.get(new Route(List.of(), false)); }
     }
 
     private static List<String> path(String name) {
@@ -292,7 +265,7 @@ final class PeerWire implements Wire {
         List<String> path = path(name);
         if (path == null) return null;
         Registration registration = match(path);
-        if (registration == null) return null;
+        if (registration == null || registration.receiver().message() == null) return null;
         return (context, params) -> receiveRequest(registration, path, context);
     }
 
@@ -309,7 +282,7 @@ final class PeerWire implements Wire {
         frame.remove("method");
         try {
             // The peer already owns one bounded handler worker for this request.
-            registration.receiver().message().accept(path, new Message(frame, call.returning));
+            registration.receiver().message().accept(path, new Message(frame(frame), call.returning));
             synchronized (lock) { call.started = true; enqueueIncomingCancel(call); }
             return call.result.get(options.requestTimeout().toNanos(), TimeUnit.NANOSECONDS);
         } catch (ExecutionException failure) {
@@ -354,7 +327,7 @@ final class PeerWire implements Wire {
         var frame = new LinkedHashMap<String,Object>();
         frame.put("version", 1); frame.put("kind", "cancel"); frame.put("id", call.context.id());
         copyTrace(call.context.frame(), frame);
-        try { call.registration.receiver().message().accept(call.path, new Message(frame, call.returning)); }
+        try { call.registration.receiver().message().accept(call.path, new Message(frame(frame), call.returning)); }
         catch (Throwable ignored) { }
     }
 
@@ -362,11 +335,11 @@ final class PeerWire implements Wire {
         List<String> path = path(name);
         if (path == null) return;
         Registration registration = match(path);
-        if (registration == null) return;
+        if (registration == null || registration.receiver().message() == null) return;
         var message = new LinkedHashMap<>(frame);
         message.remove("event");
         // The peer's bounded event loop owns this callback, preserving its order.
-        registration.receiver().message().accept(path, new Message(message, null));
+        registration.receiver().message().accept(path, new Message(frame(message), null));
     }
 
     private void requireOpen() {

@@ -25,8 +25,10 @@ receiving and closing `Endpoint`, and no registration policy in the primitive.
 Nightseam's realization of that, and of the public invocation lifecycle it
 requires, is [an invocation is a
 Wire](an-invocation-is-a-wire-and-routing-is-composed-above-it.md).
-Nightseam aliases the Go types and re-exports the TypeScript declarations, with
-no independent duplicate contract. The common contract's published behavioral
+The operator clarified in [#468](https://github.com/Bitspark/nightseam/issues/468)
+that all eight ports must use Bitwire declarations directly. Nightseam removes
+its aliases, re-exports and duplicate declarations; generated Go and TypeScript
+adapters name the upstream types. The common contract's published behavioral
 cases exercise the migrated runtimes; Nightseam's full suite retains profile,
 context, carrier and scoped-reference obligations. A second runtime or completed
 Bitlink generator is not required.

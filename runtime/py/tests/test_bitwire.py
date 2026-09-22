@@ -14,10 +14,17 @@ class BitwireTests(unittest.IsolatedAsyncioTestCase):
 
         def answer(path, message):
             self.assertEqual(path, ["echo"])
-            message.return_address.wire.send([], bitwire.Message({
-                "version": 1, "kind": "response", "id": message.frame["id"],
-                "result": message.frame["params"],
-            }))
+            message.return_address.wire.send(
+                [],
+                bitwire.Message(
+                    {
+                        "version": 1,
+                        "kind": "response",
+                        "id": message.frame["id"],
+                        "result": message.frame["params"],
+                    }
+                ),
+            )
 
         detach = right.receive(bitwire.Receiver(message=answer))
         with self.assertRaises(WireError):
@@ -47,6 +54,7 @@ class BitwireTests(unittest.IsolatedAsyncioTestCase):
                 def detach():
                     if self.receiver is receiver:
                         self.receiver = None
+
                 return detach
 
             def close(self, code=1000, reason=""):
@@ -57,7 +65,11 @@ class BitwireTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(router.close)
         view = router.select(["model"])
         received = asyncio.Queue()
-        view.receive(bitwire.Receiver(message=lambda path, message: received.put_nowait((path, message))))
+        receiver = bitwire.Receiver(message=lambda path, message: received.put_nowait((path, message)))
+        stale = view.receive(receiver)
+        stale()
+        view.receive(receiver)
+        stale()  # Reusing the same callback object cannot revive an old detach.
         message = bitwire.Message({"version": 1, "kind": "event", "data": None})
         wire = at(endpoint, ["model"])
         self.assertIsInstance(wire, bitwire.Wire)

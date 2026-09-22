@@ -1,4 +1,5 @@
-use nightseam_duplex::{Payload, PublicError};
+use bitwire::{Payload, PublicError};
+
 use serde_json::json;
 
 #[test]

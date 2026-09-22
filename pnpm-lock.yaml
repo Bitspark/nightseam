@@ -199,9 +199,6 @@ importers:
       '@bitspark/archon-sdk':
         specifier: ^0.7.0
         version: 0.7.0
-      '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
@@ -275,9 +272,6 @@ importers:
 
   otel/ts:
     dependencies:
-      '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts

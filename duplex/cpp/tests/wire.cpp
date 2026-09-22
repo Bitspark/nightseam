@@ -7,6 +7,7 @@
 #include <set>
 
 using namespace nightseam::duplex;
+using namespace bitwire;
 
 namespace {
 void check(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
@@ -17,7 +18,7 @@ template<class Error, class F> void refuses(F action) {
 
 // Only drain invokes callbacks. This proves views introduce no dispatch and
 // preserve order without depending on thread scheduling.
-class Root : public Wire, public std::enable_shared_from_this<Root> {
+class Root : public Endpoint, public std::enable_shared_from_this<Root> {
 public:
     std::mutex mutex;
     std::map<std::pair<Path, bool>, Receiver> receivers;
@@ -30,12 +31,11 @@ public:
         if (closed) throw Closed();
         queue.emplace_back(path, message);
     }
-    Detach receive(const Path& path, Receiver receiver) override {
-        encode_path(path);
+    Detach receive(Receiver receiver) override {
         std::lock_guard lock(mutex);
         if (closed) throw Closed();
-        auto key = std::make_pair(path, receiver.namespace_);
-        if (receivers.contains(key)) throw ReceiverExists();
+        const auto key = std::make_pair(Path{}, false);
+        if (!receivers.empty()) throw ReceiverExists();
         receivers[key] = std::move(receiver);
         return [weak = weak_from_this(), key, once = std::make_shared<std::once_flag>()] {
             std::call_once(*once, [&] {
@@ -62,19 +62,7 @@ public:
                 std::lock_guard lock(mutex);
                 if (queue.empty()) return;
                 delivery = std::move(queue.front()); queue.pop_front();
-                auto exact = receivers.find({delivery.first, false});
-                if (exact != receivers.end()) receiver = exact->second;
-                else {
-                    std::size_t longest = 0;
-                    bool found = false;
-                    for (const auto& [key, candidate] : receivers) {
-                        if (key.second && key.first.size() <= delivery.first.size() &&
-                            std::equal(key.first.begin(), key.first.end(), delivery.first.begin()) &&
-                            (!found || key.first.size() > longest)) {
-                            receiver = candidate; longest = key.first.size(); found = true;
-                        }
-                    }
-                }
+                if (!receivers.empty()) receiver = receivers.begin()->second;
             }
             if (receiver.message) receiver.message(delivery.first, delivery.second);
         }
@@ -107,12 +95,14 @@ void composition() {
     auto reply = std::make_shared<Root>();
     auto address = std::make_shared<ReturnAddress>(ReturnAddress{reply});
     Path prefix{"a.b"};
-    auto selected = at(root, prefix); prefix[0] = "changed";
-    std::map<std::string, WirePtr> children{{"x", selected}};
+    auto root_routes = Dispatcher::create(root);
+    auto selected = root_routes->select(prefix); prefix[0] = "changed";
+    std::map<std::string, std::shared_ptr<Endpoint>> children{{"x", selected}};
     auto mounted = mount(children); children["x"] = reply;
-    auto view = at(at(mounted, {"x"}), {"\xf0\x9f\x98\x80"});
+    auto views = Dispatcher::create(mounted);
+    auto view = views->select({"x", "\xf0\x9f\x98\x80"});
     std::vector<Message> delivered;
-    auto detach = view->receive({"call"}, {false, [&](const Path& path, const Message& message) {
+    auto detach = view->receive({ [&](const Path& path, const Message& message) {
         check(path == Path{"call"}, "relative callback path"); delivered.push_back(message);
     }, {}});
     std::vector<Message> messages;
@@ -127,33 +117,36 @@ void composition() {
     check(delivered.empty() && root->queue.size() == 4 && reply->queue.empty(), "synchronous view dispatch");
     for (const auto& [path, message] : root->queue) check(path == Path{"a.b", "\xf0\x9f\x98\x80", "call"}, "root path");
     root->drain(); check(delivered == messages, "opaque message or return identity changed");
-    refuses<ReceiverExists>([&] { at(root, {"a.b", "\xf0\x9f\x98\x80"})->receive({"call"}, {}); });
-    const auto captured = root->receivers.at({Path{"a.b", "\xf0\x9f\x98\x80", "call"}, false});
+    refuses<ReceiverExists>([&] { view->receive({}); });
+    const auto captured = root->receivers.begin()->second;
     detach(); detach();
     captured.message({"a.b", "\xf0\x9f\x98\x80", "call"}, messages.back());
     check(delivered.size() == 5, "captured cancellation lost on detach");
-    auto replacement = at(root, {})->receive({"a.b", "\xf0\x9f\x98\x80", "call"}, {});
+    auto replacement = view->receive({});
     detach(); check(root->receivers.size() == 1, "old detach removed new receiver"); replacement();
+    views->close(); root_routes->close();
 
     int closed = 0;
     auto empty = mount({{"", root}});
-    empty->receive({"", "call"}, {false, {}, [&](int code, const std::string& reason) {
+    empty->receive({ {}, [&](int code, const std::string& reason) {
         ++closed; check(code == 1000 && reason == "ended", "close details"); empty->close(code, reason);
     }});
-    refuses<NoRoute>([&] { empty->receive({}, {}); });
+    refuses<ReceiverExists>([&] { empty->receive({}); });
     empty->close(1000, "ended"); empty->close();
     check(closed == 1 && root->closes == 0 && root->receivers.empty(), "mount ownership");
     refuses<Closed>([&] { empty->send({"", "call"}, {}); });
     root->send({"call"}, {});
-    at(root, {"call"})->close(); check(root->closes == 1, "selected close ownership");
+    check(!std::dynamic_pointer_cast<Endpoint>(at(root, {"call"})), "selection granted endpoint authority");
+    root->close(1000, "done");
 }
 
 void namespaces() {
     auto left = std::make_shared<Root>(), right = std::make_shared<Root>();
-    auto mounted = mount({{"left", at(left, {"private"})}, {"", right}});
+    auto left_routes = Dispatcher::create(left);
+    auto mounted = mount({{"left", left_routes->select({"private"})}, {"", right}});
     std::vector<Path> paths;
     int closed = 0;
-    auto detach = mounted->receive({}, {true, [&](const Path& path, const Message&) { paths.push_back(path); },
+    auto detach = mounted->receive({ [&](const Path& path, const Message&) { paths.push_back(path); },
         [&](int, const std::string&) { ++closed; }});
     mounted->send({"left", "nested", "call"}, {}); left->drain(); left->close(1000, "left ended");
     check(closed == 0, "one child ended namespace");
@@ -163,16 +156,16 @@ void namespaces() {
     check(closed == 0 && right->receivers.empty() && !right->closed, "namespace detach ownership");
     auto root = std::make_shared<Root>();
     auto overlapping = mount({{"one", root}, {"two", root}});
-    refuses<ReceiverExists>([&] { overlapping->receive({}, {true, {}, {}}); });
+    refuses<ReceiverExists>([&] { overlapping->receive({ {}, {}}); });
     check(root->receivers.empty() && !root->closed, "partial registration rollback");
     auto all = mount({{"one", left}, {"two", right}});
-    refuses<Closed>([&] { all->receive({}, {true, {}, {}}); });
+    refuses<Closed>([&] { all->receive({ {}, {}}); });
     check(right->receivers.empty(), "closed child registration rollback");
 
     auto a = std::make_shared<Root>(), b = std::make_shared<Root>();
     auto endings = mount({{"a", a}, {"b", b}});
     int ended = 0;
-    endings->receive({}, {true, {}, [&](int, const std::string&) { ++ended; }});
+    endings->receive({ {}, [&](int, const std::string&) { ++ended; }});
     a->close(1000, "a ended"); check(ended == 0, "early namespace ending");
     b->close(1000, "b ended"); endings->close();
     check(ended == 1, "namespace must end exactly once");
@@ -180,14 +173,14 @@ void namespaces() {
     auto borrowed = std::make_shared<Root>();
     {
         auto temporary = mount({{"child", borrowed}});
-        temporary->receive({}, {true, {}, {}});
+        temporary->receive({ {}, {}});
     }
     check(borrowed->receivers.empty() && !borrowed->closed, "dropped mount retained a receiver");
 
     auto nested = mount({{"outer", mount({{"inner", borrowed}})}});
     auto marker = std::make_shared<int>(1);
     std::weak_ptr<int> released = marker;
-    auto retained_detach = nested->receive({"outer", "inner", "call"}, {false,
+    auto retained_detach = nested->receive({
         [marker](const Path&, const Message&) {}, {}});
     marker.reset();
     nested->close();
@@ -199,8 +192,8 @@ void registration_race() {
     class PausingRoot final : public Root {
     public:
         std::promise<void> registered, resume;
-        Detach receive(const Path& path, Receiver receiver) override {
-            auto detach = Root::receive(path, std::move(receiver));
+        Detach receive(Receiver receiver) override {
+            auto detach = Root::receive(std::move(receiver));
             registered.set_value(); resume.get_future().wait(); return detach;
         }
     };
@@ -208,7 +201,7 @@ void registration_race() {
     auto mounted = mount({{"x", root}});
     int closed = 0;
     auto task = std::async(std::launch::async, [&] {
-        refuses<Closed>([&] { mounted->receive({"x", "call"}, {false, {}, [&](int, const std::string&) { ++closed; }}); });
+        refuses<Closed>([&] { mounted->receive({ {}, [&](int, const std::string&) { ++closed; }}); });
     });
     root->registered.get_future().wait();
     mounted->close(); root->resume.set_value(); task.get();

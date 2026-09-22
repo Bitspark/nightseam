@@ -47,6 +47,7 @@ func TestGeneratedGoValueAdapters(t *testing.T) {
 
 const goValueAdapterProgram = `package adapters_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "errors"
@@ -172,6 +173,7 @@ var goBoundAdapterSlots = []struct {
 // from Cell<T>. Its binding and its implementation never call the generic path.
 const goBoundAdapterProgram = `package adapters_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "fmt"
  "sync/atomic"

@@ -39,6 +39,7 @@ func TestDrawRequestConstraintBeforeModel(t *testing.T) {
 	fixtureModule(t, directory, root)
 	writeFixture(t, directory, "constraint_test.go", []byte(`package constraint_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "strings"
  "testing"

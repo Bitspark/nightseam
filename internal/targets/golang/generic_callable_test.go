@@ -157,6 +157,7 @@ func TestGenericCallableArgumentRecipesDoNotCaptureClient(t *testing.T) {
 
 const genericCallableProgram = `package callable_test
 import (
+ duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "errors"

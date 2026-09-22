@@ -1,8 +1,9 @@
 package io.nightseam.runtime;
 
-import io.nightseam.duplex.Message;
-import io.nightseam.duplex.Receiver;
-import io.nightseam.duplex.Wire;
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -15,7 +16,7 @@ public final class Wires {
     private Wires() {}
 
     /** Join both directions, preserving the message's opaque return capability. */
-    public static Runnable forward(Wire inbound, Wire outbound) {
+    public static Runnable forward(Endpoint inbound, Endpoint outbound) {
         Objects.requireNonNull(inbound, "inbound");
         Objects.requireNonNull(outbound, "outbound");
         final class Forwarding implements Runnable {
@@ -33,13 +34,13 @@ public final class Wires {
                 held.forEach(Runnable::run);
             }
 
-            void attach(Wire source, Wire destination) {
-                Runnable detach = source.receive(List.of(), new Receiver(true, (path, message) -> {
+            void attach(Endpoint source, Wire destination) {
+                Runnable detach = source.receive(new Receiver( (path, message) -> {
                     try {
                         destination.send(path, message);
                     } catch (RuntimeException failure) {
                         run();
-                        if ("request".equals(message.frame().get("kind"))) {
+                        if ("request".equals(fields(message.frame()).get("kind"))) {
                             refuse(message, "disconnected", "Connection ended; outcome may be unknown");
                         }
                     }
@@ -67,7 +68,8 @@ public final class Wires {
 
     // Validate with exactly the physical profile decoder. Encoding and decoding
     // also snapshot mutable payloads without losing null/absence or decimals.
-    static Map<String,Object> validateFrame(List<String> path, Map<String,Object> frame, int limit) {
+    static Map<String,Object> validateFrame(List<String> path, ProfileFrame value, int limit) {
+        Map<String,Object> frame = fields(value);
         String name = io.nightseam.duplex.Wires.encodePath(path);
         var physical = new LinkedHashMap<String,Object>(frame);
         String kind = Objects.toString(frame.get("kind"), "");
@@ -90,13 +92,13 @@ public final class Wires {
         var frame = new LinkedHashMap<String,Object>();
         frame.put("version", 1);
         frame.put("kind", "response");
-        frame.put("id", request.frame().get("id"));
+        frame.put("id", fields(request.frame()).get("id"));
         frame.put("error", Map.of("code", code, "message", detail));
         for (String field : List.of("traceparent", "tracestate")) {
-            if (request.frame().containsKey(field)) frame.put(field, request.frame().get(field));
+            if (fields(request.frame()).containsKey(field)) frame.put(field, fields(request.frame()).get(field));
         }
         try {
-            request.returnAddress().send(List.of(), new Message(frame, null));
+            request.returnAddress().wire().send(List.of(), new Message(frame(frame), null));
         } catch (Throwable ignored) {
             // A withdrawn caller cannot receive a terminal response.
         }

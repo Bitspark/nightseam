@@ -32,14 +32,17 @@ try {
   writeFileSync(join(consumer, "Package.swift"), `// swift-tools-version: 6.0
 import PackageDescription
 let package = Package(name: "Consumer", platforms: [.macOS(.v13)], dependencies: [
+  .package(url: "https://github.com/Bitspark/bitwire.git", exact: "0.2.0"),
   .package(path: "../runtime/swift/NightseamRuntime"),
   .package(path: "../duplex/swift/NightseamDuplex")
 ], targets: [.executableTarget(name: "Smoke", dependencies: [
+  .product(name: "Bitwire", package: "bitwire"),
   .product(name: "NightseamRuntime", package: "NightseamRuntime"),
   .product(name: "NightseamDuplex", package: "NightseamDuplex")
 ])], swiftLanguageModes: [.v6])
 `);
-  writeFileSync(join(consumer, "Sources", "Smoke", "Smoke.swift"), `import Foundation
+  writeFileSync(join(consumer, "Sources", "Smoke", "Smoke.swift"), `import Bitwire
+import Foundation
 import NightseamDuplex
 import NightseamRuntime
 @main struct Smoke {
@@ -53,7 +56,8 @@ import NightseamRuntime
     let reply = try await client.call(method: "echo", params: original)
     guard reply == original else { throw PublicError(code: "smoke", message: "Raw payload changed") }
     let wires = try wirePair()
-    let detach = try handleWire(wires.1, path: ["cell", "read"]) { _, data in data }
+    let routes = try Dispatcher(wires.1)
+    let detach = try handleWire(routes, path: ["cell", "read"]) { _, data in data }
     let local = try await callWire(at(wires.0, path: ["cell"]), path: ["read"], params: original)
     guard local == original else { throw PublicError(code: "smoke", message: "Wire payload changed") }
     detach(); try wires.0.close(code: 1000, reason: "done")

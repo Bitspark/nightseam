@@ -1,13 +1,15 @@
 plugins { id 'java' }
 
 allprojects {
+    repositories { mavenCentral() }
     group = 'io.nightseam'
     version = '0.6.0-SNAPSHOT'
     apply plugin: 'java-library'
     java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
     tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 }
-project(':runtime') { dependencies { api project(':duplex') } }
+project(':duplex') { dependencies { api 'dev.bitspark:bitwire:0.2.0' } }
+project(':runtime') { dependencies { api project(':duplex'); api 'dev.bitspark:bitwire:0.2.0' } }
 subprojects {
     tasks.named('jar') {
         archiveBaseName = "nightseam-${project.name}"

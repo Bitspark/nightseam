@@ -1,8 +1,10 @@
+use bitwire::Payload;
+use bitwire::{Message, ProfileFrame, ProfileKind, Receiver};
+use nightseam::Dispatcher;
 use nightseam::{
-    Context, Options, Payload, Peer, Role, call_wire, emit_wire, forward_wire, handle_wire,
-    wire_pair,
+    Context, Options, Peer, Role, call_wire, emit_wire, forward_wire, handle_wire, wire_pair,
 };
-use nightseam_duplex::{Message, ProfileFrame, ProfileKind, Receiver, at, mount, pipe};
+use nightseam_duplex::{mount, pipe};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -11,28 +13,14 @@ use std::{
 use tokio::sync::mpsc;
 
 struct ReturnSink(mpsc::UnboundedSender<Message>);
-impl nightseam_duplex::Wire for ReturnSink {
-    fn send(&self, _: &[String], message: Message) -> Result<(), nightseam::PublicError> {
+impl bitwire::Wire for ReturnSink {
+    fn send(&self, _: &[String], message: Message) -> Result<(), bitwire::PublicError> {
         self.0.send(message).unwrap();
-        Ok(())
-    }
-    fn receive(
-        &self,
-        _: &[String],
-        _: Receiver,
-    ) -> Result<nightseam_duplex::Detach, nightseam::PublicError> {
-        unreachable!()
-    }
-    fn close(&self, _: u16, _: &str) -> Result<(), nightseam::PublicError> {
         Ok(())
     }
 }
 
-fn addressed(
-    kind: ProfileKind,
-    address: &Arc<nightseam_duplex::ReturnAddress>,
-    id: &str,
-) -> Message {
+fn addressed(kind: ProfileKind, address: &Arc<bitwire::ReturnAddress>, id: &str) -> Message {
     let mut frame = ProfileFrame::new(kind);
     frame.id = id.into();
     if kind == ProfileKind::Request {
@@ -50,7 +38,7 @@ async fn closing_a_peer_settles_a_request_still_in_its_wire_queue() {
     let (near, far) = pipe(0);
     let peer = Peer::over(near, Role::Client, Options::default()).unwrap();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let address = Arc::new(nightseam_duplex::ReturnAddress {
+    let address = Arc::new(bitwire::ReturnAddress {
         wire: Arc::new(ReturnSink(tx)),
     });
     peer.wire()
@@ -85,7 +73,7 @@ async fn wire_cancellation_uses_reserved_capacity_in_admission_order() {
     .unwrap();
     let wire = peer.wire();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let address = Arc::new(nightseam_duplex::ReturnAddress {
+    let address = Arc::new(bitwire::ReturnAddress {
         wire: Arc::new(ReturnSink(tx)),
     });
     wire.send(
@@ -158,7 +146,7 @@ async fn exact_wire_and_raw_registrations_refuse_duplicates_in_both_orders() {
     let wire = peer.wire();
     let route = path(&["operation"]);
     let name = nightseam_duplex::encode_path(&route);
-    let detach = wire.receive(&route, Receiver::new(|_, _| {})).unwrap();
+    let detach = wire.receive(Receiver::new(|_, _| {})).unwrap();
     assert!(
         peer.handle(&name, |_, value| async move { Ok(value) })
             .is_err()
@@ -168,21 +156,11 @@ async fn exact_wire_and_raw_registrations_refuse_duplicates_in_both_orders() {
     detach();
     peer.handle(&name, |_, value| async move { Ok(value) })
         .unwrap();
-    assert!(wire.receive(&route, Receiver::new(|_, _| {})).is_err());
+    assert!(wire.receive(Receiver::new(|_, _| {})).is_err());
     let other = path(&["event"]);
     peer.on_event(&nightseam_duplex::encode_path(&other), |_, _| async {})
         .unwrap();
-    assert!(wire.receive(&other, Receiver::new(|_, _| {})).is_err());
-    wire.receive(
-        &[],
-        Receiver {
-            namespace: true,
-            ..Receiver::new(|_, _| {})
-        },
-    )
-    .unwrap();
-    peer.handle("5:exact", |_, value| async move { Ok(value) })
-        .unwrap();
+    assert!(wire.receive(Receiver::new(|_, _| {})).is_err());
     peer.close();
     far.abort();
 }
@@ -202,7 +180,7 @@ async fn refused_requests_consume_bounded_data_capacity_and_close_with_their_car
     .unwrap();
     let wire = peer.wire();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let address = Arc::new(nightseam_duplex::ReturnAddress {
+    let address = Arc::new(bitwire::ReturnAddress {
         wire: Arc::new(ReturnSink(tx)),
     });
     wire.send(
@@ -249,19 +227,24 @@ async fn local_paths_mounts_forwarding_and_identity_keep_the_borrowed_carriers()
     let (caller, left) = wire_pair(Options::default()).unwrap();
     let (right, callee) = wire_pair(Options::default()).unwrap();
     let detach = forward_wire(left.clone(), right).unwrap();
-    let view = at(
-        mount(BTreeMap::from([(
-            "out".into(),
-            at(callee.clone(), &path(&["source"])),
-        )])),
-        &path(&["out"]),
-    );
+    let callee_routes = Dispatcher::new(callee.clone()).unwrap();
+    let mounted = mount(BTreeMap::from([(
+        "out".into(),
+        callee_routes.select(&path(&["source"])),
+    )]));
+    let views = Dispatcher::new(mounted).unwrap();
+    let view = views.select(&path(&["out"]));
+    let view_routes = Dispatcher::new(view.clone()).unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let entered = seen.clone();
-    handle_wire(view.clone(), &path(&["é", ""]), move |ctx, value| {
-        entered.lock().unwrap().push(ctx.meta().clone());
-        async move { Ok(value) }
-    })
+    handle_wire(
+        view_routes.clone(),
+        &path(&["é", ""]),
+        move |ctx, value| {
+            entered.lock().unwrap().push(ctx.meta().clone());
+            async move { Ok(value) }
+        },
+    )
     .unwrap();
     let value = call_wire(
         Context::default().with_meta(BTreeMap::from([("tenant".into(), "one".into())])),
@@ -275,9 +258,11 @@ async fn local_paths_mounts_forwarding_and_identity_keep_the_borrowed_carriers()
     assert_eq!(value.raw(), Some("1e3"));
     assert_eq!(seen.lock().unwrap()[0]["tenant"], "one");
     view.close(1008, "view closed").unwrap();
-    handle_wire(callee.clone(), &path(&["still"]), |_, value| async move {
-        Ok(value)
-    })
+    handle_wire(
+        callee_routes.clone(),
+        &path(&["still"]),
+        |_, value| async move { Ok(value) },
+    )
     .unwrap();
     assert!(
         call_wire(
@@ -302,7 +287,8 @@ async fn peer_bridge_preserves_canonical_paths_and_cancellation_after_detach() {
     let b = Peer::over(b, Role::Server, Options::default()).unwrap();
     let (entered_tx, mut entered_rx) = mpsc::unbounded_channel();
     let (cancelled_tx, mut cancelled_rx) = mpsc::unbounded_channel();
-    let detach = handle_wire(b.wire(), &path(&["a/b", ""]), move |ctx, _| {
+    let routes = Dispatcher::new(b.wire()).unwrap();
+    let detach = handle_wire(routes.clone(), &path(&["a/b", ""]), move |ctx, _| {
         let entered = entered_tx.clone();
         let cancelled = cancelled_tx.clone();
         async move {
@@ -344,6 +330,7 @@ async fn peer_bridge_preserves_canonical_paths_and_cancellation_after_detach() {
 #[tokio::test]
 async fn exact_then_longest_namespace_and_ordered_event_dispatch() {
     let (sender, receiver) = wire_pair(Options::default()).unwrap();
+    let routes = Dispatcher::new(receiver).unwrap();
     let (tx, mut rx) = mpsc::unbounded_channel();
     for (p, namespace, label) in [
         (vec![], true, "root"),
@@ -351,17 +338,15 @@ async fn exact_then_longest_namespace_and_ordered_event_dispatch() {
         (path(&["a", "b"]), false, "exact"),
     ] {
         let tx = tx.clone();
-        receiver
-            .receive(
-                &p,
-                Receiver {
-                    namespace,
-                    ..Receiver::new(move |p, m| {
-                        tx.send((label, p, m.frame.data.value().unwrap())).unwrap();
-                    })
-                },
-            )
-            .unwrap();
+        let receiver = Receiver::new(move |p, m| {
+            tx.send((label, p, m.frame.data.value().unwrap())).unwrap();
+        });
+        if namespace {
+            routes.register_prefix(&p, receiver)
+        } else {
+            routes.register(&p, receiver)
+        }
+        .unwrap();
     }
     for (p, value) in [
         (path(&["a", "b"]), 1),

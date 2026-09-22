@@ -1,5 +1,4 @@
 export { at, mount, encodePath, decodePath, WireError } from './wire.ts';
-export type {  } from './wire.ts';
 export { record, MemoryWireLog, RecordError } from './record.ts';
 export type { WireRecord, WireLog, RecordOptions, RecordedWire, Follower } from './record.ts';
 

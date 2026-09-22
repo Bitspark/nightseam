@@ -15,6 +15,7 @@ __all__ = [
     "mount",
 ]
 
+
 class WireError(Exception):
     def __init__(self, code: Literal["closed", "no_route", "receiver_exists", "invalid_path"]):
         self.code = code
@@ -116,11 +117,14 @@ class _Mounted:
 
         try:
             for key, child in self._routes.items():
+
                 def delivered(path, message, key=key):
                     if receiver.message:
                         return receiver.message([key, *path], message)
-                stop = child.receive(bitwire.Receiver(message=delivered,
-                    closed=lambda code, reason, key=key: ended(key, code, reason)))
+
+                stop = child.receive(
+                    bitwire.Receiver(message=delivered, closed=lambda code, reason, key=key: ended(key, code, reason))
+                )
                 if self._attachment is None:
                     stop()
                     raise WireError("closed")

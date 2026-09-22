@@ -144,7 +144,7 @@ func TestGeneratedTypeScriptGenericCallables(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	paths := map[string][]string{}
+	paths := map[string][]string{"@bitspark/bitwire": {filepath.ToSlash(filepath.Join(root, "node_modules/@bitspark/bitwire/dist/index.d.ts"))}}
 	entries := map[string]string{}
 	for _, component := range []string{"duplex", "runtime", "live"} {
 		path := filepath.ToSlash(filepath.Join(root, component, "ts/src/index.ts"))

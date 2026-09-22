@@ -41,6 +41,7 @@ func TestGeneratedGoWireModelFactories(t *testing.T) {
 
 const goWireFactoryProgram = `package wire_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "sync/atomic"

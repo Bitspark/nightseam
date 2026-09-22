@@ -72,6 +72,7 @@ for (const mounted of [false,true]) {
 
 const goEventNameOverrideFixture = `package generated_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "fmt"

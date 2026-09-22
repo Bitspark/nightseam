@@ -110,6 +110,7 @@ func TestGeneratedDrawnAliasesComposeWithoutNominalWrappers(t *testing.T) {
 
 const drawnAliasGoProgram = `package drawnalias_test
 import (
+ duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "testing"

@@ -1,6 +1,6 @@
-use nightseam::{
-    Context, Options, Payload, Peer, PublicError, Role, call_wire, handle_wire, wire_pair,
-};
+use bitwire::{Payload, PublicError};
+use nightseam::Dispatcher;
+use nightseam::{Context, Options, Peer, Role, call_wire, handle_wire, wire_pair};
 use nightseam_duplex::pipe;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::timeout};
@@ -17,6 +17,7 @@ async fn direct_refusal_is_unpublished_but_admitted_outcomes_never_inherit_proof
             let (a, b) = wire_pair(Options::default()).unwrap();
             (a, b, None)
         };
+        let routes = Dispatcher::new(callee.clone()).unwrap();
         let cancelled = Context::default();
         cancelled.cancel();
         let refused = call_wire(
@@ -29,7 +30,7 @@ async fn direct_refusal_is_unpublished_but_admitted_outcomes_never_inherit_proof
         .await
         .unwrap_err();
         assert!(refused.is_unpublished());
-        handle_wire(callee.clone(), &["deny".into()], |_, _| async {
+        handle_wire(routes.clone(), &["deny".into()], |_, _| async {
             Err(PublicError::new("denied", "application refusal").unpublished())
         })
         .unwrap();
@@ -48,7 +49,7 @@ async fn direct_refusal_is_unpublished_but_admitted_outcomes_never_inherit_proof
             "a handler's claim must not become caller rollback evidence"
         );
         let started = Arc::new(Notify::new());
-        handle_wire(callee.clone(), &["hold".into()], {
+        handle_wire(routes.clone(), &["hold".into()], {
             let started = started.clone();
             move |ctx, _| {
                 let started = started.clone();

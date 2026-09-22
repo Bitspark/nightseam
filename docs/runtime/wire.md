@@ -3,8 +3,8 @@
 A Wire is access to an origin. Its message is one of the profile's request,
 response, event or cancel frames, and its path is relative to that origin.
 The contract is [Bitwire](https://github.com/Bitspark/bitwire)'s, adopted at
-v0.2.0: Nightseam aliases the Go declarations and re-exports the TypeScript
-ones, and defines no second copy of them anywhere.
+v0.2.0. All eight ports import the upstream declarations directly. Applications
+can supply Bitwire implementations without a Nightseam type shim.
 Generated models use this interface for local access, sockets, prepared
 tunnel channels, selected paths, mounts and forwarding. The host chooses
 the carrier; the generated model does not inspect it.
@@ -23,7 +23,7 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | register a handler at a path | `Dispatcher.Register` / `RegisterPrefix` | `dispatcher.register` / `registerPrefix` |
 | take a receiving view of that owner | `Dispatcher.Select(path)` | `dispatcher.select(path)` |
 | select an origin, send only | `duplex.At(wire, path)` | `at(wire, path)` |
-| mount children by one segment | `duplex.Mount(map[string]duplex.Endpoint)` | `mount(ReadonlyMap<string, Endpoint>)` |
+| mount children by one segment | `duplex.Mount(map[string]bitwire.Endpoint)` | `mount(ReadonlyMap<string, Endpoint>)` |
 | create a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
@@ -34,7 +34,7 @@ attachment and closure. A value that only needs to send takes `Wire`, and
 a generated binding's disposal owns the attachment it created, never a
 borrowed endpoint.
 
-The duplex component presents the shared Bitwire types and implements path views. Runtime supplies
+The duplex component implements path views using Bitwire types. Runtime supplies
 local endpoints, peer access and the request/event helpers used by generated
 adapters. A tunnel `Channel` already implements Wire. Its inner peer is
 prepared once during channel acquisition, before reads begin. Raw tunnel
@@ -45,9 +45,19 @@ The underlying definitions are public
 [Bitwire v0.2.0](https://github.com/Bitspark/bitwire/releases/tag/v0.2.0):
 Go imports `github.com/Bitspark/bitwire/wire/go` from module
 `github.com/Bitspark/bitwire@v0.2.0`; TypeScript imports `@bitspark/bitwire@0.2.0`.
-Nightseam's duplex package deliberately aliases/re-exports the same types,
-including Go's close `Code`. Existing generated references therefore use the
-shared nominal contract directly, without a second definition or wrapper.
+Generated Go and TypeScript adapters import those packages directly. Python
+imports `bitwire` from `bitspark-bitwire==0.2.0`; Rust imports `bitwire` from
+`bitspark-bitwire=0.2.0`; C++ includes `<bitwire/wire.hpp>` through
+`Bitwire::wire`; Java imports `dev.bitspark.bitwire` from
+`dev.bitspark:bitwire:0.2.0`; Swift imports `Bitwire` from the public SwiftPM
+package; Haskell imports `Bitwire` from `bitspark-bitwire-0.2.0`. C++ and
+Haskell build dependencies pin the same immutable upstream revision.
+
+`Wire` is send-only in every port. `Endpoint` adds a single receive attachment
+and closure. Path routing belongs to an explicit dispatcher: `Dispatcher` in
+Python, Rust, C++, Java and Swift, or `Nightseam.Duplex.Dispatcher` in Haskell.
+`at` accepts any Bitwire Wire; receiving selections come from a dispatcher.
+Mounts accept Bitwire Endpoints and borrow their lifecycle.
 Bitwire and Nightseam are maintained by Bitspark under Apache-2.0. The
 [adoption evidence](../../conformance/bitwire/README.md) pins provenance and
 distinguishes shared composition cases from Nightseam's profile/runtime suites.

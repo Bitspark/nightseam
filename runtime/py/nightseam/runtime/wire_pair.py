@@ -237,13 +237,15 @@ class _Endpoint:
         def detach():
             if self.registrations.get(None) is registration:
                 del self.registrations[None]
+
         return detach
 
     def close(self, code=1000, reason=""):
         self.pair.end(code, reason)
 
     def match(self, path):
-        return self.registrations.get(None)
+        registration = self.registrations.get(None)
+        return registration if registration and registration.receiver.message else None
 
     def retire(self, call):
         if call.completed and not call.cancel_queued and self.calls.get(call.key) is call:
@@ -372,8 +374,11 @@ class _Endpoint:
         self.retire(call)
         if not call.completed and call.registration:
             try:
-                pending = (call.registration.receiver.message(call.path, delivery.message)
-                           if call.registration.receiver.message else None)
+                pending = (
+                    call.registration.receiver.message(call.path, delivery.message)
+                    if call.registration.receiver.message
+                    else None
+                )
                 if inspect.isawaitable(pending):
                     self.pair.spawn(self.finish_cancel(pending))
             except Exception as error:

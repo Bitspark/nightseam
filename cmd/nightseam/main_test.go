@@ -478,6 +478,7 @@ func TestImportDirection(t *testing.T) {
 
 const goIntegrationFixture = `package generated_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "net/http"

@@ -57,6 +57,7 @@ func TestGeneratedCallableNominality(t *testing.T) {
 const goCallableNominalityFixture = `package generated_test
 
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
 	"context"
 	"encoding/json"
 	"errors"
