@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "nightseam"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bitspark-bitwire",
  "futures-util",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "nightseam-duplex"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "bitspark-bitwire",
@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "nightseam-testee"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64",
  "bitspark-bitwire",

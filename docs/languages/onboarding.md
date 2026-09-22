@@ -94,10 +94,13 @@ These are targets, not achieved coverage. The `languages` entries in
 [matrix](../../conformance/matrix.json) record registration and evidence;
 the `planned` entries do not register a testee or promise that tier today.
 Each epic's scoped child issues hold its implementation work and ownership.
-For 0.6.0, the ports wait for the shared wire construction in
-[#321](https://github.com/Bitspark/nightseam/issues/321), as required by
-[#320](https://github.com/Bitspark/nightseam/issues/320), so they implement
-the settled access contract.
+The ports implement the access contract settled by
+[#321](https://github.com/Bitspark/nightseam/issues/321) under
+[#320](https://github.com/Bitspark/nightseam/issues/320); the six that entered
+in 0.6.0 hold `core` at tier 4 and are provisional until each emits and
+refuses the profile's increasing request serials
+([#448](https://github.com/Bitspark/nightseam/issues/448)–[#453](https://github.com/Bitspark/nightseam/issues/453)),
+the rule the Bitwire v0.2.0 adoption added to the profile.
 
 ## The testee
 

@@ -3,7 +3,7 @@ module github.com/Bitspark/nightseam/otel/go
 go 1.26.0
 
 require (
-	github.com/Bitspark/nightseam v0.5.0
+	github.com/Bitspark/nightseam v0.6.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0

@@ -91,6 +91,15 @@ test("what is planned is named with its tier, so an absent language reads as com
   assert.equal(planned({ ...profiles, planned: {} }), "");
 });
 
+test("a planned language that already holds a lower tier is said to rise, not to lack a testee", () => {
+  const held = { ...profiles, languages: { ...profiles.languages, python: { tier: 4 }, rust: { tier: 4 } } };
+  assert.equal(
+    planned(held),
+    "Planned to rise as they hold: `python`, `rust` at tier 2. Planned, with no testee yet: `csharp` at tier 4.",
+  );
+  assert.equal(planned({ ...held, planned: { python: 2, rust: 2 } }), "Planned to rise as they hold: `python`, `rust` at tier 2.");
+});
+
 test("the section is written between the markers and nothing outside them moves", () => {
   const document = `# Title\n\nbefore\n\n${start}\nstale\n${end}\n\nafter\n`;
   const written = replace(document, section(matrix, profiles));
