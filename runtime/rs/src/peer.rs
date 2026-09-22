@@ -206,6 +206,7 @@ struct Inner {
     options: Options,
     next: AtomicU64,
     request_serial: tokio::sync::Mutex<u64>,
+    call_slots: Arc<tokio::sync::Semaphore>,
     stop: CancellationToken,
     ended: Mutex<Option<Close>>,
     outgoing: mpsc::Sender<Vec<u8>>,
@@ -258,6 +259,7 @@ impl Peer {
             role,
             next: AtomicU64::new(0),
             request_serial: tokio::sync::Mutex::new(0),
+            call_slots: Arc::new(tokio::sync::Semaphore::new(options.max_pending_requests)),
             stop: CancellationToken::new(),
             ended: Mutex::new(None),
             outgoing,
@@ -422,6 +424,13 @@ impl Peer {
                 return call;
             }
         };
+        let slot = match self.inner.call_slots.clone().try_acquire_owned() {
+            Ok(slot) => slot,
+            Err(_) => {
+                reject(PublicError::new("busy", "Outstanding call limit reached"));
+                return call;
+            }
+        };
         let inner = self.inner.clone();
         let mut frame = Wire {
             version: 1,
@@ -438,6 +447,7 @@ impl Peer {
                 .unwrap_or(inner.options.request_timeout)
                 .min(inner.options.request_timeout);
         tokio::spawn(async move {
+            let _slot = slot;
             let mut id = None;
             let enqueued = tokio::select! {
                 result=async {
@@ -450,9 +460,6 @@ impl Peer {
                     }
                     {
                         let mut pending = inner.pending.lock().unwrap();
-                        if pending.len() >= inner.options.max_pending_requests {
-                            return Err(PublicError::new("busy", "Outstanding call limit reached"));
-                        }
                         *serial += 1;
                         let reserved = format!("{}{}", inner.role.prefix(), *serial);
                         pending.insert(reserved.clone(), answer.clone());
@@ -1196,6 +1203,32 @@ mod serial_tests {
         assert_eq!(error.code, "cancelled");
         assert!(error.is_unpublished());
         assert_eq!(*gate, 0);
+        drop(gate);
+        peer.close();
+    }
+    #[tokio::test]
+    async fn publication_waiters_count_toward_the_pending_limit() {
+        let (_raw, carrier) = nightseam_duplex::pipe(0);
+        let peer = Peer::over(
+            carrier,
+            Role::Client,
+            Options {
+                max_pending_requests: 1,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        let gate = peer.inner.request_serial.lock().await;
+        let first = peer.call("waiting", Payload::Absent);
+        let error = peer
+            .call("over-budget", Payload::Absent)
+            .result()
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "busy");
+        assert!(error.is_unpublished());
+        first.cancel();
+        let _ = first.result().await;
         drop(gate);
         peer.close();
     }
