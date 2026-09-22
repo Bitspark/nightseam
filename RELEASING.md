@@ -156,12 +156,20 @@ that names another commit.
    checks — about two minutes, so that a doomed run fails with nothing to
    approve. The `release` job needs it and waits in the `release`
    environment for its required reviewer; it holds the tag again, writes the
-   notes, asks `npm whoami` whether a credential it was given is live,
-   installs, runs both tiers and each nested module's, builds, **installs
-   what is about to be published** — `node scripts/smoke-packed.mjs`,
-   described under *Rehearsing one* — publishes the packages with
-   `--provenance`, **makes the round trip**, and only then creates the
-   GitHub release with that version's changelog section as its notes:
+   notes, asks `npm whoami` whether a credential it was given is live, and
+   asks whether `ci.yml`'s `full` job already proved this exact commit —
+   a green check on the SHA, made by a run of that workflow on that SHA
+   (`node scripts/tiers-proven.mjs`). On that proof it skips the tiers and
+   names the run that proved them; on a commit with no such check it
+   installs and runs both tiers and each nested module's as before. Either
+   way it builds, **installs what is about to be published** —
+   `node scripts/smoke-packed.mjs`, described under *Rehearsing one* —
+   publishes the packages with `--provenance`, **makes the round trip**,
+   and only then creates the GitHub release with that version's changelog
+   section as its notes. "Cut on a green tree" means the commit passed the
+   tiers, by CI or by this run: the decision page
+   [the release trusts the commit's green check](docs/decisions/the-release-trusts-the-commits-green-check.md)
+   says what the repetition cost and what still runs on every tag:
    `node scripts/smoke-registry.mjs $TAG --open-issue` installs the same
    example again, this time from npm and from the module proxy with nothing
    laid for it and nothing overridden, `go get`s the root module at the tag
@@ -229,7 +237,9 @@ The release workflow runs from its own page too — Actions → release → Run
 workflow, with the version as its input. It does everything a tag does
 except the two things that cannot be taken back: nothing is uploaded and no
 release is created, `--dry-run` taking the publish as far as packing each
-tarball and minting its provenance attestation. Run it before the first real
+tarball and minting its provenance attestation. On a commit CI proved, a
+rehearsal is `preflight`, the build, the packed smokes and the dry-run
+publish — minutes rather than the better part of an hour. Run it before the first real
 tag of a version, and whenever the release path itself has changed, because
 each way it can fail — a version that drifted, a matrix cell the tier table
 stops for, a tier that is red, a build that emits nothing, a repository that

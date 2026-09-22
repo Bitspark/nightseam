@@ -31,6 +31,16 @@ are one number. Entries are in the words of the commits that landed them.
   reads it stage by stage and links each stage to the page that documents it
   (`docs/architecture.md`).
 
+### Changed
+
+- The release workflow trusts a commit's green `full` check — one `ci.yml`
+  made on that exact SHA — and runs the tiers itself only when it is absent,
+  naming the run that proved them; the build, the packed smokes, the publish,
+  the round trip and the release still run on every run. A rehearsal and a
+  tag run each reach their first packaging step in minutes rather than forty,
+  and "cut on a green tree" means the commit passed the tiers, by CI or by
+  the run. The operator's verdict A on #618, recorded on its decision page.
+
 ### Fixed
 
 - The worktree script recognizes a registered worktree through any spelling of
