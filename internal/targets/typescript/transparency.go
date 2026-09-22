@@ -21,8 +21,7 @@ func emitTransparency(f *file, side string) {
 		protocol = "'./types.ts'"
 	}
 	f.linef("import { DuplexPeer, DuplexError, wirePair, forwardWire, createDispatcher, type AdapterContext, type WireModelContext, type ValueAdapter, type ValueContext } from %s;", quote(f.config.Runtime))
-	f.line("import { mount, pipe as framePipe } from '@nightseam/duplex';
-import type { Endpoint } from '@bitspark/bitwire';")
+	f.line("import { mount, pipe as framePipe } from '@nightseam/duplex';\nimport type { Endpoint } from '@bitspark/bitwire';")
 	f.line("import { toWire, prepareFromWire } from './index.ts';")
 	f.linef("import type * as Protocol from %s;", protocol)
 	f.linef("import type { AnyFamily, FamilyBinding } from %s;", protocol)

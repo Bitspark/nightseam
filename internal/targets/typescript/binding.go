@@ -56,8 +56,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 	}
 	live := fam.Live || familyValueSlots(fam)
 	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, createDispatcher, declarationDigest, familyTypeAdapter, validateDrawnType, jsonAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type HandlerRegistry, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
-	f.line("import { encodePath } from '@nightseam/duplex';
-import type { Wire, Endpoint } from '@bitspark/bitwire';")
+	f.line("import { encodePath } from '@nightseam/duplex';\nimport type { Wire, Endpoint } from '@bitspark/bitwire';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
 		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
