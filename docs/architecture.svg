@@ -41,7 +41,7 @@
 
   <!-- legend: who provides each row -->
   <text class="leg muted" x="670" y="84" text-anchor="middle"><tspan class="tag">CONSUMER</tspan> — written by the consumer: a declaration in no language, and a program per language · <tspan class="tag">GENERATED</tspan> — rendered per family from the declaration into the consumer's tree, by nightseam generate</text>
-  <text class="leg muted" x="670" y="100" text-anchor="middle"><tspan class="tag">LIBRARY</tspan> — written once per language and shipped by Nightseam: duplex, runtime, live, tunnel (auth and otel as modules of their own) · <tspan class="tag">AGNOSTIC</tspan> — one definition in no language, drawn across both columns</text>
+  <text class="leg muted" x="670" y="100" text-anchor="middle"><tspan class="tag">LIBRARY</tspan> — written once per language and shipped by Nightseam: duplex, runtime, live, tunnel · <tspan class="tag">AGNOSTIC</tspan> — one definition in no language, drawn across both columns</text>
 
   <!-- column headers -->
   <text class="col t" x="90" y="110">Go</text>
@@ -70,8 +70,8 @@
   <!-- rendering, and the program reaching down -->
   <line class="line" x1="530" y1="188" x2="346" y2="238" marker-end="url(#arrow)"/>
   <line class="line" x1="810" y1="188" x2="994" y2="238" marker-end="url(#arrow)"/>
-  <text class="mid muted" x="400" y="205" text-anchor="middle">render — Go target</text>
-  <text class="mid muted" x="940" y="205" text-anchor="middle">render — TypeScript target</text>
+  <text class="mid muted" x="330" y="199" text-anchor="middle">render — Go target</text>
+  <text class="mid muted" x="1010" y="199" text-anchor="middle">render — TypeScript target</text>
   <line class="line" x1="250" y1="188" x2="250" y2="238" marker-end="url(#arrow)"/>
   <line class="line" x1="1090" y1="188" x2="1090" y2="238" marker-end="url(#arrow)"/>
   <text class="mid muted" x="242" y="216" text-anchor="end">implements · composes</text>
