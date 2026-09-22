@@ -148,14 +148,20 @@ that names another commit.
    nested module's tag is what that `go get` names, and it publishes nothing
    of its own.
 4. The `release` workflow runs on `v*`, which is the first tag and not the
-   second: it checks the versions and the conformance matrix against the tag,
-   installs, runs both tiers and each nested module's, builds, checks what
-   provenance needs, **installs what is about to be published** —
-   `node scripts/smoke-packed.mjs`, described under *Rehearsing one* —
-   publishes the packages with `--provenance` — every run of it waits in
-   the `release` environment for its required reviewer — creates the GitHub
-   release with that version's changelog
-   section as its notes, and then **makes the round trip**:
+   second. Its first job, `preflight`, waits on no reviewer and installs no
+   toolchain: it checks the tag against the checkout, the versions and the
+   conformance matrix against the tag, which names are a first publish,
+   what provenance needs, and that every script a workflow runs loads, and
+   runs the script tests and the format, table, link and documentation
+   checks — about two minutes, so that a doomed run fails with nothing to
+   approve. The `release` job needs it and waits in the `release`
+   environment for its required reviewer; it holds the tag again, writes the
+   notes, asks `npm whoami` whether a credential it was given is live,
+   installs, runs both tiers and each nested module's, builds, **installs
+   what is about to be published** — `node scripts/smoke-packed.mjs`,
+   described under *Rehearsing one* — publishes the packages with
+   `--provenance`, **makes the round trip**, and only then creates the
+   GitHub release with that version's changelog section as its notes:
    `node scripts/smoke-registry.mjs $TAG --open-issue` installs the same
    example again, this time from npm and from the module proxy with nothing
    laid for it and nothing overridden, `go get`s the root module at the tag
@@ -177,7 +183,11 @@ that names another commit.
    failure both fails the run and opens an issue naming the tag, because a
    red run on a tag nobody re-runs is silence, and the question it leaves —
    whether what is published is usable and the smoke is wrong, or a patch
-   release is owed — is one somebody has to answer the next morning.
+   release is owed — is one somebody has to answer the next morning. Once
+   it is answered, a red round trip is re-run with `gh run rerun --failed`:
+   the publish step skips every version the registry already serves, the
+   round trip runs again, and the release is created if it is absent and
+   left if it exists.
    Exercise that path once by hand, against a version that does not exist, so
    that the issue it opens has been seen before it is needed.
 
@@ -365,7 +375,8 @@ already uploaded, and neither of those is taken back.
 A release that adds a package therefore goes:
 
 1. Rehearse. The rehearsal names it — `first publish: @nightseam/…` — and
-   publishes nothing.
+   publishes nothing; so does every pull request's `fast` job, as a notice,
+   from the change that first carries the package.
 2. Create the [granular token](https://docs.npmjs.com/creating-and-viewing-access-tokens/)
    with **Read and write (publish and stage)** permission for the
    `@nightseam` scope under **Packages and scopes**, **Bypass two-factor
