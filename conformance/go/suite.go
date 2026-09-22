@@ -298,6 +298,11 @@ func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string
 	// Nightly mode applies to star and generated pairings too, including
 	// filtered runs: no provisional failure may disappear behind its tier.
 	strict := os.Getenv("NIGHTSEAM_MATRIX") != ""
+	// A partner lacking an optional capability says nothing about the held
+	// language. Record and assess that skip against its actual participant.
+	if outcome.Skipped != "" && outcome.SkippedBy != "" {
+		held = outcome.SkippedBy
+	}
 	s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
 	if s.Observe != nil {
 		s.Observe(sc, a, b, outcome)
