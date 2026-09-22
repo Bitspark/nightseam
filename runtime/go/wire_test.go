@@ -271,6 +271,31 @@ func (s *wireReplySink) Send(path []string, message bitwire.Message) error {
 	return nil
 }
 
+// Request replies and remote event delivery can precede the sender's final
+// observation. Snapshot only once the writer has recorded the whole sequence.
+func awaitWireSends(t *testing.T, observed *recorder, count int) []ws.FrameSent {
+	t.Helper()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for {
+		next := observed.next()
+		var sent []ws.FrameSent
+		for _, event := range observed.all() {
+			if frame, ok := event.(ws.FrameSent); ok {
+				sent = append(sent, frame)
+			}
+		}
+		if len(sent) >= count {
+			return sent
+		}
+		select {
+		case <-next:
+		case <-deadline.C:
+			t.Fatalf("observed %d sent frames, want %d", len(sent), count)
+		}
+	}
+}
+
 func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 	observed := &recorder{}
 	client, server := newPair(t, ws.Options{}, ws.Options{Observer: observed})
@@ -304,10 +329,8 @@ func TestWirePreservesRequestAndEventAdmissionOrder(t *testing.T) {
 		receive(t, sink.replies)
 	}
 	var got []string
-	for _, event := range observed.all() {
-		if sent, ok := event.(ws.FrameSent); ok && (sent.Kind == "request" || sent.Kind == "event") {
-			got = append(got, sent.Kind+" "+sent.Name)
-		}
+	for _, sent := range awaitWireSends(t, observed, len(want)) {
+		got = append(got, sent.Kind+" "+sent.Name)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("per-wire send order changed:\n got %v\nwant %v", got, want)
@@ -347,10 +370,8 @@ func TestWirePreservesCancellationBeforeTheFollowingEvent(t *testing.T) {
 	receive(t, sink.replies)
 	receive(t, eventReceived)
 	var kinds []string
-	for _, event := range observed.all() {
-		if sent, ok := event.(ws.FrameSent); ok {
-			kinds = append(kinds, sent.Kind)
-		}
+	for _, sent := range awaitWireSends(t, observed, 3) {
+		kinds = append(kinds, sent.Kind)
 	}
 	if !reflect.DeepEqual(kinds, []string{"request", "cancel", "event"}) {
 		t.Fatalf("send order = %v", kinds)

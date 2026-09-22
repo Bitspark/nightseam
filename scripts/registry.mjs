@@ -20,9 +20,15 @@ export async function waitForRegistries(tag, {
   const deadline = start + timeoutMs;
   const elapsed = () => ((clock.now() - start) / 1000).toFixed(1);
   const version = tag.slice(1);
+  // The abbreviated document, which is what an install reads: npm serves it
+  // from an index that lags the full document for a name it has never
+  // served, so a wait on the full one passes while the install still 404s
+  // (v0.6.0, #611). The connection is closed after each so that nothing is
+  // left holding the process open.
+  const install = { accept: "application/vnd.npm.install-v1+json", connection: "close" };
   const targets = packages.map(directory => {
     const { name } = JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8"));
-    return { name: `${name}@${version}`, url: `${npmRegistry}/${encodeURIComponent(name)}`, field: data => data?.["dist-tags"]?.latest, version };
+    return { name: `${name}@${version}`, url: `${npmRegistry}/${encodeURIComponent(name)}`, headers: install, field: data => data?.["dist-tags"]?.latest, version };
   });
   for (const file of ["go.mod", ...modules]) {
     const name = readFileSync(join(root, file), "utf8").match(/^module (\S+)/m)[1];
@@ -41,7 +47,7 @@ export async function waitForRegistries(tag, {
         // The timeout covers headers and the response body. A slow registry
         // gets another attempt without spending the whole propagation window.
         const signal = AbortSignal.timeout(Math.ceil(Math.min(10_000, remaining)));
-        const response = await fetch(target.url, { signal });
+        const response = await fetch(target.url, { signal, headers: target.headers });
         if (!response.ok) {
           target.last = `HTTP ${response.status}`;
           await response.body?.cancel();

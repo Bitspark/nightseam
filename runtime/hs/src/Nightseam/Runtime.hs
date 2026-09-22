@@ -73,7 +73,7 @@ type Handler = CallContext -> Peer -> Value -> IO Value
 data PendingCall = PendingCall
   { pendingResult :: TMVar (Either PublicError Value)
   , pendingCancelled :: TVar Bool, pendingCancelQueued :: TVar Bool
-  , pendingCompleted :: TVar Bool
+  , pendingCompleted :: TVar Bool, pendingSlot :: TVar Bool
   }
 
 -- A request reserves exactly one control entry until its queued cancellation
@@ -99,6 +99,7 @@ data Peer = Peer
   , pCleanupThreads :: TVar [ThreadId], pTransportClosed :: TMVar ()
   , pWireCalls :: TVar [WireCall]
   , pEventContext :: TVar (Maybe CallContext)
+  , pReceivedSerial :: TVar Integer, pPublication :: MVar (), pCallSlots :: TVar Int
   }
 
 get :: Text -> Value -> Value
@@ -121,7 +122,7 @@ newPeer connection role opts = do
     <*> newTVarIO M.empty <*> newTVarIO M.empty <*> newTVarIO 0
     <*> newTVarIO M.empty <*> newTVarIO M.empty <*> newTVarIO M.empty
     <*> newTVarIO M.empty <*> newEmptyTMVarIO <*> newTVarIO [] <*> newTVarIO [] <*> newEmptyTMVarIO
-    <*> newTVarIO [] <*> newTVarIO Nothing
+    <*> newTVarIO [] <*> newTVarIO Nothing <*> newTVarIO 0 <*> newMVar () <*> newTVarIO 0
   mapM_ (spawn peer . guardLoop peer) [readLoop peer, writeLoop peer, eventLoop peer]
   pure peer
 
@@ -155,6 +156,7 @@ finish peer reason = mask_ $ do
       pending <- readTVar (pPending peer)
       forM_ (M.elems pending) $ \out -> do
         writeTVar (pendingCancelQueued out) False
+        releaseSlot peer (pendingSlot out)
         void (tryPutTMVar (pendingResult out) (Left (failure "disconnected" "peer closed")))
       writeTVar (pPending peer) M.empty
       writeTVar (pWireCalls peer) []
@@ -250,7 +252,13 @@ readLoop peer = forever $ do
     Right value -> pure value
   let ident = str (get "id" value)
   case str (get "kind" value) of
-    "request" -> incomingRequest peer value
+    "request" -> do
+      let serial = read (T.unpack (T.drop 2 ident)) :: Integer
+      atomically $ do
+        previous <- readTVar (pReceivedSerial peer)
+        when (serial <= previous) (throwSTM (CloseError 4011 "request serial did not increase"))
+        writeTVar (pReceivedSerial peer) serial
+      incomingRequest peer value
     "response" -> atomically $ do
       pending <- readTVar (pPending peer)
       forM_ (M.lookup ident pending) $ \out -> void (tryPutTMVar (pendingResult out) (response value))
@@ -295,26 +303,64 @@ call :: Peer -> CallContext -> Text -> Value -> IO Value
 call peer original method params = mask $ \restore -> do
   when (T.null method) (throwIO (failure "invalid" "method is empty"))
   ctx <- childTrace original
-  (ident, pending) <- atomically (reserveCall peer original Nothing)
-  let frame = object (["version" .= (1::Int), "kind" .= ("request"::Text), "id" .= ident, "method" .= method, "params" .= params] ++ traceFields ctx ++ metaFields ctx)
-  restore (enqueue peer frame) `onException` completePending peer ident pending
+  (ident, pending, frame) <- restore $ publishCall peer original Nothing False $ \ident ->
+    object (["version" .= (1::Int), "kind" .= ("request"::Text), "id" .= ident, "method" .= method, "params" .= params] ++ traceFields ctx ++ metaFields ctx)
   restore (awaitPending peer original ident pending frame)
 
-reserveCall :: Peer -> CallContext -> Maybe (ReturnAddress, Text) -> STM (Text, PendingCall)
-reserveCall peer ctx local = do
+-- The FIFO MVar orders all physical requests, including Wire bridges. Only
+-- publication holds it; waiting for a response never blocks another request.
+-- Reservation commits separately so a failed encoding still spends its serial.
+publishCall :: Peer -> CallContext -> Maybe (ReturnAddress, Text) -> Bool -> (Text -> Value) -> IO (Text, PendingCall, Value)
+publishCall peer ctx local immediate makeFrame = mask $ \restore -> do
+  slot <- atomically $ do
+    openSTM peer
+    count <- readTVar (pCallSlots peer)
+    when (count >= maxPendingRequests (pOptions peer)) (throwSTM (failure "busy" "too many outstanding requests"))
+    writeTVar (pCallSlots peer) (count + 1)
+    newTVar False
+  restore (publishReserved slot) `onException` atomically (releaseSlot peer slot)
+  where
+    publishReserved slot = bounded peer $ withMVar (pPublication peer) $ \_ -> mask $ \restore -> do
+      (ident, pending) <- atomically (reserveCall peer ctx local slot) `catch` \(err :: PublicError) -> do
+        when (errorCode err == "identifier_exhausted") (finish peer (CloseError 4011 "request serials exhausted"))
+        throwIO err
+      let frame = makeFrame ident
+          publish = if not immediate then enqueue peer frame else do
+            when (L.length (encode frame) > fromIntegral (maxFrameBytes (pOptions peer)))
+              (throwIO (failure "frame_too_large" "frame exceeds configured limit"))
+            admitted <- atomically $ do
+              openSTM peer
+              outgoing <- readTVar (pOutgoing peer)
+              if outgoingData outgoing >= queueCapacity (pOptions peer) then pure False else do
+                writeTVar (pOutgoing peer) outgoing {outgoingFrames = outgoingFrames outgoing S.|> (frame, Nothing), outgoingData = outgoingData outgoing + 1}
+                pure True
+            unless admitted (finish peer (CloseError 1008 "Wire queue full") >> throwIO WireClosed)
+      restore publish `onException` completePending peer ident pending
+      pure (ident, pending, frame)
+
+releaseSlot :: Peer -> TVar Bool -> STM ()
+releaseSlot peer slot = do
+  released <- readTVar slot
+  unless released $ do
+    writeTVar slot True
+    modifyTVar' (pCallSlots peer) (subtract 1)
+
+reserveCall :: Peer -> CallContext -> Maybe (ReturnAddress, Text) -> TVar Bool -> STM (Text, PendingCall)
+reserveCall peer ctx local slot = do
   openSTM peer
   cancelled <- not <$> isEmptyTMVar (contextCancelled ctx)
   when cancelled (throwSTM (failure "cancelled" "caller cancelled"))
   pending <- readTVar (pPending peer)
-  when (M.size pending >= maxPendingRequests (pOptions peer)) (throwSTM (failure "busy" "too many outstanding requests"))
   calls <- readTVar (pWireCalls peer)
   forM_ local $ \(address, localID) ->
     when (any (\(WireCall a i _ _) -> a == address && i == localID) calls)
       (throwSTM (failure "invalid_message" "duplicate active Wire request identifier"))
-  next <- (+1) <$> readTVar (pCounter peer)
+  previous <- readTVar (pCounter peer)
+  when (previous == 9223372036854775807) (throwSTM (failure "identifier_exhausted" "create a new peer before further calls"))
+  let next = previous + 1
   writeTVar (pCounter peer) next
   let ident = (if pRole peer == Client then "c:" else "s:") <> T.pack (show next)
-  entry <- PendingCall <$> newEmptyTMVar <*> newTVar False <*> newTVar False <*> newTVar False
+  entry <- PendingCall <$> newEmptyTMVar <*> newTVar False <*> newTVar False <*> newTVar False <*> pure slot
   writeTVar (pPending peer) (M.insert ident entry pending)
   forM_ local $ \(address, localID) -> writeTVar (pWireCalls peer) (WireCall address localID ident entry : calls)
   pure (ident, entry)
@@ -324,6 +370,7 @@ retirePending peer ident pending = do
   completed <- readTVar (pendingCompleted pending)
   queued <- readTVar (pendingCancelQueued pending)
   when (completed && not queued) $ do
+    releaseSlot peer (pendingSlot pending)
     modifyTVar' (pPending peer) (M.delete ident)
     modifyTVar' (pWireCalls peer) (filter (\(WireCall _ _ physical _) -> physical /= ident))
 
@@ -414,8 +461,7 @@ incomingRequest peer frame = do
   admitted <- atomically $ do
     openSTM peer
     incoming <- readTVar (pIncoming peer)
-    if M.member ident incoming then throwSTM (CloseError 4011 "duplicate open request")
-    else if M.size incoming >= maxConcurrentHandlers (pOptions peer) then pure False
+    if M.size incoming >= maxConcurrentHandlers (pOptions peer) then pure False
     else writeTVar (pIncoming peer) (M.insert ident ctx incoming) >> pure True
   if not admitted then respond ["error" .= publicErrorValue (failure "busy" "too many active handlers")]
   else spawn peer $ guardLoop peer $ flip finally (atomically (modifyTVar' (pIncoming peer) (M.delete ident))) $ do
@@ -535,27 +581,14 @@ peerWire peer = Endpoint
       case str (get "kind" frame) of
         "request" -> mask_ $ do
           returnTo <- maybe (throwIO (failure "invalid_message" "Wire request requires a return address")) pure address
-          admitted <- atomically $ do
-            (physicalID, pending) <- reserveCall peer ctx (Just (returnTo, ident))
-            outgoing <- readTVar (pOutgoing peer)
-            if outgoingData outgoing >= queueCapacity (pOptions peer) then do
-              writeTVar (pendingCompleted pending) True
-              retirePending peer physicalID pending
-              pure Nothing
-            else do
-              let request = Object (KM.insert "id" (String physicalID) (case routed of Object xs -> xs; _ -> KM.empty))
-              when (L.length (encode request) > fromIntegral (maxFrameBytes (pOptions peer)))
-                (throwSTM (failure "frame_too_large" "frame exceeds configured limit"))
-              writeTVar (pOutgoing peer) outgoing {outgoingFrames = outgoingFrames outgoing S.|> (request, Nothing), outgoingData = outgoingData outgoing + 1}
-              pure (Just (physicalID, pending, request))
-          case admitted of
-            Nothing -> finish peer (CloseError 1008 "Wire queue full") >> throwIO WireClosed
-            Just (physicalID, pending, request) -> spawnCleanup peer $ do
-              result <- try (awaitPending peer ctx physicalID pending request)
-              let trace = [(key, value) | key <- ["traceparent", "tracestate"], Just value <- [lookup key (members frame)]]
-                  answer = object (["version" .= (1::Int), "kind" .= ("response"::Text), "id" .= ident] ++ trace ++ either (\(e::PublicError) -> ["error" .= publicErrorValue e]) (\v -> ["result" .= v]) result)
-              typedAnswer <- either (throwIO . failure "invalid_message") pure (parseWireFrame answer)
-              send (returnWire returnTo) [] (Message typedAnswer Nothing) `catch` \(_ :: SomeException) -> pure ()
+          (physicalID, pending, request) <- publishCall peer ctx (Just (returnTo, ident)) True $ \physicalID ->
+            Object (KM.insert "id" (String physicalID) (case routed of Object xs -> xs; _ -> KM.empty))
+          spawnCleanup peer $ do
+            result <- try (awaitPending peer ctx physicalID pending request)
+            let trace = [(key, value) | key <- ["traceparent", "tracestate"], Just value <- [lookup key (members frame)]]
+                answer = object (["version" .= (1::Int), "kind" .= ("response"::Text), "id" .= ident] ++ trace ++ either (\(e::PublicError) -> ["error" .= publicErrorValue e]) (\v -> ["result" .= v]) result)
+            typedAnswer <- either (throwIO . failure "invalid_message") pure (parseWireFrame answer)
+            send (returnWire returnTo) [] (Message typedAnswer Nothing) `catch` \(_ :: SomeException) -> pure ()
         "cancel" -> do
           returnTo <- maybe (throwIO (failure "invalid_message" "Wire cancel requires a return address")) pure address
           atomically $ do

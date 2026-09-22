@@ -131,6 +131,9 @@ class Peer:
         self.subprotocol = getattr(connection, "subprotocol", "")
         self._prefix = "c:" if role == "client" else "s:"
         self._next = 0
+        self._received_serial = 0
+        self._request_publication = asyncio.Lock()
+        self._call_slots = 0
         self._pending, self._incoming, self._handlers = {}, {}, {}
         self._listeners = []
         self._outgoing = asyncio.Queue(self.options.queue_capacity)
@@ -314,20 +317,11 @@ class Peer:
             raise PublicError("invalid_options", "timeout_ms must be positive")
         if self._closed.is_set():
             raise PublicError("disconnected", "peer is disconnected")
-        if len(self._pending) >= self.options.max_pending_requests:
+        if self._call_slots >= self.options.max_pending_requests:
             raise PublicError("busy", "outstanding call limit reached")
-        self._next += 1
-        if self._next > 9007199254740991:
-            raise PublicError("identifier_exhausted", "create a new peer before further calls")
-        request_id = self._prefix + str(self._next)
-        trace = (
-            trace_override if trace_override is not None else self.options.propagator.inject(context or _context.get())
-        )
-        future = asyncio.get_running_loop().create_future()
-        # A shutdown may settle a caller which is still unwinding a send.
-        future.add_done_callback(lambda done: None if done.cancelled() else done.exception())
-        pending = _Pending(future, method, trace)
+        self._call_slots += 1
         accepted = False
+        request_id = None
 
         def admitted():
             nonlocal accepted
@@ -335,24 +329,51 @@ class Peer:
             if on_admitted is not None:
                 on_admitted()
 
-        self._pending[request_id] = pending
-        self._observe(
-            "request.started", id=request_id, method=method, incoming=False, trace=trace, family=self._family(method)
-        )
         try:
             async with asyncio.timeout(timeout_ms / 1000):
-                envelope = self._carriage(
-                    {
-                        "version": 1,
-                        "kind": "request",
-                        "id": request_id,
-                        "method": method,
-                        "params": {} if params is ABSENT else params,
-                        **trace,
-                    },
-                    meta,
-                )
-                await self._send(envelope, method, accepted=admitted, immediate=immediate)
+                if immediate and self._request_publication.locked():
+                    await self._end(4011, "consumer stalled", True)
+                    raise PublicError("busy", "request publication is occupied")
+                # Reservation and queue admission are one ordered operation.
+                # asyncio.Lock also prevents a new arrival overtaking waiters.
+                async with self._request_publication:
+                    if self._closed.is_set():
+                        raise PublicError("disconnected", "peer is disconnected")
+                    if self._next == 9007199254740991:
+                        await self._end(4011, "request identifier exhausted", True)
+                        raise PublicError("identifier_exhausted", "create a new peer before further calls")
+                    self._next += 1
+                    request_id = self._prefix + str(self._next)
+                    trace = (
+                        trace_override
+                        if trace_override is not None
+                        else self.options.propagator.inject(context or _context.get())
+                    )
+                    future = asyncio.get_running_loop().create_future()
+                    # A shutdown may settle a caller which is still unwinding a send.
+                    future.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+                    pending = _Pending(future, method, trace)
+                    self._pending[request_id] = pending
+                    self._observe(
+                        "request.started",
+                        id=request_id,
+                        method=method,
+                        incoming=False,
+                        trace=trace,
+                        family=self._family(method),
+                    )
+                    envelope = self._carriage(
+                        {
+                            "version": 1,
+                            "kind": "request",
+                            "id": request_id,
+                            "method": method,
+                            "params": {} if params is ABSENT else params,
+                            **trace,
+                        },
+                        meta,
+                    )
+                    await self._send(envelope, method, accepted=admitted, immediate=immediate)
                 return await asyncio.shield(future)
         except (TimeoutError, asyncio.CancelledError) as error:
             if self._pending.pop(request_id, None) is not None:
@@ -362,14 +383,16 @@ class Peer:
                 future.cancel()
                 if accepted:
                     self._cancel_request(request_id, trace, method)
-                if timed_out:
-                    raise PublicError(code, "call deadline exceeded; its outcome may be unknown") from error
+            if isinstance(error, TimeoutError):
+                raise PublicError("request_timeout", "call deadline exceeded; its outcome may be unknown") from error
             raise
         except Exception as error:
             if self._pending.pop(request_id, None) is not None:
                 self._ended(request_id, pending, False, "error", getattr(error, "code", "invalid_message"))
                 future.cancel()
             raise
+        finally:
+            self._call_slots -= 1
 
     async def emit(self, event, data=ABSENT, *, context=None, meta=ABSENT):
         await self._emit(event, data, context=context, meta=meta)
@@ -571,9 +594,11 @@ class Peer:
     async def _request(self, envelope, raw):
         request_id, method = envelope["id"], envelope["method"]
         trace = self._trace(envelope)
-        if request_id in self._incoming:
-            await self._end(4011, "incoming request id is already active", True)
+        serial = int(request_id[2:])
+        if serial <= self._received_serial:
+            await self._end(4011, "incoming request serial did not increase", True)
             return
+        self._received_serial = serial
         if len(self._incoming) >= self.options.max_concurrent_handlers:
             await self._send(
                 {

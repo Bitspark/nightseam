@@ -205,6 +205,8 @@ struct Inner {
     role: Role,
     options: Options,
     next: AtomicU64,
+    request_serial: tokio::sync::Mutex<u64>,
+    call_slots: Arc<tokio::sync::Semaphore>,
     stop: CancellationToken,
     ended: Mutex<Option<Close>>,
     outgoing: mpsc::Sender<Vec<u8>>,
@@ -256,6 +258,8 @@ impl Peer {
             conn,
             role,
             next: AtomicU64::new(0),
+            request_serial: tokio::sync::Mutex::new(0),
+            call_slots: Arc::new(tokio::sync::Semaphore::new(options.max_pending_requests)),
             stop: CancellationToken::new(),
             ended: Mutex::new(None),
             outgoing,
@@ -420,24 +424,17 @@ impl Peer {
                 return call;
             }
         };
-        let id = format!(
-            "{}{}",
-            self.inner.role.prefix(),
-            self.inner.next.fetch_add(1, Ordering::Relaxed) + 1
-        );
-        {
-            let mut pending = self.inner.pending.lock().unwrap();
-            if pending.len() >= self.inner.options.max_pending_requests {
+        let slot = match self.inner.call_slots.clone().try_acquire_owned() {
+            Ok(slot) => slot,
+            Err(_) => {
                 reject(PublicError::new("busy", "Outstanding call limit reached"));
                 return call;
             }
-            pending.insert(id.clone(), answer.clone());
-        }
+        };
         let inner = self.inner.clone();
-        let frame = Wire {
+        let mut frame = Wire {
             version: 1,
             kind: "request".into(),
-            id: id.clone(),
             method: method.into(),
             params: default_payload(params, "{}"),
             trace: trace.clone(),
@@ -450,8 +447,29 @@ impl Peer {
                 .unwrap_or(inner.options.request_timeout)
                 .min(inner.options.request_timeout);
         tokio::spawn(async move {
+            let _slot = slot;
+            let mut id = None;
             let enqueued = tokio::select! {
-                result=inner.enqueue(frame,&cancel)=>result,
+                result=async {
+                    // One FIFO gate owns reservation through queue admission.
+                    // A refused encoding still spends its reserved serial.
+                    let mut serial = inner.request_serial.lock().await;
+                    if *serial == i64::MAX as u64 {
+                        inner.finish(Close::new(4011, "request serials exhausted"), true);
+                        return Err(PublicError::new("identifier_exhausted", "Create a new peer before further calls"));
+                    }
+                    {
+                        let mut pending = inner.pending.lock().unwrap();
+                        *serial += 1;
+                        let reserved = format!("{}{}", inner.role.prefix(), *serial);
+                        pending.insert(reserved.clone(), answer.clone());
+                        frame.id = reserved.clone();
+                        id = Some(reserved);
+                    }
+                    inner.enqueue(frame,&cancel).await
+                }=>result,
+                _=inner.stop.cancelled()=>Err(disconnected()),
+                _=cancel.cancelled()=>Err(cancelled()),
                 _=ctx.cancelled()=>Err(cancelled()),
                 _=tokio::time::sleep_until(deadline)=>Err(timed_out()),
             };
@@ -480,13 +498,15 @@ impl Peer {
                     }
                 }
             };
-            inner.pending.lock().unwrap().remove(&id);
+            if let Some(id) = &id {
+                inner.pending.lock().unwrap().remove(id);
+            }
             answer.send_replace(Some(outcome));
             if cancel_remote {
                 let frame = Wire {
                     version: 1,
                     kind: "cancel".into(),
-                    id,
+                    id: id.expect("an admitted request has a serial"),
                     trace,
                     ..Wire::default()
                 };
@@ -767,6 +787,7 @@ impl Inner {
         }
     }
     async fn read_loop(self: Arc<Self>, events: mpsc::Sender<Wire>) {
+        let mut received_serial = String::new();
         loop {
             let received = tokio::select! {biased;_=self.stop.cancelled()=>return,result=self.conn.receive()=>result};
             let data = match received {
@@ -805,7 +826,17 @@ impl Inner {
                         cancel.cancel();
                     }
                 }
-                "request" => self.start_request(frame).await,
+                "request" => {
+                    // Validated decimals have no leading zero. Comparing their
+                    // lengths and digits accepts the full 20-digit wire range.
+                    let serial = &frame.id[2..];
+                    if (serial.len(), serial) <= (received_serial.len(), received_serial.as_str()) {
+                        self.finish(Close::new(4011, "request serial did not increase"), true);
+                        return;
+                    }
+                    received_serial = serial.to_owned();
+                    self.start_request(frame).await;
+                }
                 "event" => {
                     let result = tokio::select! {_=self.stop.cancelled()=>return,result=timeout(self.options.write_timeout,events.send(frame))=>result};
                     if !matches!(result, Ok(Ok(()))) {
@@ -818,13 +849,6 @@ impl Inner {
         }
     }
     async fn start_request(self: &Arc<Self>, frame: Wire) {
-        if self.incoming.lock().unwrap().contains_key(&frame.id) {
-            self.finish(
-                Close::new(4011, "duplicate active duplex request identifier"),
-                true,
-            );
-            return;
-        }
         let handler = self
             .handlers
             .lock()
@@ -1141,5 +1165,71 @@ impl bitwire::Endpoint for PeerWire {
     fn close(&self, code: u16, reason: &str) -> Result<(), PublicError> {
         self.0.close_with(code, reason);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod serial_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn serial_exhaustion_refuses_before_wrapping_and_closes() {
+        let (_raw, carrier) = nightseam_duplex::pipe(0);
+        let peer = Peer::over(carrier, Role::Client, Options::default()).unwrap();
+        *peer.inner.request_serial.lock().await = i64::MAX as u64;
+        let error = peer
+            .call("overflow", Payload::Absent)
+            .result()
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "identifier_exhausted");
+        assert!(error.is_unpublished());
+        assert_eq!(peer.wait_closed().await.code, 4011);
+        assert_eq!(*peer.inner.request_serial.lock().await, i64::MAX as u64);
+    }
+
+    #[tokio::test]
+    async fn cancellation_can_leave_the_publication_gate_without_a_reservation() {
+        let (_raw, carrier) = nightseam_duplex::pipe(0);
+        let peer = Peer::over(carrier, Role::Client, Options::default()).unwrap();
+        let gate = peer.inner.request_serial.lock().await;
+        let call = peer.call("waiting", Payload::Absent);
+        tokio::task::yield_now().await;
+        call.cancel();
+        let error = timeout(Duration::from_secs(1), call.result())
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.code, "cancelled");
+        assert!(error.is_unpublished());
+        assert_eq!(*gate, 0);
+        drop(gate);
+        peer.close();
+    }
+    #[tokio::test]
+    async fn publication_waiters_count_toward_the_pending_limit() {
+        let (_raw, carrier) = nightseam_duplex::pipe(0);
+        let peer = Peer::over(
+            carrier,
+            Role::Client,
+            Options {
+                max_pending_requests: 1,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        let gate = peer.inner.request_serial.lock().await;
+        let first = peer.call("waiting", Payload::Absent);
+        let error = peer
+            .call("over-budget", Payload::Absent)
+            .result()
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "busy");
+        assert!(error.is_unpublished());
+        first.cancel();
+        let _ = first.result().await;
+        drop(gate);
+        peer.close();
     }
 }

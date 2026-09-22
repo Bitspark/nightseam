@@ -6,6 +6,15 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Added
+
+- A figure of the projection stages and their interfaces — the declaration,
+  its rendering, the generated packages, the native model, the adapter
+  boundary, the wire and the dispatcher, the layers over the peer, the peer
+  and the seam, as two realizations meeting at the frames — with a page that
+  reads it stage by stage and links each stage to the page that documents it
+  (`docs/architecture.md`).
+
 ### Fixed
 
 - The release workflow refuses in its first two minutes what it can — the
@@ -21,10 +30,15 @@ are one number. Entries are in the words of the commits that landed them.
   tier, loads every script, runs the script tests and the link,
   documentation and table checks, and names on the pull request a package
   the tree would publish for the first time.
+- The registry round trip waits for the abbreviated document an install
+  reads, which npm serves from an index that lags the full one for a name it
+  has never served; installs the outsider consumer with no credential and no
+  user configuration, where before it carried whatever token the runner held;
+  and reaches its nested-module consumers — the table it read before the
+  table's declaration is a function, the script's steps are importable, and
+  a script test exercises that step without a registry.
 - duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.
-
 - conformance: attribute missing pair capabilities to their participant and report nightly failures without assuming a cause.
-
 - All eight language ports use Bitwire wire types directly. Remove Nightseam
   aliases, re-exports and duplicate declarations; generated adapters import
   Bitwire, and native ports separate send access from endpoint attachment and
