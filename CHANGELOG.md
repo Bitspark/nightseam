@@ -21,6 +21,12 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- A page of the domain Nightseam targets, modeled as a typed graph in
+  bitsystem's typed-wire vocabulary — the node types in three kinds, the
+  edges with their laws, the rewrite rules that close the instance graph,
+  the five identities as graph elements, one table mapping each concept to
+  what the tree realizes, and the choices filed for a verdict
+  (`docs/domain.md`).
 - A workflow that files an issue for every workflow run that fails after its
   first five minutes — the run, the job and step, the minute it failed at,
   the last lines of the step, and the question which check would have

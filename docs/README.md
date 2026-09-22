@@ -29,6 +29,17 @@ interface at each stage and the page that documents it.
 | --- | --- |
 | [architecture.md](architecture.md) | the figure, read stage by stage: what each stage is, its Go and TypeScript surface, where it is described, and how the stages relate |
 
+## The domain it targets, as a graph — `domain.md`
+
+Beside the figure: the domain Nightseam is for — typed access to models
+through wires, across languages and carriers — modeled as a typed graph in
+bitsystem's typed-wire vocabulary, with one table mapping each concept to
+what the tree realizes today and the choices that still need a verdict.
+
+| page | what |
+| --- | --- |
+| [domain.md](domain.md) | the graph: ModelContract → ModelType → ModelInstance and WireContract → WireType → Wire, adapters as code with their law, the edges and the law behind each, the rewrite rules that close the instance graph, the five identities as graph elements, the mapping onto the tree, the open choices |
+
 ## Where it is going — `goals/`
 
 The north stars, abstract and never done: what Nightseam is for, in one
