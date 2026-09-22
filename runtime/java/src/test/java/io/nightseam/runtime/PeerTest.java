@@ -24,6 +24,7 @@ public final class PeerTest {
         closeDuringWrite();
         closeFromWriteObservation();
         Path root=Path.of(args[0]); int rows=0;
+        SerialTest.run(root);
         var table=Json.object(Json.parse(Files.readAllBytes(root.resolve("conformance/tables/frames.json"))));
         for(Object item:Json.array(table.get("rows"))) {
             var row=Json.object(item); String role=(String)row.getOrDefault("to","server"); if(role.equals("either")) role="server";
