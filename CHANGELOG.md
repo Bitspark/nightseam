@@ -6,6 +6,17 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Added
+
+- A workflow that files an issue for every workflow run that fails after its
+  first five minutes — the run, the job and step, the minute it failed at,
+  the last lines of the step, and the question which check would have
+  refused it in under five — on the next release's milestone under the
+  `slow-failure` label; a run that fails within five minutes files nothing,
+  and a repeat of the same failure comments on the open issue. The decision
+  is a function of the run's JSON, held by a script test on runs no workflow
+  has produced.
+
 ### Fixed
 
 - duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.

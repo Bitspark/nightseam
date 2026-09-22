@@ -1,0 +1,38 @@
+# A workflow run that failed after its first five minutes leaves an issue:
+# the run, the job and step that failed, the minute it failed at, the last
+# lines of that step, and one question — what check would have refused this
+# in under five minutes? A run that failed within five minutes files nothing,
+# and a repeat of the same failure comments on the open issue. The v0.6.0
+# publication went red at minute 45 for two seconds-cheap defects of its own
+# scripts (#611); the discipline is that a red run nobody watched leaves a
+# work item whose done-when is a check that fires earlier, never a paragraph.
+# COLLABORATION.md, *A lesson is a check, never a paragraph*; #619.
+#
+# It runs from the default branch when one of the named workflows completes,
+# on any branch, and decides in scripts/slow-failure.mjs, whose tests hold
+# the decision on runs no workflow has produced.
+name: slow failure
+
+on:
+  workflow_run:
+    workflows: [ci, release, nightly, hygiene, issue plan]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  ask:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - run: node scripts/slow-failure.mjs "${{ github.event.workflow_run.id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
