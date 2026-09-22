@@ -7,6 +7,7 @@ import (
 	cellclient "example.test/generated/api/go/cell-client"
 	cell "example.test/generated/api/go/cell-protocol"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
@@ -18,7 +19,7 @@ import (
 )
 
 type wireCarrierSide struct {
-	recordTarget duplex.Endpoint
+	recordTarget bitwire.Endpoint
 	recordRead   func(context.Context) ([]any, error)
 	exercise     func(context.Context) (map[string]any, error)
 	inspect      func(context.Context) (map[string]any, error)
@@ -103,7 +104,7 @@ func wireCarrierEnvironment(peer *runtime.Peer, h *wireCarrierHandle, needsConte
 	side.release = func() error { return scope.Owner().Release() }
 	return environment, side, nil
 }
-func wireCarrierServer(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (duplex.Endpoint, error) {
+func wireCarrierServer(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (bitwire.Endpoint, error) {
 	switch slot {
 	case "string":
 		return wireSlotServer(peer, h, wireStrings())
@@ -126,7 +127,7 @@ func wireCarrierServer(peer *runtime.Peer, h *wireCarrierHandle, presentation, s
 	}
 	return nil, fmt.Errorf("unknown wire slot %s", slot)
 }
-func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (duplex.Endpoint, error) {
+func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (bitwire.Endpoint, error) {
 	environment, side, err := wireCarrierEnvironment(peer, h, values.adapter.NeedsContext)
 	if err != nil {
 		return nil, err
@@ -178,7 +179,7 @@ func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 	h.side = side
 	return wire, nil
 }
-func wireCarrierClient(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (duplex.Endpoint, error) {
+func wireCarrierClient(peer *runtime.Peer, h *wireCarrierHandle, presentation, slot string) (bitwire.Endpoint, error) {
 	switch slot {
 	case "string":
 		return wireSlotClient(peer, h, wireStrings())
@@ -201,7 +202,7 @@ func wireCarrierClient(peer *runtime.Peer, h *wireCarrierHandle, presentation, s
 	}
 	return nil, fmt.Errorf("unknown wire slot %s", slot)
 }
-func wireSlotClient[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (duplex.Endpoint, error) {
+func wireSlotClient[T any](peer *runtime.Peer, h *wireCarrierHandle, values wireValues[T]) (bitwire.Endpoint, error) {
 	environment, side, err := wireCarrierEnvironment(peer, h, values.adapter.NeedsContext)
 	if err != nil {
 		return nil, err
@@ -277,7 +278,9 @@ func (t *testee) wireCarrierDispatch(op string, raw map[string]json.RawMessage) 
 	switch op {
 	case "gen.wire_serve":
 		h := &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}
-		build := func(peer *runtime.Peer) (duplex.Endpoint, error) { return wireCarrierServer(peer, h, presentation, slot) }
+		build := func(peer *runtime.Peer) (bitwire.Endpoint, error) {
+			return wireCarrierServer(peer, h, presentation, slot)
+		}
 		options := runtime.ServerOptions{Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil }, CheckOrigin: func(*http.Request) bool { return true }}
 		var handler http.Handler
 		var err error
@@ -314,7 +317,9 @@ func (t *testee) wireCarrierDispatch(op string, raw map[string]json.RawMessage) 
 		return map[string]any{"handle": t.mint("wire", h), "url": "ws://" + listener.Addr().String()}, nil
 	case "gen.wire_dial":
 		h := &wireCarrierHandle{ready: make(chan struct{}), observer: &wireAllocationObserver{}}
-		build := func(peer *runtime.Peer) (duplex.Endpoint, error) { return wireCarrierClient(peer, h, presentation, slot) }
+		build := func(peer *runtime.Peer) (bitwire.Endpoint, error) {
+			return wireCarrierClient(peer, h, presentation, slot)
+		}
 		digest, err := wireCarrierDigest(slot)
 		if err != nil {
 			return nil, err
@@ -401,11 +406,11 @@ func wireCarrierPrepare(options runtime.Options, h *wireCarrierHandle, presentat
 	return options
 }
 
-func wirePhysicalView(peer *runtime.Peer, presentation string, observer *wireAllocationObserver) (duplex.Endpoint, func(), error) {
+func wirePhysicalView(peer *runtime.Peer, presentation string, observer *wireAllocationObserver) (bitwire.Endpoint, func(), error) {
 	selected := peer.Wire()
 	cleanup := func() {}
 	if presentation != "local" {
-		mounted := duplex.Mount(map[string]duplex.Endpoint{"route": selected})
+		mounted := duplex.Mount(map[string]bitwire.Endpoint{"route": selected})
 		dispatch, err := runtime.NewDispatcher(mounted)
 		if err != nil {
 			_ = mounted.Close(1000, "")

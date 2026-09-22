@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"reflect"
@@ -17,7 +18,6 @@ import (
 	combinatorbinding "example.test/generated/api/go/combinator-binding"
 	combinatorclient "example.test/generated/api/go/combinator-client"
 	combinator "example.test/generated/api/go/combinator-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -151,7 +151,7 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 			}},
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err
@@ -331,7 +331,7 @@ func (t *testee) forwardingDispatch(op string, raw map[string]json.RawMessage) (
 	return nil, fail("unsupported", "no such forwarding op: %s", op)
 }
 
-func forwardingClientWire(peer *runtime.Peer) (duplex.Endpoint, error) {
+func forwardingClientWire(peer *runtime.Peer) (bitwire.Endpoint, error) {
 	environment, err := fixtureLiveContext(peer, runtime.Options{})
 	if err != nil {
 		return nil, err

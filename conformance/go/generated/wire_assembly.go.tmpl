@@ -4,7 +4,7 @@ package main
 // wires, models, and explicitly supplied adapter contexts.
 import (
 	"context"
-	"github.com/Bitspark/nightseam/duplex/go"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 	"net/http"
@@ -36,7 +36,7 @@ func fixtureDispatcher(peer *runtime.Peer) (*runtime.Dispatcher, error) {
 	return dispatch, nil
 }
 
-type fixtureWireFactory func(*runtime.Peer) (duplex.Endpoint, error)
+type fixtureWireFactory func(*runtime.Peer) (bitwire.Endpoint, error)
 
 func fixturePrepare(options runtime.Options, build fixtureWireFactory) runtime.Options {
 	prepare := options.Prepare

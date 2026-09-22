@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"reflect"
@@ -13,7 +14,6 @@ import (
 	binding "example.test/generated/api/go/proof-binding"
 	client "example.test/generated/api/go/proof-client"
 	proof "example.test/generated/api/go/proof-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -102,7 +102,7 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 		handler, err := fixtureHandler(runtime.ServerOptions{
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			s.peers = append(s.peers, peer)
 			return binding.ToWire(func(remote proofRemote) (proofClient, error) {
 				s.remote <- &remote
@@ -122,7 +122,7 @@ func (t *testee) proofDispatch(op string, raw map[string]json.RawMessage) (any, 
 	case "gen.proof_dial":
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &proofDialled{events: make(chan proof.RichPart, 16), cancel: cancel}
-		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			return client.ToWire(func(remote proofClient) (proofRemote, error) {
 				d.client = remote
 				return proofRemote{Events: proofClientEvents{d}}, nil

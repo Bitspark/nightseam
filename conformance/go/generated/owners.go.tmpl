@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	ownerclient "example.test/generated/api/go/owners-client"
 	owners "example.test/generated/api/go/owners-protocol"
 	worker "example.test/generated/api/go/worker-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -144,7 +144,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 				s.server.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
 				return
 			}},
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err
@@ -172,7 +172,7 @@ func (t *testee) ownersDispatch(op string, raw map[string]json.RawMessage) (any,
 		peer, err := fixtureDial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) {
 			d.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: imports})
 			return
-		}}}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}}}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err

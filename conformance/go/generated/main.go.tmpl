@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"os"
@@ -24,7 +25,6 @@ import (
 	binding "example.test/generated/api/go/probe-binding"
 	client "example.test/generated/api/go/probe-client"
 	protocol "example.test/generated/api/go/probe-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -296,7 +296,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 				default:
 				}
 			},
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			return binding.ToWire(func(remote protocol.Client) (protocol.Server, error) {
 				s.mu.Lock()
 				s.remote = &remote
@@ -320,7 +320,7 @@ func (t *testee) dispatch(op string, raw map[string]json.RawMessage) (any, error
 		// long as the client does.
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &dialled{changed: make(chan protocol.Payload, 16), notificationReady: make(chan struct{}, 1), cancel: cancel}
-		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			return client.ToWire(func(remote protocol.Server) (protocol.Client, error) {
 				d.client = remote
 				return protocol.Client{Methods: clientHandler{}, Events: probeClientEvents{d}}, nil

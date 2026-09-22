@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"sort"
@@ -12,7 +13,6 @@ import (
 	workerbinding "example.test/generated/api/go/worker-binding"
 	workerclient "example.test/generated/api/go/worker-client"
 	worker "example.test/generated/api/go/worker-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -129,7 +129,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 			Authenticate: func(r *http.Request) (context.Context, error) { return r.Context(), nil },
 			CheckOrigin:  func(*http.Request) bool { return true },
 			OnConnect:    func(*runtime.Peer) { close(s.server.attached) },
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err
@@ -155,7 +155,7 @@ func (t *testee) liveDispatch(op string, raw map[string]json.RawMessage) (any, e
 	case "gen.live_dial":
 		ctx, cancel := context.WithCancel(context.Background())
 		d := &liveDialled{cancel: cancel}
-		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		peer, err := fixtureDial(ctx, str(raw, "url"), runtime.DialOptions{}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{})
 			if err != nil {
 				return nil, err

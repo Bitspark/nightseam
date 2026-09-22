@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net"
 	"net/http"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	binding "example.test/generated/api/go/publication-binding"
 	client "example.test/generated/api/go/publication-client"
 	publication "example.test/generated/api/go/publication-protocol"
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
@@ -348,7 +348,7 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 				return
 			}},
 			OnConnect: func(*runtime.Peer) { close(h.ready) },
-		}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
 			if err != nil {
 				return nil, err
@@ -374,7 +374,7 @@ func (t *testee) publicationDispatch(op string, raw map[string]json.RawMessage) 
 		_, err := fixtureDial(context.Background(), str(raw, "url"), runtime.DialOptions{Options: runtime.Options{MaxFrameBytes: 1024, Prepare: func(peer *runtime.Peer) (err error) {
 			r.scope, err = live.Over(peer, live.Options{MaxExports: 4, MaxImports: 4})
 			return
-		}}}, func(peer *runtime.Peer) (duplex.Endpoint, error) {
+		}}}, func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 			environment, err := fixtureLiveContext(peer, runtime.Options{MaxFrameBytes: 1024})
 			if err != nil {
 				return nil, err
