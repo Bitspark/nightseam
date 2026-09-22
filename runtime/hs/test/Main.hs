@@ -19,6 +19,7 @@ import System.Timeout
 main :: IO ()
 main = do
   serials
+  publicationBudget
   (a,b) <- pipe 1048576
   client <- newPeer a Client defaultOptions
   server <- newPeer b Server defaultOptions
@@ -138,3 +139,29 @@ serials = do
     closePeer peer
     mapM_ waitCatch calls
     unless (and (zipWith (<) ids (drop 1 ids))) (error "request publication inverted serials")
+
+
+publicationBudget :: IO ()
+publicationBudget = do
+  sending <- newEmptyTMVarIO
+  release <- newEmptyTMVarIO
+  let carrier = Connection
+        { sendFrame = \_ -> atomically (void (tryPutTMVar sending ())) >> atomically (readTMVar release)
+        , receiveFrame = atomically retry
+        , closeConnection = \_ _ -> atomically (void (tryPutTMVar release ()))
+        , abortConnection = atomically (void (tryPutTMVar release ()))
+        , connectionSubprotocol = ""
+        }
+  peer <- newPeer carrier Client defaultOptions { maxPendingRequests = 1, queueCapacity = 1, writeTimeoutMs = 1000 }
+  ctx <- newCallContext
+  emit peer ctx "writing" Null
+  atomically (readTMVar sending)
+  emit peer ctx "queued" Null
+  first <- async (call peer ctx "waiting" Null)
+  threadDelay 20000
+  second <- timeout 200000 (try (call peer ctx "over-budget" Null) :: IO (Either PublicError Value))
+  atomically (void (tryPutTMVar release ()))
+  closePeer peer
+  _ <- waitCatch first
+  unless (case second of Just (Left err) -> errorCode err == "busy"; _ -> False)
+    (error "publication waiters escaped the pending budget")
