@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -56,8 +56,22 @@ function installedFixture(t) {
       result.write(`${directory}/dist/${file}.d.ts`, "export declare const value: number;\n");
     }
   }
-  symlinkSync(join(root, "node_modules/@types"), join(result.consumer, "node_modules/@types"), "junction");
-  const command = (args, options) => execFileSync(process.execPath, args, { ...options, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  // The consumer's own `@types/node`, a stub: the tsconfig the smoke writes
+  // names the type library, and a junction to the workspace's copy fails
+  // on the GitHub Windows runner, whose temp and checkout are on different
+  // drives (#624). The fixture asks nothing of Node's types.
+  result.write("node_modules/@types/node/package.json", JSON.stringify({ name: "@types/node", version: "0.0.0", types: "index.d.ts" }));
+  result.write("node_modules/@types/node/index.d.ts", "// A stub for the fixture; the smoke's imports use nothing of it.\nexport {};\n");
+  // A command that fails carries its output in the failure, so that a
+  // runner's log says what tsc or node said and not only that it exited.
+  const command = (args, options) => {
+    try {
+      return execFileSync(process.execPath, args, { ...options, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      error.message += `\n--- stdout ---\n${error.stdout ?? ""}\n--- stderr ---\n${error.stderr ?? ""}`;
+      throw error;
+    }
+  };
   const logs = [];
   const runners = {
     pnpm: (args, options) => command([join(root, "node_modules/typescript/lib/tsc.js"), ...args.slice(2)], options),
