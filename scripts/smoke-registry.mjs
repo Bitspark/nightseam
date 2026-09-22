@@ -39,11 +39,11 @@ const step = message => console.log("round trip:", message);
 /**
  * The environment the outsider installs in: no credential and no user
  * configuration, because the question is whether an installation with
- * nothing laid for it resolves. setup-node exports a placeholder
- * NODE_AUTH_TOKEN for the .npmrc it writes when none is given, a first
- * publish sets a real one, and a maintainer's .npmrc may route a scope
- * elsewhere; pnpm sends whatever it is handed, and each answers a different
- * question from the consumer's.
+ * nothing laid for it resolves. setup-node points NPM_CONFIG_USERCONFIG at
+ * an .npmrc whose token line reads NODE_AUTH_TOKEN whether or not the step
+ * set it, a first publish sets a real one, and a maintainer's .npmrc may
+ * route a scope elsewhere; pnpm sends whatever it is handed, and each
+ * answers a different question from the consumer's.
  */
 export function outsiderEnvironment(scratch, base = process.env) {
   const env = { ...base };
