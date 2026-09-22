@@ -28,7 +28,7 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   const manifest = JSON.parse(readFileSync(file, "utf8"));
   manifest.name = "generic-composition-smoke";
   for (const name of Object.keys(manifest.dependencies)) {
-    if (!name.startsWith("@nightseam/")) delete manifest.dependencies[name];
+    if (!name.startsWith("@nightseam/") && name !== "@bitspark/bitwire") delete manifest.dependencies[name];
   }
   for (const directory of readdirSync(join(consumer, "api", "ts"))) {
     const generated = JSON.parse(readFileSync(join(consumer, "api", "ts", directory, "package.json"), "utf8"));
@@ -73,7 +73,7 @@ export function holdGenericComposition({ root, consumer: probe, go, pnpm, run, s
   for (const name of ["compose-cell-client", "compose-cell-binding"]) {
     const directory = join(consumer, "api", "ts", name);
     const generated = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
-    assert.deepEqual(Object.keys(generated.dependencies).filter(name => name !== "@nightseam/duplex" && name !== "@nightseam/runtime" && name !== "@probe/compose-cell-client"), [], `${name}: data-only generic gained a provider or live dependency`);
+    assert.deepEqual(Object.keys(generated.dependencies).filter(name => name !== "@bitspark/bitwire" && name !== "@nightseam/duplex" && name !== "@nightseam/runtime" && name !== "@probe/compose-cell-client"), [], `${name}: data-only generic gained a provider or live dependency`);
     for (const file of readdirSync(join(directory, "src"))) {
       assert.doesNotMatch(readFileSync(join(directory, "src", file), "utf8"), /@nightseam\/live|@probe\/(?:functions|numbers|texts|holder)-/, `${name}/${file}: data-only generic imported live conversion`);
     }
