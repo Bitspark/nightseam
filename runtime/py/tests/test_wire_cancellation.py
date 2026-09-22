@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import Frame, at, encode_path, mount, pipe
+from nightseam.duplex import Frame, encode_path, mount, pipe
 from nightseam.runtime import (
     Options,
     Peer,
@@ -12,6 +12,7 @@ from nightseam.runtime import (
     wire_pair,
 )
 from nightseam.runtime.json import encode_object, loads
+from routing import dispatcher, select_endpoint
 
 
 class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
@@ -25,8 +26,8 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
         if composed:
             access, binding = wire_pair(Options(request_timeout_ms=local_deadline, max_concurrent_handlers=1))
             self.addCleanup(access.close)
-            self.addCleanup(forward_wire(peer.wire(), at(mount({"local": access}), ["local"])))
-            binding = at(mount({"binding": binding}), ["binding"])
+            self.addCleanup(forward_wire(peer.wire(), select_endpoint(mount({"local": access}), ["local"])))
+            binding = select_endpoint(mount({"binding": binding}), ["binding"])
         return near, peer, binding, observations
 
     async def send(self, connection, kind):
@@ -54,7 +55,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
                             raise PublicError(code, "application decision", {"source": "body"})
                         return "completed"
 
-                    handle_wire(binding, ["work"], work)
+                    handle_wire(dispatcher(binding), ["work"], work)
                     await self.send(near, "request")
                     await asyncio.wait_for(entered.wait(), 1)
                     reply = asyncio.create_task(near.receive())
@@ -86,7 +87,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             raise PublicError("declined", "too late")
 
-        handle_wire(binding, ["work"], work)
+        handle_wire(dispatcher(binding), ["work"], work)
         await self.send(near, "request")
         await asyncio.wait_for(entered.wait(), 1)
         try:
@@ -113,7 +114,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return "too late"
 
-        handle_wire(binding, ["work"], work)
+        handle_wire(dispatcher(binding), ["work"], work)
         await self.send(near, "request")
         await asyncio.wait_for(entered.wait(), 1)
         try:
@@ -136,7 +137,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return None
 
-        handle_wire(server.wire(), ["work"], work)
+        handle_wire(dispatcher(server.wire()), ["work"], work)
         call = asyncio.create_task(call_wire(client.wire(), ["work"]))
         await asyncio.wait_for(entered.wait(), 1)
         try:
@@ -162,7 +163,7 @@ class WireCancellationTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return None
 
-        handle_wire(destination.wire(), ["work"], work)
+        handle_wire(dispatcher(destination.wire()), ["work"], work)
         await self.send(near, "request")
         await asyncio.wait_for(entered.wait(), 1)
         try:

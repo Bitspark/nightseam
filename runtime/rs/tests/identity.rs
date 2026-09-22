@@ -1,4 +1,5 @@
-use nightseam::{Context, DeclarationIdentity, Options, Payload, Peer, Role};
+use bitwire::Payload;
+use nightseam::{Context, DeclarationIdentity, Options, Peer, Role};
 use nightseam_duplex::pipe;
 
 fn identity(path: &str, digest: Option<&str>) -> DeclarationIdentity {

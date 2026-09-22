@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import NightseamDuplex
 
@@ -33,7 +34,7 @@ public enum WireError: Error, Sendable, Equatable {
 
 /// Each side sends to the other side's receivers. Delivery never runs on the
 /// caller's stack, and selecting or mounting either endpoint adds no carrier.
-public func wirePair(options: WireOptions = .init()) throws -> (any Wire, any Wire) {
+public func wirePair(options: WireOptions = .init()) throws -> (any Endpoint, any Endpoint) {
     guard options.queueCapacity > 0, options.maxPendingRequests > 0,
           options.maxConcurrentHandlers > 0, options.requestTimeoutMilliseconds > 0,
           options.writeTimeoutMilliseconds > 0, options.maxFrameBytes > 0 else {
@@ -152,14 +153,7 @@ private final class LocalWirePair: @unchecked Sendable {
     }
 
     func match(_ state: LocalWireState, path: [String]) -> WireRegistration? {
-        if let exact = state.receivers[WireRoute(path: Path.key(path), namespace: false)] { return exact }
-        var best: WireRegistration?
-        for (route, registration) in state.receivers where route.namespace {
-            guard registration.path.count <= path.count,
-                  Path.key(Array(path.prefix(registration.path.count))) == route.path else { continue }
-            if best == nil || registration.path.count > best!.path.count { best = registration }
-        }
-        return best
+        state.receivers[WireRoute(path: Data(), namespace: false)]
     }
 
     func retire(_ state: LocalWireState, _ call: LocalWireCall) {
@@ -290,7 +284,7 @@ private final class LocalWirePair: @unchecked Sendable {
     }
 }
 
-private final class LocalWire: Wire, Sendable {
+private final class LocalWire: Endpoint, Sendable {
     let pair: LocalWirePair
     let side: Int
     init(pair: LocalWirePair, side: Int) { self.pair = pair; self.side = side }
@@ -302,9 +296,9 @@ private final class LocalWire: Wire, Sendable {
         try pair.admit(side: 1 - side, path: path, message: message)
     }
 
-    func receive(path: [String], receiver: Receiver) throws -> @Sendable () -> Void {
-        let route = WireRoute(path: Path.key(path), namespace: receiver.namespace)
-        let registration = WireRegistration(path: path, receiver: receiver)
+    func receive(receiver: Receiver) throws -> Detach {
+        let route = WireRoute(path: Data(), namespace: false)
+        let registration = WireRegistration(path: [], receiver: receiver)
         try pair.lock.withLock {
             guard !pair.closed else { throw WireError.closed }
             guard pair.states[side].receivers[route] == nil else { throw WireError.receiverExists }
@@ -341,8 +335,6 @@ private final class LocalWireReturn: WireContextProvider, Sendable {
         }
         try call.original.returnAddress!.wire.send(path: [], message: message)
     }
-    func receive(path: [String], receiver: Receiver) throws -> @Sendable () -> Void { throw WireError.receiverExists }
-    func close(code: Int, reason: String) throws { pair.complete(side: side, call: call) }
 }
 
 /// Validate the same envelope a physical carrier would emit, retaining raw JSON
@@ -413,11 +405,11 @@ private final class WireForwarding: @unchecked Sendable {
 
 /// Forward both directions while retaining each request's local return identity.
 /// Detach releases registrations and leaves both borrowed endpoints usable.
-public func forwardWire(_ left: any Wire, _ right: any Wire) throws -> @Sendable () -> Void {
+public func forwardWire(_ left: any Endpoint, _ right: any Endpoint) throws -> @Sendable () -> Void {
     let forwarding = WireForwarding()
     do {
         for (source, destination) in [(left, right), (right, left)] {
-            let detach = try source.receive(path: [], receiver: Receiver(namespace: true, message: { path, message in
+            let detach = try source.receive(receiver: Receiver( message: { path, message in
                 do { try destination.send(path: path, message: message) }
                 catch {
                     forwarding.stop()
@@ -482,8 +474,6 @@ private final class WireReply: WireContextProvider, @unchecked Sendable {
             resolve(.failure(PublicError(code: error.code, message: error.message, data: error.data)))
         } else { resolve(.success(message.frame.result)) }
     }
-    func receive(path: [String], receiver: Receiver) throws -> @Sendable () -> Void { throw WireError.receiverExists }
-    func close(code: Int, reason: String) throws { resolve(.failure(WireError.closed)) }
 }
 
 /// Call an operation at an origin without allocating a Peer. Return addresses
@@ -515,7 +505,6 @@ private final class WireEventContext: WireContextProvider, Sendable {
     let wireContext: RequestContext?
     init(_ context: RequestContext) { wireContext = context }
     func send(path: [String], message: Message) throws { throw WireError.invalidMessage }
-    func receive(path: [String], receiver: Receiver) throws -> @Sendable () -> Void { throw WireError.receiverExists }
     func close(code: Int, reason: String) throws {}
 }
 
@@ -541,9 +530,9 @@ private final class WireHandlers: @unchecked Sendable {
 
 /// The dispatch callback only installs the task. Cancellation and return
 /// completion remain attached to the admitted request after receiver detach.
-public func handleWire(_ wire: any Wire, path: [String], handler: @escaping WireHandler) throws -> @Sendable () -> Void {
+public func handleWire(_ wire: Dispatcher, path: [String], handler: @escaping WireHandler) throws -> @Sendable () -> Void {
     let handlers = WireHandlers()
-    return try wire.receive(path: path, receiver: Receiver(message: { delivered, message in
+    return try wire.register(path: path, receiver: Receiver(message: { delivered, message in
         guard message.frame.kind == .request || message.frame.kind == .cancel,
               message.returnAddress != nil else { return }
         let key = WireCallKey(message)

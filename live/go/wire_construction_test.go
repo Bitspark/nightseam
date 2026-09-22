@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,8 +22,8 @@ import (
 // and active owner enter Import before the invocation is exposed as a Wire.
 // A path alone does not replace that checked interpretation or its lifetime.
 type checkedWireExposure struct {
-	duplex.Wire
-	Endpoint duplex.Endpoint
+	bitwire.Wire
+	Endpoint bitwire.Endpoint
 	Binding  string
 }
 
@@ -144,7 +145,7 @@ func TestLiveBindingWireConstructionRetainsGuardsAndReleaseBarrier(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			wire.Wire = duplex.At(duplex.Mount(map[string]duplex.Endpoint{"outer": duplex.Mount(map[string]duplex.Endpoint{"binding": wire.Endpoint})}), []string{"outer", "binding", wire.Binding})
+			wire.Wire = duplex.At(duplex.Mount(map[string]bitwire.Endpoint{"outer": duplex.Mount(map[string]bitwire.Endpoint{"binding": wire.Endpoint})}), []string{"outer", "binding", wire.Binding})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			requireWireCode(t, runtime.CallWire(ctx, wire, nil, 1, nil), "denied")

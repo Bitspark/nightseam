@@ -6,6 +6,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Fixed
+
+- All eight language ports use Bitwire wire types directly. Remove Nightseam
+  aliases, re-exports and duplicate declarations; generated adapters import
+  Bitwire, and native ports separate send access from endpoint attachment and
+  explicit path dispatch.
+
 ## 0.6.0 - 2026-09-22
 
 ### Clarified

@@ -3,7 +3,20 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/topics/lock_files
 
-packages: []
+packages:
+- completed:
+    commit: 616a2fc5e3a0972f67f40331a9d9ca102bc9698d
+    git: https://github.com/Bitspark/bitwire.git
+    name: bitspark-bitwire
+    pantry-tree:
+      sha256: c0016f5301f471b7fb202cf7383261f0539c0eb4e230efa0e6d73fc8ee222493
+      size: 816
+    subdir: wire/hs
+    version: 0.2.0
+  original:
+    commit: 616a2fc5e3a0972f67f40331a9d9ca102bc9698d
+    git: https://github.com/Bitspark/bitwire.git
+    subdir: wire/hs
 snapshots:
 - completed:
     sha256: 238fa745b64f91184f9aa518fe04bdde6552533d169b0da5256670df83a0f1a9

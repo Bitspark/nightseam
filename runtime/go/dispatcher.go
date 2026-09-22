@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"slices"
 	"sync"
 
@@ -11,14 +12,14 @@ import (
 // HandlerRegistry is the explicit registration capability used by generated
 // bindings. Closing it releases its registrations, not its borrowed carrier.
 type HandlerRegistry interface {
-	duplex.Wire
-	Register([]string, duplex.Receiver) (func(), error)
-	Close(duplex.Code, string) error
+	bitwire.Wire
+	Register([]string, bitwire.Receiver) (func(), error)
+	Close(bitwire.Code, string) error
 }
 
 type dispatchRegistration struct {
 	path     []string
-	receiver duplex.Receiver
+	receiver bitwire.Receiver
 }
 type dispatchRoute struct {
 	name   string
@@ -33,7 +34,7 @@ type dispatchRoute struct {
 // good as a native endpoint: the lifecycle travels with the unchanged return
 // capability, and nothing here recognizes a concrete type.
 type Dispatcher struct {
-	root        duplex.Endpoint
+	root        bitwire.Endpoint
 	ownEndpoint bool
 	mu          sync.Mutex
 	closed      bool
@@ -45,7 +46,7 @@ type Dispatcher struct {
 // caller owns. Borrowed endpoints remain the default.
 type DispatcherOptions struct{ OwnEndpoint bool }
 
-func NewDispatcher(root duplex.Endpoint, options ...DispatcherOptions) (*Dispatcher, error) {
+func NewDispatcher(root bitwire.Endpoint, options ...DispatcherOptions) (*Dispatcher, error) {
 	if root == nil {
 		return nil, errors.New("dispatcher requires an endpoint")
 	}
@@ -53,7 +54,7 @@ func NewDispatcher(root duplex.Endpoint, options ...DispatcherOptions) (*Dispatc
 	if len(options) > 0 {
 		d.ownEndpoint = options[0].OwnEndpoint
 	}
-	detach, err := root.Receive(duplex.Receiver{Message: d.deliver, Closed: func(code duplex.Code, reason string) { _ = d.Close(code, reason) }})
+	detach, err := root.Receive(bitwire.Receiver{Message: d.deliver, Closed: func(code bitwire.Code, reason string) { _ = d.Close(code, reason) }})
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func NewDispatcher(root duplex.Endpoint, options ...DispatcherOptions) (*Dispatc
 	return d, nil
 }
 
-func (d *Dispatcher) Send(path []string, message duplex.Message) error {
+func (d *Dispatcher) Send(path []string, message bitwire.Message) error {
 	d.mu.Lock()
 	closed := d.closed
 	d.mu.Unlock()
@@ -79,13 +80,13 @@ func (d *Dispatcher) Send(path []string, message duplex.Message) error {
 	}
 	return d.root.Send(path, message)
 }
-func (d *Dispatcher) Register(path []string, receiver duplex.Receiver) (func(), error) {
+func (d *Dispatcher) Register(path []string, receiver bitwire.Receiver) (func(), error) {
 	return d.register(path, receiver, false)
 }
-func (d *Dispatcher) RegisterPrefix(path []string, receiver duplex.Receiver) (func(), error) {
+func (d *Dispatcher) RegisterPrefix(path []string, receiver bitwire.Receiver) (func(), error) {
 	return d.register(path, receiver, true)
 }
-func (d *Dispatcher) register(path []string, receiver duplex.Receiver, prefix bool) (func(), error) {
+func (d *Dispatcher) register(path []string, receiver bitwire.Receiver, prefix bool) (func(), error) {
 	name, err := duplex.EncodePath(path)
 	if err != nil {
 		return nil, err
@@ -121,7 +122,7 @@ func (d *Dispatcher) match(path []string, name string) *dispatchRegistration {
 	}
 	return selected
 }
-func (d *Dispatcher) deliver(path []string, message duplex.Message) {
+func (d *Dispatcher) deliver(path []string, message bitwire.Message) {
 	name, err := duplex.EncodePath(path)
 	if err != nil {
 		return
@@ -129,7 +130,7 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 	// A control belongs to the traversal that captured it, never to the
 	// registration in force now. Handing it to the invocation is what keeps a
 	// detach or a rebind from retargeting an admitted request.
-	if message.Frame.Kind == duplex.ProfileCancel {
+	if message.Frame.Kind == bitwire.ProfileCancel {
 		_ = RelayInvocationControl(message)
 		return
 	}
@@ -140,17 +141,17 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 	}
 	d.mu.Unlock()
 	if registration == nil || registration.receiver.Message == nil {
-		if message.Frame.Kind == duplex.ProfileRequest {
+		if message.Frame.Kind == bitwire.ProfileRequest {
 			_ = sendWireResponse(message, nil, &PublicError{Code: "method_not_found", Message: "Unknown method"})
 		}
 		return
 	}
 	delivered := slices.Clone(path)
-	if message.Frame.Kind != duplex.ProfileRequest {
+	if message.Frame.Kind != bitwire.ProfileRequest {
 		registration.receiver.Message(delivered, message)
 		return
 	}
-	capture, err := CaptureInvocation(message, func(control duplex.Message) {
+	capture, err := CaptureInvocation(message, func(control bitwire.Message) {
 		registration.receiver.Message(slices.Clone(delivered), control)
 	})
 	if err != nil {
@@ -168,7 +169,7 @@ func (d *Dispatcher) deliver(path []string, message duplex.Message) {
 	registration.receiver.Message(delivered, message)
 }
 
-func (d *Dispatcher) Close(code duplex.Code, reason string) error {
+func (d *Dispatcher) Close(code bitwire.Code, reason string) error {
 	d.mu.Lock()
 	if d.closed {
 		d.mu.Unlock()
@@ -206,14 +207,14 @@ type SelectedEndpoint struct {
 	attachment *selectedAttachment
 }
 type selectedAttachment struct {
-	receiver duplex.Receiver
+	receiver bitwire.Receiver
 	detach   func()
 }
 
 func (s *SelectedEndpoint) Select(path []string) *SelectedEndpoint {
 	return s.owner.Select(append(slices.Clone(s.prefix), path...))
 }
-func (s *SelectedEndpoint) Send(path []string, message duplex.Message) error {
+func (s *SelectedEndpoint) Send(path []string, message bitwire.Message) error {
 	s.mu.Lock()
 	closed := s.closed
 	s.mu.Unlock()
@@ -222,7 +223,7 @@ func (s *SelectedEndpoint) Send(path []string, message duplex.Message) error {
 	}
 	return s.owner.Send(append(slices.Clone(s.prefix), path...), message)
 }
-func (s *SelectedEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (s *SelectedEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	attachment := &selectedAttachment{receiver: receiver}
 	s.mu.Lock()
 	if s.closed {
@@ -235,15 +236,15 @@ func (s *SelectedEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
 	}
 	s.attachment = attachment
 	s.mu.Unlock()
-	detach, err := s.owner.RegisterPrefix(s.prefix, duplex.Receiver{
-		Message: func(path []string, message duplex.Message) {
+	detach, err := s.owner.RegisterPrefix(s.prefix, bitwire.Receiver{
+		Message: func(path []string, message bitwire.Message) {
 			if receiver.Message != nil {
 				receiver.Message(slices.Clone(path[len(s.prefix):]), message)
-			} else if message.Frame.Kind == duplex.ProfileRequest {
+			} else if message.Frame.Kind == bitwire.ProfileRequest {
 				_ = sendWireResponse(message, nil, &PublicError{Code: "method_not_found", Message: "Unknown method"})
 			}
 		},
-		Closed: func(code duplex.Code, reason string) { s.remove(attachment, true, code, reason) },
+		Closed: func(code bitwire.Code, reason string) { s.remove(attachment, true, code, reason) },
 	})
 	s.mu.Lock()
 	active := s.attachment == attachment
@@ -263,7 +264,7 @@ func (s *SelectedEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
 	}
 	return func() { s.remove(attachment, false, 0, "") }, nil
 }
-func (s *SelectedEndpoint) remove(attachment *selectedAttachment, tell bool, code duplex.Code, reason string) {
+func (s *SelectedEndpoint) remove(attachment *selectedAttachment, tell bool, code bitwire.Code, reason string) {
 	s.mu.Lock()
 	if s.attachment != attachment {
 		s.mu.Unlock()
@@ -279,7 +280,7 @@ func (s *SelectedEndpoint) remove(attachment *selectedAttachment, tell bool, cod
 		attachment.receiver.Closed(code, reason)
 	}
 }
-func (s *SelectedEndpoint) Close(code duplex.Code, reason string) error {
+func (s *SelectedEndpoint) Close(code bitwire.Code, reason string) error {
 	s.mu.Lock()
 	s.closed = true
 	attachment := s.attachment

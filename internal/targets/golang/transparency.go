@@ -15,7 +15,8 @@ func emitClientTest(f *file) { f.emitTransparency("Client", "Server", "Client") 
 func (f *file) emitTransparency(side, opposite, role string) {
 	f.operationAdapters()
 	decl, args := f.entry(f.family.Uses), apply(f.family.Uses)
-	proto, rt, seam := f.proto(), f.runtime(), f.seam()
+	proto, rt := f.proto(), f.runtime()
+	f.seam()
 	for _, name := range []string{"context", "fmt", "json", "reflect", "sync", "errors", "bytes"} {
 		f.std(name)
 	}
@@ -25,8 +26,9 @@ func (f *file) emitTransparency(side, opposite, role string) {
 		dir = layout.Client
 	}
 	f.use("adapter", f.config.Module+"/"+expand(dir, f.family.Name))
-	f.linef("type Presentation func(context.Context, %s.Endpoint) (%s.Endpoint, func(), error)", seam, seam)
+	f.linef("type Presentation func(context.Context, %s.Endpoint) (%s.Endpoint, func(), error)", f.bitwire(), f.bitwire())
 	f.linef("type Options struct { Context %s.AdapterContext; RemoteContext %s.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error }", rt, rt)
+	f.bitwire()
 	f.line(goTransparencySupport)
 	f.linef("// Pair presents one fresh model over a frame pipe by default. The returned factory is bound once.")
 	f.w.Block(fmt.Sprintf("func Pair%s(ctx context.Context, model %s%sModel%s, options Options%s) (%s%sModel%s, func(), error) {", decl, proto, side, args, f.slotParameters(), proto, side, args), "}", func() {
@@ -151,24 +153,24 @@ var goTransparencySupport = strings.TrimSpace(`
 func once(f func()) func() { var once sync.Once; return func(){ once.Do(f) } }
 
 // Local keeps the bounded asynchronous wire created by ToWire.
-func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) { return wire,func(){},nil }
+func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint,func(),error) { return wire,func(){},nil }
 
 // Mounted selects a nonempty origin from a mount without allocating a carrier.
-func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
- root:=duplex.Mount(map[string]duplex.Endpoint{"family":wire})
+func Mounted(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint,func(),error) {
+ root:=duplex.Mount(map[string]bitwire.Endpoint{"family":wire})
  dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{_ = root.Close(1000,"");return nil,nil,err}
  return dispatcher.Select([]string{"family"}),once(func(){_ = dispatcher.Close(1000,"");_ = root.Close(1000,"")}),nil
 }
 
 // Forwarded introduces one local forwarding hop.
-func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
+func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint,func(),error) {
  left,right,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{return nil,nil,err}
  detach,err:=runtime.ForwardWire(right,wire);if err!=nil{_ = left.Close(1000,"");return nil,nil,err}
  return left,once(func(){detach();_ = left.Close(1000,"")}),nil
 }
 
 // Pipe carries real serialized frames between two prepared peers.
-func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint,func(),error) {
+func Pipe(ctx context.Context, wire bitwire.Endpoint) (bitwire.Endpoint,func(),error) {
  left,right:=duplex.Pipe(1<<20)
  var detach func()
  server,err:=runtime.NewPeer(ctx,right,runtime.ServerRole,runtime.Options{Prepare:func(peer *runtime.Peer)error{var err error;detach,err=runtime.ForwardWire(peer.Wire(),wire);return err}})

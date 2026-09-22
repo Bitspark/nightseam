@@ -15,16 +15,8 @@
  * handle names: {"channel": 12} in a family's message.
  */
 import { positiveInteger, DuplexError, DuplexPeer, type PeerOptions, type ObserverEvent } from '@nightseam/runtime';
-import type {
-  ConnectionHandlers,
-  ConnectionState,
-  Frame,
-  FrameConnection,
-  Message,
-  Path,
-  Receiver,
-  Endpoint,
-} from '@nightseam/duplex';
+import type { ConnectionHandlers, ConnectionState, Frame, FrameConnection } from '@nightseam/duplex';
+import type { Message, Path, Receiver, Endpoint } from '@bitspark/bitwire';
 import { NO_STATUS } from '@nightseam/duplex';
 
 /**

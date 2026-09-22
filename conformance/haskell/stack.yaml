@@ -4,3 +4,8 @@ packages:
   - ../../duplex/hs
   - ../../runtime/hs
   - .
+extra-deps:
+  - git: https://github.com/Bitspark/bitwire.git
+    commit: 616a2fc5e3a0972f67f40331a9d9ca102bc9698d
+    subdirs:
+      - wire/hs

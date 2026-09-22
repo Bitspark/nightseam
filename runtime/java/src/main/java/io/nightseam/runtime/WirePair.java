@@ -1,8 +1,9 @@
 package io.nightseam.runtime;
 
-import io.nightseam.duplex.Message;
-import io.nightseam.duplex.Receiver;
-import io.nightseam.duplex.Wire;
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 public final class WirePair implements AutoCloseable {
     private final Object lock = new Object();
     private final PeerOptions options;
-    private final Endpoint left = new Endpoint();
-    private final Endpoint right = new Endpoint();
+    private final LocalEndpoint left = new LocalEndpoint();
+    private final LocalEndpoint right = new LocalEndpoint();
     private final ScheduledThreadPoolExecutor deadlines = new ScheduledThreadPoolExecutor(1,
         Thread.ofPlatform().daemon().name("nightseam-wire-deadline").factory());
     private boolean closed;
@@ -37,8 +38,8 @@ public final class WirePair implements AutoCloseable {
 
     public static WirePair create(PeerOptions options) { return new WirePair(options); }
     public static WirePair create() { return create(PeerOptions.defaults()); }
-    public Wire left() { return left; }
-    public Wire right() { return right; }
+    public Endpoint left() { return left; }
+    public Endpoint right() { return right; }
     @Override public void close() { end(1000, "done"); }
 
     private record Route(List<String> path, boolean namespace) {}
@@ -48,9 +49,9 @@ public final class WirePair implements AutoCloseable {
     // Wire implementations may override equals: capability identity is always
     // object identity, independently of a caller's request identifier.
     private static final class ReturnKey {
-        final Wire address;
+        final ReturnAddress address;
         final Object id;
-        ReturnKey(Wire address, Object id) { this.address = address; this.id = id; }
+        ReturnKey(ReturnAddress address, Object id) { this.address = address; this.id = id; }
         @Override public int hashCode() { return 31 * System.identityHashCode(address) + id.hashCode(); }
         @Override public boolean equals(Object value) {
             return value instanceof ReturnKey key && key.address == address && key.id.equals(id);
@@ -61,7 +62,7 @@ public final class WirePair implements AutoCloseable {
         final ReturnKey key;
         final List<String> path;
         final Message original;
-        final Wire returning;
+        final ReturnAddress returning;
         Registration registration;
         ScheduledFuture<?> timer;
         boolean completed;
@@ -70,16 +71,16 @@ public final class WirePair implements AutoCloseable {
         boolean cancelQueued;
         boolean cancelled;
 
-        Call(Endpoint endpoint, ReturnKey key, List<String> path, Message original) {
+        Call(LocalEndpoint endpoint, ReturnKey key, List<String> path, Message original) {
             this.key = key;
             this.path = path;
             this.original = original;
-            this.returning = new Return(endpoint, this);
+            this.returning = new ReturnAddress(new Return(endpoint, this));
         }
     }
 
-    private final class Endpoint implements Wire {
-        Endpoint other;
+    private final class LocalEndpoint implements Endpoint {
+        LocalEndpoint other;
         final ArrayDeque<Delivery> queue = new ArrayDeque<>();
         final Map<ReturnKey,Call> calls = new HashMap<>();
         final Map<Route,Registration> receivers = new HashMap<>();
@@ -97,20 +98,20 @@ public final class WirePair implements AutoCloseable {
                 throw new IllegalArgumentException("send responses to their return address");
             if (!kind.equals("event") && message.returnAddress() == null)
                 throw new IllegalArgumentException("requests and cancels require a return address");
-            other.admit(copiedPath, new Message(frame, message.returnAddress()));
+            other.admit(copiedPath, new Message(frame(frame), message.returnAddress()));
         }
 
         void admit(List<String> path, Message message) {
-            String kind = (String) message.frame().get("kind");
+            String kind = (String) fields(message.frame()).get("kind");
             synchronized (lock) {
                 requireOpen();
                 Call call = null;
                 String refusal = null;
                 if (kind.equals("cancel")) {
-                    call = calls.get(new ReturnKey(message.returnAddress(), message.frame().get("id")));
+                    call = calls.get(new ReturnKey(message.returnAddress(), fields(message.frame()).get("id")));
                     if (call == null || call.completed || call.cancelQueued || call.cancelled) return;
                     call.cancelQueued = true;
-                    message = new Message(message.frame(), call.returning);
+                    message = new Message(frame(fields(message.frame())), call.returning);
                 } else {
                     if (dataQueued >= options.queueCapacity()) {
                         // Carrier callbacks occur asynchronously outside this lock.
@@ -120,13 +121,13 @@ public final class WirePair implements AutoCloseable {
                     }
                     dataQueued++;
                     if (kind.equals("request")) {
-                        var key = new ReturnKey(message.returnAddress(), message.frame().get("id"));
+                        var key = new ReturnKey(message.returnAddress(), fields(message.frame()).get("id"));
                         if (calls.containsKey(key)) refusal = "invalid_message";
                         else if (calls.size() >= options.maxPendingRequests()) refusal = "busy";
                         else {
                             call = new Call(this, key, path, message);
                             calls.put(key, call);
-                            message = new Message(message.frame(), call.returning);
+                            message = new Message(frame(fields(message.frame())), call.returning);
                         }
                     }
                 }
@@ -135,32 +136,20 @@ public final class WirePair implements AutoCloseable {
             }
         }
 
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
-            io.nightseam.duplex.Wires.encodePath(path);
-            Objects.requireNonNull(receiver.message(), "wire receiver callback");
-            var route = new Route(List.copyOf(path), receiver.namespace());
-            var registration = new Registration(route.path(), receiver);
+        @Override public Runnable receive(Receiver receiver) {
+            var route = new Route(List.of(), false);
+            var registration = new Registration(List.of(), receiver);
             synchronized (lock) {
                 requireOpen();
                 if (receivers.putIfAbsent(route, registration) != null)
-                    throw new IllegalStateException("wire receiver already registered");
+                    throw new IllegalStateException("wire receiver already attached");
             }
             return () -> { synchronized (lock) { receivers.remove(route, registration); } };
         }
-
         @Override public void close(int code, String reason) { end(code, reason); }
-
         Registration match(List<String> path) {
-            Registration exact = receivers.get(new Route(path, false));
-            if (exact != null) return exact;
-            Registration best = null;
-            for (var entry : receivers.entrySet()) {
-                var prefix = entry.getKey().path();
-                if (entry.getKey().namespace() && prefix.size() <= path.size()
-                    && path.subList(0, prefix.size()).equals(prefix)
-                    && (best == null || prefix.size() > best.path().size())) best = entry.getValue();
-            }
-            return best;
+            var registration = receivers.get(new Route(List.of(), false));
+            return registration != null && registration.receiver().message() != null ? registration : null;
         }
 
         void run() {
@@ -171,7 +160,7 @@ public final class WirePair implements AutoCloseable {
                         while (!closed && queue.isEmpty()) lock.wait();
                         if (closed) return;
                         delivery = queue.remove();
-                        if (!"cancel".equals(delivery.message().frame().get("kind"))) dataQueued--;
+                        if (!"cancel".equals(fields(delivery.message().frame()).get("kind"))) dataQueued--;
                     }
                     dispatch(delivery);
                 }
@@ -187,7 +176,7 @@ public final class WirePair implements AutoCloseable {
                     ? "Outstanding call limit reached" : "Duplicate active request identifier");
                 return;
             }
-            String kind = (String) delivery.message().frame().get("kind");
+            String kind = (String) fields(delivery.message().frame()).get("kind");
             if (kind.equals("cancel")) { deliverCancel(delivery.call(), delivery.message()); return; }
             Registration registration;
             String refusal = null;
@@ -238,7 +227,7 @@ public final class WirePair implements AutoCloseable {
 
         void deliver(Registration registration, List<String> path, Message message) {
             try {
-                registration.receiver().message().accept(path, message);
+                if (registration.receiver().message() != null) registration.receiver().message().accept(path, message);
             } catch (Throwable failure) {
                 String method = io.nightseam.duplex.Wires.encodePath(path);
                 var observation = new LinkedHashMap<String,Object>();
@@ -247,7 +236,7 @@ public final class WirePair implements AutoCloseable {
                 observation.put("value", failure.getMessage() == null ? failure.toString() : failure.getMessage());
                 if (options.families().containsKey(method)) observation.put("family", options.families().get(method));
                 observe(observation);
-                if ("request".equals(message.frame().get("kind"))) Wires.refuse(message, "internal", "Internal error");
+                if ("request".equals(fields(message.frame()).get("kind"))) Wires.refuse(message, "internal", "Internal error");
                 else end(4011, "wire event receiver failed");
             }
         }
@@ -269,7 +258,7 @@ public final class WirePair implements AutoCloseable {
                 if (closed || call.completed) return;
                 if (!call.cancelQueued && !call.cancelled) {
                     call.cancelQueued = true;
-                    var cancel = new Message(Map.of("version", 1, "kind", "cancel", "id", call.key.id), call.returning);
+                    var cancel = new Message(frame(Map.of("version", 1, "kind", "cancel", "id", call.key.id)), call.returning);
                     queue.add(new Delivery(call.path, cancel, call, null));
                     lock.notifyAll();
                 }
@@ -298,13 +287,13 @@ public final class WirePair implements AutoCloseable {
     }
 
     private final class Return implements Wire {
-        private final Endpoint endpoint;
+        private final LocalEndpoint endpoint;
         private final Call call;
-        Return(Endpoint endpoint, Call call) { this.endpoint = endpoint; this.call = call; }
+        Return(LocalEndpoint endpoint, Call call) { this.endpoint = endpoint; this.call = call; }
 
         @Override public void send(List<String> path, Message message) {
-            if (!path.isEmpty() || !"response".equals(message.frame().get("kind"))
-                || !Objects.equals(message.frame().get("id"), call.key.id))
+            if (!path.isEmpty() || !"response".equals(fields(message.frame()).get("kind"))
+                || !Objects.equals(fields(message.frame()).get("id"), call.key.id))
                 throw new IllegalArgumentException("invalid wire response");
             var frame = Wires.validateFrame(path, message.frame(), options.maxFrameBytes());
             try {
@@ -312,15 +301,12 @@ public final class WirePair implements AutoCloseable {
                     if (call.responded || call.completed) throw new IllegalStateException("wire request already ended");
                     call.responded = true;
                 }
-                call.key.address.send(path, new Message(frame, message.returnAddress()));
+                call.key.address.wire().send(path, new Message(frame(frame), message.returnAddress()));
             } finally {
                 endpoint.complete(call);
             }
         }
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
-            throw new IllegalStateException("return addresses cannot receive registrations");
-        }
-        @Override public void close(int code, String reason) { endpoint.complete(call); }
+
     }
 
     private void requireOpen() { if (closed) throw new IllegalStateException("wire pair closed"); }
@@ -342,7 +328,7 @@ public final class WirePair implements AutoCloseable {
         synchronized (lock) {
             if (closed) return;
             closed = true;
-            for (Endpoint endpoint : List.of(left, right)) {
+            for (LocalEndpoint endpoint : List.of(left, right)) {
                 if (endpoint.eventTimer != null) endpoint.eventTimer.cancel(false);
                 endpoint.eventRunning = false;
                 for (Registration registration : endpoint.receivers.values()) receivers.add(registration.receiver());

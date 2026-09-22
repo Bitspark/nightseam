@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	cellbinding "example.test/generated/api/go/cell-binding"
 	"fmt"
-	"github.com/Bitspark/nightseam/duplex/go"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 	"net"
@@ -27,7 +27,7 @@ func (h *wireBridgeHandle) shutdown() {
 	}
 }
 
-func wireBridgeFactory(ctx context.Context, origin duplex.Endpoint, h *wireBridgeHandle, slot string) (fixtureWireFactory, error) {
+func wireBridgeFactory(ctx context.Context, origin bitwire.Endpoint, h *wireBridgeHandle, slot string) (fixtureWireFactory, error) {
 	switch slot {
 	case "", "factory":
 		return wireSlotBridge(ctx, origin, h, wireFactories())
@@ -45,12 +45,12 @@ func wireBridgeFactory(ctx context.Context, origin duplex.Endpoint, h *wireBridg
 	return nil, fmt.Errorf("unknown wire bridge slot %s", slot)
 }
 
-func wireSlotBridge[T any](ctx context.Context, origin duplex.Endpoint, h *wireBridgeHandle, values wireValues[T]) (fixtureWireFactory, error) {
+func wireSlotBridge[T any](ctx context.Context, origin bitwire.Endpoint, h *wireBridgeHandle, values wireValues[T]) (fixtureWireFactory, error) {
 	model, err := cellbinding.FromWire(ctx, origin, runtime.AdapterContext{Options: runtime.Options{Observer: h.observer}, ValueEnvironment: live.ValueEnvironment(h.originScope)}, values.adapter)
 	if err != nil {
 		return nil, err
 	}
-	return func(peer *runtime.Peer) (duplex.Endpoint, error) {
+	return func(peer *runtime.Peer) (bitwire.Endpoint, error) {
 		var err error
 		h.destinationScope, err = live.Over(peer, live.Options{})
 		if err != nil {

@@ -4,35 +4,28 @@
 npm install @nightseam/duplex
 ```
 
-The common structured access surface is the shared contract's pair: a
-`Wire` is `send(path, message)` and nothing else, and an `Endpoint` adds
-`receive(receiver)` — one owning attachment — and `close(code, reason)`.
-Paths are arrays of Unicode strings; a message carries one of the four
-profile frame kinds and an optional local return capability, never another
-serialized envelope.
-
-These types are re-exported from the public `@bitspark/bitwire@0.2.0`
-contract, and nothing in Nightseam defines a second copy of them. The
-dependency installs with this package; path views, codecs, recording and
-transports remain Nightseam implementations.
+The common structured access contract comes directly from `@bitspark/bitwire@0.2.0`.
+`Wire` supplies `send(path, message)`; `Endpoint` adds `receive(receiver)` and
+`close(code, reason)`. Import shared types from Bitwire and composition helpers
+from Nightseam.
 
 ```ts
+import type { Endpoint, Wire } from '@bitspark/bitwire';
 import { at, mount } from '@nightseam/duplex';
-import type { Endpoint, Wire } from '@nightseam/duplex';
 
-const joined: Endpoint = mount(new Map([['work', workEndpoint], ['chat', chatEndpoint]]));
+declare const work: Endpoint, chat: Endpoint;
+const joined: Endpoint = mount(new Map([['work', work], ['chat', chat]]));
 const selected: Wire = at(joined, ['work']);
 ```
 
-Selection and mounting reuse existing roots, with no peer or channel allocated
-even on first use. `at` grants send access under a prefix and neither
-attachment nor closure; `mount` consumes one path segment, holds its one
-attachment across the children it borrows, and closing it detaches that
-attachment and leaves the children open. Routing above an endpoint — exact
-before longest segment prefix, a refusal for a duplicate path, receiving views
-that share the one owner — is `@nightseam/runtime`'s dispatcher, not a
-property of the Wire. The runtime supplies bounded asynchronous endpoints as
-`peer.wire()` and `wirePair()`.
+Paths contain opaque Unicode strings; messages contain a profile frame and an
+optional local return capability. Selection is send-only. A mount takes one
+attachment per child and restores the consumed segment on delivery. Closing a
+mount detaches its attachments and leaves borrowed children open.
+
+The runtime supplies `peer.wire()`, `wirePair()` and `createDispatcher(endpoint)`.
+A dispatcher owns one endpoint attachment, performs exact and prefix matching,
+and provides receiving selections through `dispatcher.select(path)`.
 
 The raw transport seam remains `FrameConnection` — ordered
 frames, both ways, an explicit close with a code and a reason, and nothing

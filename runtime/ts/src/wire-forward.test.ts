@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, pipe, type Endpoint, type Message, type Path, type Receiver, type Wire } from '@nightseam/duplex';
+import { at, mount, pipe } from '@nightseam/duplex';
+import type { Endpoint, Message, Path, Receiver, Wire } from '@bitspark/bitwire';
 import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import { callWire, emitWire, forwardWire, handleWire, registerWire } from './wire.ts';
 import type { WireModelContext } from './wire.ts';

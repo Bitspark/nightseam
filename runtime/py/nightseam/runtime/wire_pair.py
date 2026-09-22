@@ -5,7 +5,8 @@ import inspect
 from collections import deque
 from dataclasses import dataclass, field, replace
 
-from nightseam.duplex import Message, ReturnAddress, WireError, encode_path
+from bitwire import Message, ReturnAddress
+from nightseam.duplex import WireError, encode_path
 
 from .peer import ABSENT, Options, PublicError
 from .publication import without_unpublished_proof
@@ -159,9 +160,6 @@ class _Return:
         finally:
             self.endpoint.complete(call)
 
-    def receive(self, path, receiver):
-        raise WireError("receiver_exists")
-
     def close(self, code=1000, reason=""):
         self.endpoint.complete(self.call)
 
@@ -228,21 +226,17 @@ class _Endpoint:
         self.queue.append(_Delivery(path, message, call, refusal))
         self.schedule()
 
-    def receive(self, path, receiver):
+    def receive(self, receiver):
         if self.pair.closed:
             raise _disconnected()
-        path = list(path)
-        key = encode_path(path), receiver.namespace
-        if not callable(receiver.message):
-            raise PublicError("invalid_message", "A wire receiver requires a callback.")
-        if key in self.registrations:
+        if self.registrations:
             raise WireError("receiver_exists")
-        registration = _Registration(path, receiver)
-        self.registrations[key] = registration
+        registration = _Registration([], receiver)
+        self.registrations[None] = registration
 
         def detach():
-            if self.registrations.get(key) is registration:
-                del self.registrations[key]
+            if self.registrations.get(None) is registration:
+                del self.registrations[None]
 
         return detach
 
@@ -250,15 +244,8 @@ class _Endpoint:
         self.pair.end(code, reason)
 
     def match(self, path):
-        exact = self.registrations.get((encode_path(path), False))
-        if exact:
-            return exact
-        best = None
-        for (_, namespace), registration in self.registrations.items():
-            if namespace and path[: len(registration.path)] == registration.path:
-                if best is None or len(best.path) < len(registration.path):
-                    best = registration
-        return best
+        registration = self.registrations.get(None)
+        return registration if registration and registration.receiver.message else None
 
     def retire(self, call):
         if call.completed and not call.cancel_queued and self.calls.get(call.key) is call:
@@ -387,7 +374,11 @@ class _Endpoint:
         self.retire(call)
         if not call.completed and call.registration:
             try:
-                pending = call.registration.receiver.message(call.path, delivery.message)
+                pending = (
+                    call.registration.receiver.message(call.path, delivery.message)
+                    if call.registration.receiver.message
+                    else None
+                )
                 if inspect.isawaitable(pending):
                     self.pair.spawn(self.finish_cancel(pending))
             except Exception as error:
@@ -406,7 +397,7 @@ class _Endpoint:
 
         self.event_timer = self.pair.loop.call_later(self.pair.options.write_timeout_ms / 1000, stalled)
         try:
-            pending = registration.receiver.message(path, message)
+            pending = registration.receiver.message(path, message) if registration.receiver.message else None
             if inspect.isawaitable(pending):
                 await pending
         finally:
@@ -430,7 +421,7 @@ class _Endpoint:
         call.timer = self.pair.loop.call_later(self.pair.options.request_timeout_ms / 1000, self.timeout, call)
         call.invoking = True
         try:
-            pending = registration.receiver.message(delivery.path, message)
+            pending = registration.receiver.message(delivery.path, message) if registration.receiver.message else None
             if inspect.isawaitable(pending):
                 call.awaiting_handler = True
                 self.pair.spawn(self.finish_handler(pending, call, message))

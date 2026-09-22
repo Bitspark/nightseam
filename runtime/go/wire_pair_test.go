@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"sync"
 	"testing"
@@ -12,15 +13,15 @@ import (
 	"github.com/Bitspark/nightseam/duplex/go"
 )
 
-type localTestReturn struct{ send func(duplex.Message) error }
+type localTestReturn struct{ send func(bitwire.Message) error }
 
 type localTestObserver func(ObserverEvent)
 
 func (observe localTestObserver) Observe(event ObserverEvent) { observe(event) }
 
-func (r *localTestReturn) Send(_ []string, m duplex.Message) error { return r.send(m) }
+func (r *localTestReturn) Send(_ []string, m bitwire.Message) error { return r.send(m) }
 
-func testBinding(t *testing.T, endpoint duplex.Endpoint) *Dispatcher {
+func testBinding(t *testing.T, endpoint bitwire.Endpoint) *Dispatcher {
 	t.Helper()
 	binding, err := NewDispatcher(endpoint)
 	if err != nil {
@@ -30,7 +31,7 @@ func testBinding(t *testing.T, endpoint duplex.Endpoint) *Dispatcher {
 	return binding
 }
 
-func localPair(t *testing.T, options Options) (duplex.Endpoint, duplex.Endpoint) {
+func localPair(t *testing.T, options Options) (bitwire.Endpoint, bitwire.Endpoint) {
 	t.Helper()
 	a, b, err := NewWirePair(options)
 	if err != nil {
@@ -111,7 +112,7 @@ func TestLocalWirePairOrderedEventsAndReservedCancel(t *testing.T) {
 	entered, release, drained := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var mu sync.Mutex
 	var seen []int
-	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	_, _ = bBinding.Register([]string{"event"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
 		var n int
 		_ = json.Unmarshal(m.Frame.Data, &n)
 		mu.Lock()
@@ -154,7 +155,7 @@ func TestLocalWirePairOverflowClosesOnlyItsCarrier(t *testing.T) {
 	bBinding := testBinding(t, b)
 	entered, release, ended := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
-	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { close(entered); <-release }, Closed: func(duplex.Code, string) { close(ended) }})
+	_, _ = bBinding.Register([]string{"event"}, bitwire.Receiver{Message: func([]string, bitwire.Message) { close(entered); <-release }, Closed: func(bitwire.Code, string) { close(ended) }})
 	if err := EmitWire(context.Background(), a, []string{"event"}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -175,24 +176,24 @@ func TestLocalWirePairOverflowClosesOnlyItsCarrier(t *testing.T) {
 func TestLocalWirePairReturnMappingAndFailedResponseRetirement(t *testing.T) {
 	a, b := localPair(t, Options{MaxPendingRequests: 1})
 	bBinding := testBinding(t, b)
-	received := make(chan duplex.Message, 2)
-	_, _ = bBinding.Register([]string{"raw"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { received <- m }})
+	received := make(chan bitwire.Message, 2)
+	_, _ = bBinding.Register([]string{"raw"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) { received <- m }})
 	failed := errors.New("return failed")
-	original := &duplex.ReturnAddress{Wire: &localTestReturn{send: func(duplex.Message) error { return Unpublished(failed) }}}
-	if err := a.Send([]string{"raw"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1", Params: json.RawMessage("null")}, Return: original}); err != nil {
+	original := &bitwire.ReturnAddress{Wire: &localTestReturn{send: func(bitwire.Message) error { return Unpublished(failed) }}}
+	if err := a.Send([]string{"raw"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1", Params: json.RawMessage("null")}, Return: original}); err != nil {
 		t.Fatal(err)
 	}
 	request := <-received
 	if request.Return == original {
 		t.Fatal("root did not map the return capability")
 	}
-	if err := a.Send([]string{"raw"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: "c:1"}, Return: original}); err != nil {
+	if err := a.Send([]string{"raw"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: "c:1"}, Return: original}); err != nil {
 		t.Fatal(err)
 	}
 	if cancelled := <-received; cancelled.Return != request.Return {
 		t.Fatal("cancellation used a different return capability")
 	}
-	err := request.Return.Wire.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileResponse, ID: "c:1", Result: json.RawMessage("null")}})
+	err := request.Return.Wire.Send(nil, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileResponse, ID: "c:1", Result: json.RawMessage("null")}})
 	if !errors.Is(err, failed) {
 		t.Fatalf("return failure lost: %v", err)
 	}
@@ -233,7 +234,7 @@ func TestLocalDispatcherExactAndPrefixRoutes(t *testing.T) {
 		if len(path) > 0 {
 			label = "a"
 		}
-		_, err := bBinding.RegisterPrefix(path, duplex.Receiver{Message: func(received []string, m duplex.Message) {
+		_, err := bBinding.RegisterPrefix(path, bitwire.Receiver{Message: func(received []string, m bitwire.Message) {
 			if len(received) == 0 {
 				t.Error("callback path lost its origin")
 			}
@@ -297,7 +298,7 @@ func TestLocalWirePairStalledEventDeadlineIsObserved(t *testing.T) {
 	bBinding := testBinding(t, b)
 	release, closed := make(chan struct{}), make(chan struct{})
 	defer close(release)
-	_, _ = bBinding.Register([]string{"event"}, duplex.Receiver{Message: func([]string, duplex.Message) { <-release }, Closed: func(duplex.Code, string) { close(closed) }})
+	_, _ = bBinding.Register([]string{"event"}, bitwire.Receiver{Message: func([]string, bitwire.Message) { <-release }, Closed: func(bitwire.Code, string) { close(closed) }})
 	if err := EmitWire(context.Background(), a, []string{"event"}, nil); err != nil {
 		t.Fatal(err)
 	}

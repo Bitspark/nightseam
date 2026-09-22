@@ -1,5 +1,5 @@
 import { decodePath, encodePath, WireError } from '@nightseam/duplex';
-import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire, Endpoint } from '@nightseam/duplex';
+import type { Message, Path, ProfileFrame, Receiver, ReturnAddress, Wire, Endpoint } from '@bitspark/bitwire';
 import { type HandlerRegistry } from './dispatcher.ts';
 import { Invocation, InvocationError, beginInvocationBody, defaultInvocationLimits } from './invocation.ts';
 import { DuplexError, UnpublishedError } from './error.ts';

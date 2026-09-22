@@ -1,5 +1,6 @@
 /** One generic model and its generated adapters across wire presentations and carriers. */
-import { mount, pipe, type Endpoint } from '@nightseam/duplex';
+import { mount, pipe } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { DuplexPeer, createDispatcher, declarationDigest, forwardWire, jsonAdapter, wirePair, type Observer, type ValueAdapter, type WebSocketLike } from '@nightseam/runtime';
 import { liveOver, type LiveScope } from '@nightseam/live';
 import { Tunnel } from '@nightseam/tunnel';

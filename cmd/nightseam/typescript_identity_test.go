@@ -35,7 +35,7 @@ func TestGeneratedTypeScriptIdentityPreparation(t *testing.T) {
 	runFixture(t, directory, "node", "--loader", "./runtime-loader.mjs", "identity.ts")
 }
 
-const tsIdentityPreparationProgram = `import type { Endpoint } from '@nightseam/duplex';
+const tsIdentityPreparationProgram = `import type { Endpoint } from '@bitspark/bitwire';
 import { DuplexError, IDENTITY_METHOD, callWire, emitWire, identityHandler, registerWire, wirePair, createDispatcher } from '@nightseam/runtime';
 import * as binding from '@example/same-binding';
 import * as client from '@example/same-client';

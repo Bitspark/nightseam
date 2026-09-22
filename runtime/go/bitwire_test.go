@@ -13,12 +13,7 @@ import (
 	"github.com/Bitspark/nightseam/tunnel/go"
 )
 
-// These assignments cross the actual public package boundary. Independently
-// named, structurally similar Message/Receiver/Code types do not satisfy it.
-var _ bitwire.Wire = (duplex.Wire)(nil)
-var _ duplex.Wire = (bitwire.Wire)(nil)
-var _ bitwire.Endpoint = (duplex.Endpoint)(nil)
-var _ duplex.Endpoint = (bitwire.Endpoint)(nil)
+// A concrete Nightseam carrier implements the public Bitwire endpoint.
 var _ bitwire.Endpoint = (*tunnel.Channel)(nil)
 
 func TestPublishedBitwireTypesCarryNightseamCalls(t *testing.T) {

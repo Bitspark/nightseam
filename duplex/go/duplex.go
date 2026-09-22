@@ -53,41 +53,37 @@ type Frame struct {
 	Data []byte
 }
 
-// Code is a close code. The numbers are the WebSocket registry's, kept on
-// every transport so that a close means the same thing whatever carried it.
-type Code = bitwire.Code
-
 const (
 	// CodeNormal is a close both sides meant.
-	CodeNormal Code = 1000
+	CodeNormal bitwire.Code = 1000
 	// CodeGoingAway is a side shutting down.
-	CodeGoingAway Code = 1001
+	CodeGoingAway bitwire.Code = 1001
 	// CodeProtocolError is a frame the receiver could not take as the
 	// protocol above the seam defines one.
-	CodeProtocolError Code = 1002
+	CodeProtocolError bitwire.Code = 1002
 	// CodeUnsupportedData is a frame of a kind the receiver does not speak,
 	// such as a binary frame where JSON text was expected.
-	CodeUnsupportedData Code = 1003
+	CodeUnsupportedData bitwire.Code = 1003
 	// CodeNoStatus is what a side sees when the other closed with no code:
 	// never sent, only read.
-	CodeNoStatus Code = 1005
+	CodeNoStatus bitwire.Code = 1005
 	// CodeAbnormalClosure is what a side sees when the other ended with no
 	// close at all: an abort, or a dropped transport.
-	CodeAbnormalClosure Code = 1006
+	CodeAbnormalClosure bitwire.Code = 1006
 	// CodePolicyViolation is a frame that parses and is refused anyway.
-	CodePolicyViolation Code = 1008
+	CodePolicyViolation bitwire.Code = 1008
 	// CodeTooLarge is a frame over the receiver's limit.
-	CodeTooLarge Code = 1009
+	CodeTooLarge bitwire.Code = 1009
 	// CodeInternalError is a failure of the receiver's own.
-	CodeInternalError Code = 1011
+	CodeInternalError bitwire.Code = 1011
 )
 
 // Application codes are the range a protocol above the seam may use for its
 // own reasons; the duplex profile closes with CodeDuplex.
 const (
-	CodeApplicationFirst Code = 4000
-	CodeApplicationLast  Code = 4999
-	CodeDuplex           Code = 4011
+	CodeApplicationFirst bitwire.Code = 4000
+	CodeApplicationLast  bitwire.Code = 4999
+	CodeDuplex           bitwire.Code = 4011
 )
 
 // ErrClosed is what Send and Receive return once the connection was closed
@@ -97,7 +93,7 @@ var ErrClosed = errors.New("duplex connection closed")
 // CloseError is what Receive returns once the remote side closed: the code
 // and the reason it gave, which a protocol above may act on.
 type CloseError struct {
-	Code   Code
+	Code   bitwire.Code
 	Reason string
 }
 
@@ -128,7 +124,7 @@ type Conn interface {
 	// Close ends the connection with a code and a reason the remote side
 	// will see, waiting for its acknowledgement until ctx ends where the
 	// transport has one.
-	Close(ctx context.Context, code Code, reason string) error
+	Close(ctx context.Context, code bitwire.Code, reason string) error
 	// Abort ends the connection at once, with no handshake and nothing sent,
 	// and releases every blocked Send and Receive. It is what a protocol
 	// does when the remote side has misbehaved or the consumer has stalled.

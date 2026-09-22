@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"strings"
 	"testing"
 
-	"github.com/Bitspark/nightseam/duplex/go"
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -22,23 +22,23 @@ func TestWireRefusesMalformedFramesBeforeDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sink := &wireReplySink{replies: make(chan duplex.ProfileFrame, 30)}
-	address := &duplex.ReturnAddress{Wire: sink}
-	valid := duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: "c:1", Params: json.RawMessage("{}")}
-	for name, change := range map[string]func(*duplex.ProfileFrame){
-		"version":           func(f *duplex.ProfileFrame) { f.Version = 0 },
-		"id":                func(f *duplex.ProfileFrame) { f.ID = "unscoped" },
-		"zero id":           func(f *duplex.ProfileFrame) { f.ID = "c:0" },
-		"missing params":    func(f *duplex.ProfileFrame) { f.Params = nil },
-		"foreign member":    func(f *duplex.ProfileFrame) { f.Result = json.RawMessage("null") },
-		"trace":             func(f *duplex.ProfileFrame) { f.Traceparent = "invalid" },
-		"reserved metadata": func(f *duplex.ProfileFrame) { f.Meta = map[string]string{"nightseam.future": "value"} },
-		"oversize":          func(f *duplex.ProfileFrame) { f.Params, _ = json.Marshal(strings.Repeat("x", 300)) },
+	sink := &wireReplySink{replies: make(chan bitwire.ProfileFrame, 30)}
+	address := &bitwire.ReturnAddress{Wire: sink}
+	valid := bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: "c:1", Params: json.RawMessage("{}")}
+	for name, change := range map[string]func(*bitwire.ProfileFrame){
+		"version":           func(f *bitwire.ProfileFrame) { f.Version = 0 },
+		"id":                func(f *bitwire.ProfileFrame) { f.ID = "unscoped" },
+		"zero id":           func(f *bitwire.ProfileFrame) { f.ID = "c:0" },
+		"missing params":    func(f *bitwire.ProfileFrame) { f.Params = nil },
+		"foreign member":    func(f *bitwire.ProfileFrame) { f.Result = json.RawMessage("null") },
+		"trace":             func(f *bitwire.ProfileFrame) { f.Traceparent = "invalid" },
+		"reserved metadata": func(f *bitwire.ProfileFrame) { f.Meta = map[string]string{"nightseam.future": "value"} },
+		"oversize":          func(f *bitwire.ProfileFrame) { f.Params, _ = json.Marshal(strings.Repeat("x", 300)) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			frame := valid
 			change(&frame)
-			if err := client.Wire().Send([]string{"echo"}, duplex.Message{Frame: frame, Return: address}); err == nil {
+			if err := client.Wire().Send([]string{"echo"}, bitwire.Message{Frame: frame, Return: address}); err == nil {
 				t.Errorf("malformed frame admitted")
 			}
 		})

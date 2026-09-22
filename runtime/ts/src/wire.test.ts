@@ -1,16 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  at,
-  mount,
-  pipe,
-  type Wire,
-  type Message,
-  type Frame,
-  type FrameConnection,
-  type ReturnAddress,
-  type ConnectionHandlers,
-} from '@nightseam/duplex';
+import { at, mount, pipe, type Frame, type FrameConnection, type ConnectionHandlers } from '@nightseam/duplex';
+import type { Wire, Message, ReturnAddress } from '@bitspark/bitwire';
 import { DuplexPeer, DuplexError, UnpublishedError } from './peer.ts';
 import type { PeerOptions } from './peer.ts';
 import { callWire, handleWire, emitWire, onWireEvent, forwardWire } from './wire.ts';

@@ -28,7 +28,8 @@ Bitwire v0.2.0 contract, adopted as required 0.6.0 work in
 [#421](https://github.com/Bitspark/nightseam/issues/421). Runtime, generator,
 declaration/identity and optional-auth implementation remain here, as recorded in
 [the repository-home decision](docs/decisions/the-reusable-foundation-lives-in-nightseam.md).
-Nightseam exposes aliases and re-exports of those shared types. Contract changes
+All eight language ports import Bitwire types directly; Nightseam provides no
+alias, re-export or duplicate declaration of the shared access contract. Contract changes
 belong with their Bitwire definition and independent behavioral cases; runtime
 and profile obligations remain held by Nightseam's suites.
 The authority component checks evidence and preserves guards; consumers choose

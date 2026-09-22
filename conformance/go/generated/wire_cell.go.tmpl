@@ -6,6 +6,7 @@ import (
 	cellbinding "example.test/generated/api/go/cell-binding"
 	cell "example.test/generated/api/go/cell-protocol"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/live/go"
 	"github.com/Bitspark/nightseam/runtime/go"
@@ -93,8 +94,8 @@ func (a wireAllocations) since(before wireAllocations) wireAllocations {
 
 // A receiving view of a mount is a view of one dispatcher that owns the
 // mount's single attachment; selection alone grants send access only.
-func wireMountedView(root duplex.Endpoint) (duplex.Endpoint, *runtime.Dispatcher, error) {
-	mounted := duplex.Mount(map[string]duplex.Endpoint{"outer": duplex.Mount(map[string]duplex.Endpoint{"leaf": root})})
+func wireMountedView(root bitwire.Endpoint) (bitwire.Endpoint, *runtime.Dispatcher, error) {
+	mounted := duplex.Mount(map[string]bitwire.Endpoint{"outer": duplex.Mount(map[string]bitwire.Endpoint{"leaf": root})})
 	dispatch, err := runtime.NewDispatcher(mounted)
 	if err != nil {
 		_ = mounted.Close(1000, "")
@@ -103,7 +104,7 @@ func wireMountedView(root duplex.Endpoint) (duplex.Endpoint, *runtime.Dispatcher
 	return mounted, dispatch, nil
 }
 
-func wirePresentation(root duplex.Endpoint, presentation string, options runtime.Options) (duplex.Endpoint, func(), error) {
+func wirePresentation(root bitwire.Endpoint, presentation string, options runtime.Options) (bitwire.Endpoint, func(), error) {
 	switch presentation {
 	case "local":
 		return root, func() {}, nil

@@ -1,60 +1,19 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
--- | Carrier-neutral frames and relative path views. A root owns admission,
--- bounded dispatch, correlation and closure; views allocate no carrier or queue.
-module Nightseam.Duplex.Wire
-  ( Path, Message (..), ReturnAddress, newReturnAddress, returnWire
-  , Receiver (..), Wire (..), WireError (..), at, mount, encodePath, decodePath
-  ) where
+-- | Composition using the upstream Bitwire contracts directly.
+module Nightseam.Duplex.Wire (WireError(..), at, mount, encodePath, decodePath) where
 
+import Bitwire
 import Control.Concurrent.STM
 import Control.Exception (Exception, mask, onException, throwIO)
 import Control.Monad (forM_, unless, when)
-import Data.Aeson (Value)
 import qualified Data.ByteString as BS
-import Data.Dynamic (Dynamic)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Typeable (Typeable)
-import Data.Unique (Unique, newUnique)
-
-type Path = [Text]
-
--- | Local identity is independent of the representation of the destination.
--- Neither this capability nor a received context is part of a serialized frame.
-data ReturnAddress = ReturnAddress Unique Wire
-
-instance Eq ReturnAddress where
-  ReturnAddress left _ == ReturnAddress right _ = left == right
-
-newReturnAddress :: Wire -> IO ReturnAddress
-newReturnAddress wire = (`ReturnAddress` wire) <$> newUnique
-
-returnWire :: ReturnAddress -> Wire
-returnWire (ReturnAddress _ wire) = wire
-
--- | The frame contains profile fields except the method/event path supplied to
--- 'wireSend'. Runtime keeps its verified incoming context in 'messageContext'.
-data Message = Message
-  { messageFrame :: Value
-  , messageReturn :: Maybe ReturnAddress
-  , messageContext :: Maybe Dynamic
-  }
-
-data Receiver = Receiver
-  { receiverNamespace :: Bool
-  , receiverMessage :: Path -> Message -> IO ()
-  , receiverClosed :: Int -> Text -> IO ()
-  }
-
-data Wire = Wire
-  { wireSend :: Path -> Message -> IO ()
-  , wireReceive :: Path -> Receiver -> IO (IO ())
-  , wireClose :: Int -> Text -> IO ()
-  }
 
 data WireError = InvalidPath | NoRoute | ReceiverExists | WireClosed
   deriving (Eq, Show, Typeable)
@@ -91,14 +50,9 @@ decodePath = go . TE.encodeUtf8
           value <- either (const (Left InvalidPath)) Right (TE.decodeUtf8' bytes)
           (value :) <$> go remaining
 
--- | Selecting an origin is a pure view; closing it closes its underlying wire.
+-- | A pure send-only path view; lifecycle remains with its endpoint owner.
 at :: Wire -> Path -> Wire
-at root prefix = Wire
-  { wireSend = \path -> wireSend root (prefix ++ path)
-  , wireReceive = \path receiver -> wireReceive root (prefix ++ path) receiver
-      { receiverMessage = \delivered -> receiverMessage receiver (drop (length prefix) delivered) }
-  , wireClose = wireClose root
-  }
+at root prefix = Wire $ \path -> send root (prefix ++ path)
 
 data Registration = Registration
   { registrationID :: Integer
@@ -115,7 +69,7 @@ data MountState = MountState
 
 -- | Mount consumes one segment. Empty keys are valid, while the origin itself
 -- has no leaf. Closure detaches registrations and leaves borrowed children open.
-mount :: Map.Map Text Wire -> IO Wire
+mount :: Map.Map Text Endpoint -> IO Endpoint
 mount children = do
   state <- newTVarIO (MountState False 0 Map.empty)
   let destination path = do
@@ -129,6 +83,7 @@ mount children = do
       reserve receiver = atomically $ do
         current <- readTVar state
         when (mountClosed current) (throwSTM WireClosed)
+        unless (Map.null (mountRegistrations current)) (throwSTM ReceiverExists)
         active <- newTVar True
         detaches <- newTVar []
         let identifier = mountNext current
@@ -151,28 +106,18 @@ mount children = do
           Nothing -> pure ()
           Just detaches -> do
             sequence_ detaches
-            when notify (receiverClosed (registrationReceiver registration) code reason)
-      attach registration child path receiver = mask $ \restore -> do
-        detach <- restore (wireReceive child path receiver)
+            when notify (maybe (pure ()) (\f -> f code reason) (onClosed (registrationReceiver registration)))
+      attach registration child receiver = mask $ \restore -> do
+        detach <- restore (receive child receiver)
         active <- atomically $ do
           live <- readTVar (registrationActive registration)
           when live (modifyTVar' (registrationDetaches registration) (detach :))
           pure live
         unless active (detach >> throwIO WireClosed)
-      receiveOne path receiver = mask $ \restore -> do
-        (key, rest, child) <- destination path
-        registration <- reserve receiver
-        let forget = remove registration False 0 ""
-            forwarded = receiver
-              { receiverMessage = \delivered -> receiverMessage receiver (key : delivered)
-              , receiverClosed = remove registration True
-              }
-        restore (attach registration child rest forwarded) `onException` forget
-        pure forget
       receiveNamespace receiver = mask $ \restore -> do
         registration <- reserve receiver
         remaining <- newTVarIO (Map.keysSet children)
-        let forget = remove registration False 0 ""
+        let forget = remove registration False (Code 0) ""
             childEnded key code reason = do
               lastChild <- atomically $ do
                 old <- readTVar remaining
@@ -180,14 +125,13 @@ mount children = do
                 writeTVar remaining next
                 pure (Set.member key old && Set.null next)
               when lastChild (remove registration True code reason)
-            install (key, child) = attach registration child [] receiver
-              { receiverNamespace = True
-              , receiverMessage = \delivered -> receiverMessage receiver (key : delivered)
-              , receiverClosed = childEnded key
+            install (key, child) = attach registration child receiver
+              { onMessage = (\f delivered -> f (key : delivered)) <$> onMessage receiver
+              , onClosed = Just (childEnded key)
               }
         restore (mapM_ install (Map.toList children)) `onException` forget
         pure forget
-      close code reason = mask $ \_ -> do
+      end code reason = mask $ \_ -> do
         registrations <- atomically $ do
           current <- readTVar state
           if mountClosed current then pure [] else do
@@ -195,11 +139,10 @@ mount children = do
             writeTVar state current {mountClosed = True}
             pure held
         forM_ registrations (\registration -> remove registration True code reason)
-  pure Wire
-    { wireSend = \path message -> do
+  pure Endpoint
+    { endpointWire = Wire $ \path message -> do
         (_, rest, child) <- destination path
-        wireSend child rest message
-    , wireReceive = \path receiver -> if null path && receiverNamespace receiver
-        then receiveNamespace receiver else receiveOne path receiver
-    , wireClose = close
+        send (endpointWire child) rest message
+    , receive = receiveNamespace
+    , close = end
     }

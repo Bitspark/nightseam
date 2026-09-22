@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import NightseamDuplex
 import NightseamRuntime
@@ -32,7 +33,7 @@ private final class RecordedMailbox<Value: Sendable>: @unchecked Sendable {
 }
 
 private final class RecordedFollower: @unchecked Sendable {
-    let target: any Wire
+    let target: any Endpoint
     let bound: Int
     let sent = RecordedMailbox<Int>()
     let paused = RecordedMailbox<Bool>()
@@ -41,7 +42,7 @@ private final class RecordedFollower: @unchecked Sendable {
     private var live: [RecordedEntry] = []
     private var stopped = false
     private var resumed = false
-    init(target: any Wire, bound: Int) { self.target = target; self.bound = bound }
+    init(target: any Endpoint, bound: Int) { self.target = target; self.bound = bound }
     var queued: Int { condition.withLock { live.count } }
     func stop() { condition.lock(); stopped = true; condition.broadcast(); condition.unlock() }
     func resume() { condition.lock(); resumed = true; condition.broadcast(); condition.unlock() }
@@ -100,12 +101,11 @@ private final class RecordedStore: Wire, @unchecked Sendable {
             for id in overflowed { followers.removeValue(forKey: id) }
         }
     }
-    func receive(path: [String], receiver: Receiver) throws -> Detach { throw RecordedFailure("Store has no receive route") }
     func close(code: Int, reason: String) throws {
         let detached = lock.withLock { let copy = Array(followers.values); followers.removeAll(); return copy }
         for follower in detached { follower.stop() }
     }
-    func attach(after: Int, target: any Wire, bound: Int, pause: Bool) -> (Int, RecordedFollower) {
+    func attach(after: Int, target: any Endpoint, bound: Int, pause: Bool) -> (Int, RecordedFollower) {
         let follower = RecordedFollower(target: target, bound: bound)
         // Taking the head and installing the live follower share append's lock.
         let (head, history) = lock.withLock {
@@ -122,7 +122,7 @@ private final class RecordedStore: Wire, @unchecked Sendable {
 // A deterministic asynchronous fixture origin. Selection and mount remain the
 // production implementations; forwarding sends the same opaque Message through
 // a second queued origin, exercising actual callbacks and relative paths.
-private final class RecordedRoot: Wire, @unchecked Sendable {
+private final class RecordedRoot: Endpoint, @unchecked Sendable {
     private let lock = NSLock()
     private let worker = DispatchQueue(label: "nightseam.recorded.root")
     private var receivers: [Data: Receiver] = [:]
@@ -143,14 +143,14 @@ private final class RecordedRoot: Wire, @unchecked Sendable {
             let next: (RecordedEntry, Receiver?)? = lock.withLock {
                 guard !ended, !queue.isEmpty else { running = false; return nil }
                 let entry = queue.removeFirst()
-                return (entry, receivers[Path.key(entry.path)])
+                return (entry, receivers[Data()])
             }
             guard let (entry, receiver) = next else { return }
             receiver?.message(entry.path, entry.message)
         }
     }
-    func receive(path: [String], receiver: Receiver) throws -> Detach {
-        let key = Path.key(path)
+    func receive(receiver: Receiver) throws -> Detach {
+        let key = Data()
         try lock.withLock {
             guard !ended else { throw RecordedFailure("Fixture root closed") }
             guard receivers[key] == nil else { throw RecordedFailure("Fixture receiver exists") }
@@ -170,7 +170,9 @@ private func recordedMessage(_ value: Int) -> Message {
 private final class RecordedPresentation: Sendable {
     let root: RecordedRoot
     let end: RecordedRoot
-    let wire: any Wire
+    let wire: any Endpoint
+    let rootRoutes: Dispatcher
+    let routes: [Dispatcher]
     let values: RecordedMailbox<Int>
     let closed: RecordedMailbox<Int>
     let errors: RecordedMailbox<String>
@@ -179,9 +181,13 @@ private final class RecordedPresentation: Sendable {
         let root = RecordedRoot(), end = RecordedRoot()
         let values = RecordedMailbox<Int>(), closed = RecordedMailbox<Int>()
         let errors = RecordedMailbox<String>(), reentered = RecordedMailbox<Bool>()
-        let destination = at(mount(["out": at(end, path: ["destination"])]), path: ["out"])
-        let wire = at(mount(["outer": mount(["in": at(root, path: ["source"])])]), path: ["outer", "in"])
-        _ = try destination.receive(path: ["tick"], receiver: Receiver(message: { path, message in
+        let rootRoutes = try Dispatcher(root), endRoutes = try Dispatcher(end)
+        let destinationRoutes = try Dispatcher(mount(["out": endRoutes.select(path: ["destination"])]))
+        let sourceRoutes = try Dispatcher(mount(["outer": mount(["in": rootRoutes.select(path: ["source"])])]))
+        let destination = destinationRoutes.select(path: ["out"])
+        let wire = sourceRoutes.select(path: ["outer", "in"])
+        self.rootRoutes = rootRoutes; self.routes = [endRoutes, destinationRoutes, sourceRoutes]
+        _ = try destination.receive(receiver: Receiver(message: { path, message in
             guard Path.key(path) == Path.key(["tick"]) else { errors.put("Destination received wrong path"); return }
             // A real consumer callback takes append's lock. If delivery occurred
             // under that lock, the fence below would fail its bounded wait.
@@ -191,7 +197,7 @@ private final class RecordedPresentation: Sendable {
             else { errors.put("Destination received invalid event data"); return }
             values.put(value)
         }))
-        _ = try wire.receive(path: ["tick"], receiver: Receiver(message: { path, message in
+        _ = try wire.receive(receiver: Receiver(message: { path, message in
             do { try destination.send(path: path, message: message) }
             catch { errors.put(String(describing: error)) }
         }, closed: { code, _ in _ = store.head; closed.put(code) }))
@@ -200,6 +206,7 @@ private final class RecordedPresentation: Sendable {
     }
     func close() {
         try? wire.close(code: 1000, reason: "Done")
+        rootRoutes.close(); for route in routes { route.close() }
         try? root.close(code: 1000, reason: "Done")
         try? end.close(code: 1000, reason: "Done")
     }
@@ -224,7 +231,7 @@ private func recordedHeadCase(appendBeforeHead: Bool, deadline: Date) throws -> 
     defer { try? store.close(code: 1000, reason: "Done") }
     let presentation = try RecordedPresentation(store: store)
     defer { presentation.close() }
-    let source = at(mount(["record": store]), path: ["record"])
+    let source = at(store, path: [])
     let append: @Sendable (Int) throws -> Void = { value in
         try source.send(path: ["tick"], message: recordedMessage(value))
     }
@@ -284,7 +291,7 @@ private func recordedStallCase(deadline: Date) throws -> JSONValue {
     catch { rejected = true }
     guard rejected else { throw RecordedFailure("Stalled carrier admitted after close") }
     let underneath = RecordedMailbox<Int>()
-    _ = try stalled.root.receive(path: ["probe"], receiver: Receiver(message: { _, message in
+    _ = try stalled.rootRoutes.register(path: ["probe"], receiver: Receiver(message: { _, message in
         if let data = message.frame.data, let text = String(data: data, encoding: .utf8), let value = Int(text) { underneath.put(value) }
     }))
     try stalled.root.send(path: ["probe"], message: recordedMessage(99))

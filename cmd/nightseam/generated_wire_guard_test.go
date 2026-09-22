@@ -45,6 +45,8 @@ func TestGeneratedWireConsumerGuards(t *testing.T) {
 
 const goGeneratedGuardProgram = `package guard_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "errors"
  "net/http"
@@ -55,7 +57,7 @@ import (
  "time"
  binding "example.test/generated/api/go/guarded-binding"
  protocol "example.test/generated/api/go/guarded-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/live/go"
  "github.com/Bitspark/nightseam/runtime/go"
  "github.com/Bitspark/nightseam/tunnel/go"
@@ -78,7 +80,7 @@ func(c opposite)Mirror(ctx context.Context,p protocol.Input)(int64,error){if err
 func(c opposite)Changed(ctx context.Context,_ protocol.Input)error{err:=guard(ctx,c.identity);if len(runtime.MetaFrom(ctx))!=0{err=errors.New("received metadata became event credentials")};if err==nil{c.state.changed.Add(1)};c.state.events<-err==nil;return nil}
 func options(identity *principal, scope **live.Scope)runtime.Options{return runtime.Options{Propagator:fixed{identity},Prepare:func(p *runtime.Peer)(err error){*scope,err=live.Over(p,live.Options{});return}}}
 func pipePeers(t *testing.T,a,b runtime.Options)(*runtime.Peer,*runtime.Peer){t.Helper();left,right:=duplex.Pipe(1<<20);pa,err:=runtime.NewPeer(context.Background(),left,runtime.ClientRole,a);if err!=nil{t.Fatal(err)};pb,err:=runtime.NewPeer(context.Background(),right,runtime.ServerRole,b);if err!=nil{t.Fatal(err)};t.Cleanup(func(){_=pa.Close();_=pb.Close()});return pa,pb}
-func carriers(t *testing.T,mode string,caller,callee *principal)(duplex.Endpoint,duplex.Endpoint,*live.Scope,*live.Scope){
+func carriers(t *testing.T,mode string,caller,callee *principal)(bitwire.Endpoint,bitwire.Endpoint,*live.Scope,*live.Scope){
  t.Helper();var a,b *live.Scope
  if mode=="socket"{
   ready:=make(chan *runtime.Peer,1)
@@ -109,8 +111,8 @@ func TestGeneratedGuards(t *testing.T){for _,mode:=range []string{"local","socke
  wire,err:=binding.ToWire(func(remote protocol.Client)(protocol.Server,error){serverRemote=remote;s:=server{remote,serverIdentity,state};return protocol.Server{Methods:s,Events:s},nil},runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sb),Options:modelOptions});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
  if mode=="local"{outgoing=wire}else{off,err:=runtime.ForwardWire(incoming,wire);if err!=nil{t.Fatal(err)};defer off()}
  // All model code above is independent of this host-only presentation.
- inner:=duplex.Mount(map[string]duplex.Endpoint{"protected":outgoing});defer inner.Close(duplex.CodeNormal,"")
- root:=duplex.Mount(map[string]duplex.Endpoint{"nested":inner});defer root.Close(duplex.CodeNormal,"")
+ inner:=duplex.Mount(map[string]bitwire.Endpoint{"protected":outgoing});defer inner.Close(duplex.CodeNormal,"")
+ root:=duplex.Mount(map[string]bitwire.Endpoint{"nested":inner});defer root.Close(duplex.CodeNormal,"")
  dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{t.Fatal(err)};defer dispatcher.Close(duplex.CodeNormal,"");selected:=dispatcher.Select([]string{"nested","protected"})
  factory,err:=binding.FromWire(ctx,selected,runtime.AdapterContext{ValueEnvironment:live.ValueEnvironment(sa)});if err!=nil{t.Fatal(err)};opposite:=opposite{callerIdentity,state};access,err:=factory(protocol.Client{Methods:opposite,Events:opposite});if err!=nil{t.Fatal(err)}
  forged:=runtime.WithMeta(ctx,map[string]string{"verified":"true","principal":"admin","credential":"forged"})
@@ -140,7 +142,8 @@ func TestGeneratedGuards(t *testing.T){for _,mode:=range []string{"local","socke
 `
 
 const tsGeneratedGuardProgram = `import {createServer,createConnection,type Socket} from 'node:net';
-import {mount,pipe,type Endpoint,type FrameConnection,type ConnectionHandlers} from '@nightseam/duplex';
+import { mount, pipe, type FrameConnection, type ConnectionHandlers } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import {DuplexPeer,DuplexError,defaultPropagator,forwardWire,createDispatcher,type PeerOptions,type Propagator,type WireModelContext} from '@nightseam/runtime';
 import {liveOver,valueEnvironment,type LiveScope} from '@nightseam/live';
 import {Tunnel} from '@nightseam/tunnel';

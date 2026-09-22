@@ -71,22 +71,27 @@ retains a payload's original JSON spelling when forwarding it.
 a Peer or a transport. `peer.wire()` returns the same root over an existing
 peer. Both implement the [relative Wire contract](../runtime/wire.md): sends
 admit synchronously, requests run concurrently, and events retain their order.
+Shared types are imported from `bitwire`. Its `Wire` is send-only; `Endpoint`
+adds one receive attachment and closure. A `Dispatcher` supplies explicit path
+registration and selected receiving views above that attachment.
 
 ```python
-from nightseam.runtime import call_wire, handle_wire, wire_pair
+from nightseam.runtime import Dispatcher, call_wire, handle_wire, wire_pair
 
 
 async def local_echo():
     access, binding = wire_pair()
-    detach = handle_wire(binding, ["echo"], lambda value, context: value)
+    router = Dispatcher(binding)
+    detach = handle_wire(router, ["echo"], lambda value, context: value)
     try:
         return await call_wire(access, ["echo"], {"text": "hello"})
     finally:
         detach()
+        router.close()
         access.close()
 ```
 
-`register_wire(wire, path, WireHandlers(request=..., event=...))` registers both
+`register_wire(dispatcher, path, WireHandlers(request=..., event=...))` registers both
 facets together. `on_wire_event` and synchronous `emit_wire` provide the event
 helpers. `forward_wire(left, right)` connects two relative origins and returns
 an idempotent detach; detach leaves both borrowed endpoints usable. `at` and
@@ -121,7 +126,8 @@ admitted appends. It does not promise delivery or an application effect.
 ```python
 import asyncio
 
-from nightseam.duplex import MemoryWireLog, Message, RecordOptions, record
+from bitwire import Message
+from nightseam.duplex import MemoryWireLog, RecordOptions, record
 
 
 async def follow_until_stopped(target, subscriber, stopped):

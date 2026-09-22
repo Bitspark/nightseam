@@ -1,7 +1,7 @@
 # Java duplex seam
 
 `io.nightseam.duplex` supplies a Java 21 ordered, framed, bidirectional
-transport and relative-path Wire views. It has no third-party dependencies
+transport and relative-path Wire views. It depends on `dev.bitspark:bitwire:0.2.0` for shared access declarations
 and no dependency on the JSON runtime.
 
 ```java
@@ -45,14 +45,15 @@ Its incoming queue holds eight complete messages plus at most one message
 being read. Listener handshakes and pending accepts are also bounded.
 No WebSocket extension is negotiated.
 
-`Message` carries a profile frame map and a local `Wire returnAddress`.
-The map preserves JSON key presence and explicit null; the runtime owns its
-value representation. Path composition preserves the message and return
+Import `Wire`, `Endpoint`, `Message`, `Receiver` and `ReturnAddress` from
+`dev.bitspark.bitwire`. `Message` carries a typed `ProfileFrame` and a local
+`ReturnAddress`; `JsonValue` preserves encoded payloads, including explicit null. Path composition preserves the message and return
 capability identities. `Wires.at` selects an origin, `Wires.mount` consumes
 one child segment, and `encodePath`/`decodePath` use canonical UTF-8 byte
 lengths. Views allocate no queue and run no application callbacks on send.
-Closing a selection closes its endpoint; closing a mount detaches its
-registrations and leaves its borrowed children usable.
+`Wires.at` grants send access only. `Dispatcher` owns one Bitwire endpoint
+attachment and provides routing and receiving selections. Closing a dispatcher,
+its selections, or a mount releases attachments and leaves borrowed roots usable.
 
 The public `io.nightseam.duplex.SeamTest` main tests both transport roles,
 bounded writes, code/reason propagation, abort, raw protocol refusals,

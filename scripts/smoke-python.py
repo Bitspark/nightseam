@@ -23,7 +23,8 @@ import nightseam.duplex
 import nightseam.runtime
 from nightseam.duplex import at, mount
 from nightseam.duplex.websocket import dial, listen
-from nightseam.runtime import Peer, call_wire, forward_wire, handle_wire, wire_pair
+from bitwire import Endpoint, Wire
+from nightseam.runtime import Dispatcher, Peer, call_wire, forward_wire, handle_wire, wire_pair
 
 checkout = Path(sys.argv[1]).resolve()
 assert version("nightseam") == sys.argv[2], version("nightseam")
@@ -37,7 +38,10 @@ async def main():
     server.handle("echo", lambda value, context: value)
     client = Peer(connection)
     access, binding = wire_pair()
-    handle_wire(binding, ["echo"], lambda value, context: value)
+    assert isinstance(access, Endpoint)
+    assert isinstance(access, Wire)
+    router = Dispatcher(binding)
+    handle_wire(router, ["echo"], lambda value, context: value)
     detach = forward_wire(server.wire(), access)
     try:
         assert await client.call("echo", {"text": "hello", "nullable": None}) == {"text": "hello", "nullable": None}

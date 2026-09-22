@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import NightseamDuplex
 
@@ -132,7 +133,7 @@ public actor Peer {
     private let ended = AsyncResult<CloseError>()
     private var wirePreparation: Task<PeerWire, any Error>?
 
-    public func wire() async throws -> any Wire {
+    public func wire() async throws -> any Endpoint {
         if let wirePreparation { return try await wirePreparation.value }
         let preparation = Task { try await PeerWire.attach(peer: self) }
         wirePreparation = preparation

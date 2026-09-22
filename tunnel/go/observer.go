@@ -1,9 +1,9 @@
 package tunnel
 
 import (
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"time"
 
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -122,7 +122,7 @@ func (t *Tunnel) observeAccepted(c *Connection) {
 	t.peer.Observe(ChannelAccepted{At: time.Now(), Family: c.Family, ID: c.ID})
 }
 
-func (t *Tunnel) observeClosed(c *Connection, code duplex.Code, reason string) {
+func (t *Tunnel) observeClosed(c *Connection, code bitwire.Code, reason string) {
 	if t.peer.Observer() == nil {
 		return
 	}

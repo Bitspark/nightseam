@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"maps"
 	"sync"
 	"time"
@@ -397,7 +398,7 @@ func (t *Tunnel) onClose(_ context.Context, _ *runtime.Peer, raw json.RawMessage
 		return
 	}
 	t.remove(payload.Channel)
-	c.endRemote(&duplex.CloseError{Code: duplex.Code(payload.Code), Reason: payload.Reason})
+	c.endRemote(&duplex.CloseError{Code: bitwire.Code(payload.Code), Reason: payload.Reason})
 }
 
 // Connection is one channel of a tunnel: a duplex.Conn, and what the opener
@@ -472,7 +473,7 @@ func (c *Connection) state() error {
 // for it, and tells of the close. A channel nobody was told of closes to
 // nobody: taking the announcement here leaves an open that never got that far
 // with nothing to say, and opened is what the announcement set.
-func (c *Connection) end(code duplex.Code, reason string, set func()) {
+func (c *Connection) end(code bitwire.Code, reason string, set func()) {
 	c.once.Do(func() {
 		c.mu.Lock()
 		set()
@@ -485,7 +486,7 @@ func (c *Connection) end(code duplex.Code, reason string, set func()) {
 	})
 }
 
-func (c *Connection) endLocal(code duplex.Code, reason string) {
+func (c *Connection) endLocal(code bitwire.Code, reason string) {
 	c.end(code, reason, func() { c.closed = true })
 }
 
@@ -494,14 +495,14 @@ func (c *Connection) endRemote(closed *duplex.CloseError) {
 }
 
 // fail ends the channel on a frame it refuses, telling the other side why.
-func (c *Connection) fail(code duplex.Code, reason string) {
+func (c *Connection) fail(code bitwire.Code, reason string) {
 	c.end(code, reason, func() { c.dead = fmt.Errorf("channel %d refused a frame: %s", c.ID, reason) })
 	c.t.remove(c.ID)
 	c.tell(code, reason)
 }
 
 // tell sends the close to the other side, best effort and briefly.
-func (c *Connection) tell(code duplex.Code, reason string) {
+func (c *Connection) tell(code bitwire.Code, reason string) {
 	ctx, cancel := context.WithTimeout(c.t.peer.Context(), time.Second)
 	defer cancel()
 	_ = c.t.peer.Emit(ctx, CloseEvent, closePayload{Channel: c.ID, Code: int(code), Reason: reason})
@@ -623,7 +624,7 @@ func (c *Connection) took(frame duplex.Frame) (duplex.Frame, error) {
 }
 
 // Close ends the channel with a code and a reason the other side will see.
-func (c *Connection) Close(ctx context.Context, code duplex.Code, reason string) error {
+func (c *Connection) Close(ctx context.Context, code bitwire.Code, reason string) error {
 	c.mu.Lock()
 	ended := c.state() != nil
 	c.mu.Unlock()

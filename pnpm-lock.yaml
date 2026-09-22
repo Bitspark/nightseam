@@ -166,6 +166,9 @@ importers:
 
   .:
     devDependencies:
+      '@bitspark/bitwire':
+        specifier: 0.2.0
+        version: 0.2.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:duplex/ts
@@ -253,6 +256,9 @@ importers:
 
   live/ts:
     dependencies:
+      '@bitspark/bitwire':
+        specifier: 0.2.0
+        version: 0.2.0
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
@@ -297,6 +303,9 @@ importers:
 
   runtime/ts:
     dependencies:
+      '@bitspark/bitwire':
+        specifier: 0.2.0
+        version: 0.2.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
@@ -307,6 +316,9 @@ importers:
 
   tunnel/ts:
     dependencies:
+      '@bitspark/bitwire':
+        specifier: 0.2.0
+        version: 0.2.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts

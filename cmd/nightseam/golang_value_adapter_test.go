@@ -47,6 +47,7 @@ func TestGeneratedGoValueAdapters(t *testing.T) {
 
 const goValueAdapterProgram = `package adapters_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "encoding/json"
  "errors"
@@ -57,7 +58,7 @@ import (
  combinator "example.test/generated/api/go/combinator-protocol"
  binding "example.test/generated/api/go/cell-binding"
  cellprotocol "example.test/generated/api/go/cell-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/live/go"
  "github.com/Bitspark/nightseam/runtime/go"
 )
@@ -172,6 +173,7 @@ var goBoundAdapterSlots = []struct {
 // from Cell<T>. Its binding and its implementation never call the generic path.
 const goBoundAdapterProgram = `package adapters_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "fmt"
  "sync/atomic"
@@ -182,7 +184,7 @@ import (
  concretebinding "example.test/generated/api/go/FAMILY-binding"
  concreteprotocol "example.test/generated/api/go/FAMILY-protocol"
  cellprotocol "example.test/generated/api/go/cell-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/live/go"
  "github.com/Bitspark/nightseam/runtime/go"
 )

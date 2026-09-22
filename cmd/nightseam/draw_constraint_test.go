@@ -39,6 +39,7 @@ func TestDrawRequestConstraintBeforeModel(t *testing.T) {
 	fixtureModule(t, directory, root)
 	writeFixture(t, directory, "constraint_test.go", []byte(`package constraint_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
  "context"
  "strings"
  "testing"
@@ -47,7 +48,7 @@ import (
  client "example.test/generated/api/go/holder-client"
  holder "example.test/generated/api/go/holder-protocol"
  "github.com/Bitspark/nightseam/runtime/go"
- "github.com/Bitspark/nightseam/duplex/go"
+
 )
 func TestBeforeModel(t *testing.T){
  calls:=0
@@ -67,7 +68,7 @@ func TestBeforeModel(t *testing.T){
 import * as choices from '@example/choices-client/types';
 import {toWire} from '@example/holder-binding';
 import {fromWire} from '@example/holder-client';
-import type {Endpoint} from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 let calls=0;
 assert.throws(()=>toWire<choices.Family>(()=>{calls++;return {methods:{exchange(value){return value;},direct(value){return value;}},events:{}};},{},choices.family),/object/);
 await assert.rejects(fromWire<choices.Family>({} as Endpoint,{},choices.family),/object/);

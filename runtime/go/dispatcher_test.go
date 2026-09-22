@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"testing"
 
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -19,7 +20,7 @@ func TestDispatcherSharesOneAttachmentAndPreservesBorrowedEndpoint(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := right.Receive(duplex.Receiver{}); err == nil {
+	if _, err := right.Receive(bitwire.Receiver{}); err == nil {
 		t.Fatal("second owning attachment accepted")
 	}
 	for _, name := range []string{"a", "b"} {
@@ -67,7 +68,7 @@ func TestDispatcherClosesAnExplicitlyOwnedEndpoint(t *testing.T) {
 	if err := dispatch.Close(duplex.CodeProtocolError, "wire event rejected"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := right.Receive(duplex.Receiver{}); err == nil {
+	if _, err := right.Receive(bitwire.Receiver{}); err == nil {
 		t.Fatal("owned endpoint stayed open")
 	}
 	if err := dispatch.Close(duplex.CodeNormal, "again"); err != nil {
@@ -75,11 +76,11 @@ func TestDispatcherClosesAnExplicitlyOwnedEndpoint(t *testing.T) {
 	}
 }
 
-type unmanagedDispatchEndpoint struct{ receiver duplex.Receiver }
+type unmanagedDispatchEndpoint struct{ receiver bitwire.Receiver }
 
-func (*unmanagedDispatchEndpoint) Send([]string, duplex.Message) error { return nil }
-func (w *unmanagedDispatchEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (*unmanagedDispatchEndpoint) Send([]string, bitwire.Message) error { return nil }
+func (w *unmanagedDispatchEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	w.receiver = receiver
 	return func() {}, nil
 }
-func (*unmanagedDispatchEndpoint) Close(duplex.Code, string) error { return nil }
+func (*unmanagedDispatchEndpoint) Close(bitwire.Code, string) error { return nil }

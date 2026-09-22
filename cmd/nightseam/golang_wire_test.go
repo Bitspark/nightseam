@@ -41,6 +41,8 @@ func TestGeneratedGoWireModelFactories(t *testing.T) {
 
 const goWireFactoryProgram = `package wire_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "sync/atomic"
  "testing"
@@ -48,7 +50,7 @@ import (
  binding "example.test/generated/api/go/probe-binding"
  client "example.test/generated/api/go/probe-client"
  protocol "example.test/generated/api/go/probe-protocol"
- "github.com/Bitspark/nightseam/duplex/go"
+
  "github.com/Bitspark/nightseam/runtime/go"
 )
 type implementation struct { remote protocol.Client; state *atomic.Int64; steps chan int64 }
@@ -65,7 +67,7 @@ func TestFactories(t *testing.T){
  var remote protocol.Client
  var model protocol.ServerModel=func(opposite protocol.Client)(protocol.Server,error){factories.Add(1);remote=opposite;return protocol.Server{Methods:implementation{remote:opposite,state:&state},Events:incoming{steps}},nil}
  wire,err:=binding.ToWire(model,runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")
- root:=duplex.Mount(map[string]duplex.Endpoint{"nested":wire});defer root.Close(duplex.CodeNormal,"")
+ root:=duplex.Mount(map[string]bitwire.Endpoint{"nested":wire});defer root.Close(duplex.CodeNormal,"")
  dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{t.Fatal(err)};defer dispatcher.Close(duplex.CodeNormal,"");selected:=dispatcher.Select([]string{"nested"})
  var roundtrip protocol.ServerModel
  roundtrip,err=binding.FromWire(ctx,selected,runtime.AdapterContext{});if err!=nil{t.Fatal(err)}

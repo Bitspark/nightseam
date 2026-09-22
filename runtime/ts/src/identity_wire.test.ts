@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import type { Endpoint } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { IDENTITY_METHOD, identityHandler } from './identity.ts';
 import { prepareIdentity } from './identity_wire.ts';
 import { callWire, handleWire, emitWire, onWireEvent } from './wire.ts';

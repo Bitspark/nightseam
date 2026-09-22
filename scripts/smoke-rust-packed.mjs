@@ -51,6 +51,7 @@ try {
   writeFileSync(join(consumer, "Cargo.toml"), [
     '[package]', 'name = "nightseam-packaged-consumer"', 'version = "0.0.0"', 'edition = "2024"', 'publish = false',
     '[workspace]', '[dependencies]',
+    'bitwire = { package = "bitspark-bitwire", version = "=0.2.0" }',
     ...crates.map(pkg => `${pkg.name} = "=${version}"`),
     'tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }', 'serde_json = "1"',
     '[patch.crates-io]',

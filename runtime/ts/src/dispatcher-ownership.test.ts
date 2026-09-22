@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Endpoint, Message, Path, Receiver } from '@nightseam/duplex';
+import type { Endpoint, Message, Path, Receiver } from '@bitspark/bitwire';
 import { mount } from '@nightseam/duplex';
 import { createDispatcher } from './dispatcher.ts';
 import { wirePair } from './wire-pair.ts';

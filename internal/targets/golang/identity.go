@@ -12,7 +12,7 @@ func identityArguments(f *file) string { return strings.TrimPrefix(f.slotArgumen
 // interpretation is registered before its factory can be bound.
 func (f *file) emitWireIdentity(side, opposite string) {
 	decl, args, open := declare(f.family.Uses), apply(f.family.Uses), f.entry(f.family.Uses)
-	rt, seam, proto := f.runtime(), f.seam(), f.proto()
+	rt, proto := f.runtime(), f.proto()
 	contextType := f.adapterContext()
 	f.w.Block(fmt.Sprintf("func declarationIdentity%s(%s) (%s.DeclarationIdentity, error) {", decl, strings.TrimPrefix(f.slotParameters(), ", "), rt), "}", func() {
 		f.linef("digest, err := %s.DeclarationDigest()", f.boundSchema(f.family.Uses))
@@ -28,7 +28,7 @@ func (f *file) emitWireIdentity(side, opposite string) {
 	f.line("// Complete checks identity and returns a factory that may be bound once. Both steps")
 	f.line("// must finish within environment.Options.RequestTimeout. Cleanup detaches this")
 	f.line("// interpretation's registrations, including after success, and never closes the wire.")
-	f.w.Block(fmt.Sprintf("func PrepareFromWire%s(wire %s.Endpoint, environment %s%s) (complete func(%s.Context) (%s%sModel%s,error), cleanup func(), err error) {", open, seam, contextType, f.slotParameters(), f.std("context"), proto, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func PrepareFromWire%s(wire %s.Endpoint, environment %s%s) (complete func(%s.Context) (%s%sModel%s,error), cleanup func(), err error) {", open, f.bitwire(), contextType, f.slotParameters(), f.std("context"), proto, side, args), "}", func() {
 		f.linef("if wire == nil { return nil, nil, %s.Errorf(\"wire is required\") }", f.std("fmt"))
 		f.linef("environment, err = normalizeContext%s(environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, nil, err }")
@@ -59,7 +59,7 @@ func (f *file) emitWireIdentity(side, opposite string) {
 	})
 	f.line("// FromWire checks identity and returns a factory that may be bound once.")
 	f.line("// Use PrepareFromWire before attachment when incoming delivery can begin immediately.")
-	f.w.Block(fmt.Sprintf("func FromWire%s(ctx %s.Context, wire %s.Endpoint, environment %s%s) (%s%sModel%s,error) {", open, f.std("context"), seam, contextType, f.slotParameters(), proto, side, args), "}", func() {
+	f.w.Block(fmt.Sprintf("func FromWire%s(ctx %s.Context, wire %s.Endpoint, environment %s%s) (%s%sModel%s,error) {", open, f.std("context"), f.bitwire(), contextType, f.slotParameters(), proto, side, args), "}", func() {
 		f.linef("complete, cleanup, err := PrepareFromWire%s(wire,environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")
 		f.line("model, err := complete(ctx)")

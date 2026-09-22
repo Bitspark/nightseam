@@ -1,0 +1,15 @@
+{
+  "originHash" : "9b60dcb1388061b7d63abbfcb8a4ebbb9798f27148653c1bdc8ae7beaec32544",
+  "pins" : [
+    {
+      "identity" : "bitwire",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Bitspark/bitwire.git",
+      "state" : {
+        "revision" : "616a2fc5e3a0972f67f40331a9d9ca102bc9698d",
+        "version" : "0.2.0"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mount, pipe, type Endpoint, type Message, type Wire } from '@nightseam/duplex';
+import { mount, pipe } from '@nightseam/duplex';
+import type { Endpoint, Message, Wire } from '@bitspark/bitwire';
 import { DuplexPeer } from './peer.ts';
 import { createDispatcher } from './dispatcher.ts';
 import type { PeerOptions } from './peer.ts';

@@ -1,11 +1,12 @@
 package io.nightseam.runtime;
 
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import io.nightseam.duplex.Connection;
 import io.nightseam.duplex.Frame;
-import io.nightseam.duplex.Message;
 import io.nightseam.duplex.Pipe;
-import io.nightseam.duplex.Receiver;
-import io.nightseam.duplex.Wire;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -47,13 +48,13 @@ public final class PeerWireTest {
         try { action.run(); } catch (IllegalArgumentException | IllegalStateException expected) { refused = true; }
         check(refused, "operation should refuse");
     }
-    private static Message request(String id, Wire address) { return new Message(Peer.map("version",1,"kind","request","id",id,"params",null), address); }
-    private static Message event(int value) { return new Message(Peer.map("version",1,"kind","event","data",value), null); }
-    private static Message cancel(String id, Wire address) { return new Message(Peer.map("version",1,"kind","cancel","id",id), address); }
+    private static Message request(String id, Sink address) { return new Message(frame(Peer.map("version",1,"kind","request","id",id,"params",null)), address == null ? null : address.address); }
+    private static Message event(int value) { return new Message(frame(Peer.map("version",1,"kind","event","data",value)), null); }
+    private static Message cancel(String id, Sink address) { return new Message(frame(Peer.map("version",1,"kind","cancel","id",id)), address == null ? null : address.address); }
     private static void answer(Message request, Object result) {
-        request.returnAddress().send(List.of(), new Message(Peer.map("version",1,"kind","response","id",request.frame().get("id"),"result",result), null));
+        request.returnAddress().wire().send(List.of(), new Message(frame(Peer.map("version",1,"kind","response","id",fields(request.frame()).get("id"),"result",result)), null));
     }
-    private static String error(Message message) { return (String)Json.object(message.frame().get("error")).get("code"); }
+    private static String error(Message message) { return (String)Json.object(fields(message.frame()).get("error")).get("code"); }
     private static void rawSend(Connection connection, Map<String,Object> frame) throws Exception {
         connection.send(new Frame("text", Json.stringify(frame).getBytes(StandardCharsets.UTF_8)), WITHIN);
     }
@@ -77,38 +78,37 @@ public final class PeerWireTest {
         @Override public void close() { peer.close(); remote.abort(); }
     }
     private static class Sink implements Wire {
+        final ReturnAddress address = new ReturnAddress(this);
         final BlockingQueue<Message> replies = new ArrayBlockingQueue<>(16);
         final BlockingQueue<Thread> threads = new ArrayBlockingQueue<>(16);
         @Override public void send(List<String> path, Message message) {
             check(path.isEmpty(), "return capability received operation path");
             threads.add(Thread.currentThread()); replies.add(message);
         }
-        @Override public Runnable receive(List<String> path, Receiver receiver) { throw new IllegalStateException(); }
-        @Override public void close(int code, String reason) {}
         @Override public boolean equals(Object other) { return other instanceof Sink; }
         @Override public int hashCode() { return 1; }
     }
 
     private static void outgoingValidationSnapshotAndAsyncReturn() throws Exception {
         for (String role : List.of("client", "server")) try (var fixture = new Fixture(8, 4, null, role)) {
-            Wire wire = fixture.peer.wire(); var sink = new Sink();
-            var frame = new LinkedHashMap<>(request("s:1", sink).frame());
+            Endpoint wire = fixture.peer.wire(); var sink = new Sink();
+            var frame = new LinkedHashMap<>(fields(request("s:1", sink).frame()));
             var payload = new LinkedHashMap<String,Object>(); payload.put("kept", 1); payload.put("null", null);
             frame.put("params", payload);
-            wire.send(List.of("a/b", "💡"), new Message(frame, sink)); payload.put("later", 2);
+            wire.send(List.of("a/b", "💡"), new Message(frame(frame), sink.address)); payload.put("later", 2);
             Map<String,Object> sent = rawReceive(fixture.remote);
             check(sent.get("method").equals("3:a/b4:💡"), "canonical physical path");
             check(!Json.object(sent.get("params")).containsKey("later") && Json.object(sent.get("params")).containsKey("null"), "admission snapshot");
             rawReply(fixture.remote, sent, 7);
             Message reply = take(sink.replies);
-            check(reply.frame().get("id").equals("s:1"), "logical return identifier changed");
+            check(fields(reply.frame()).get("id").equals("s:1"), "logical return identifier changed");
             Thread callback = take(sink.threads);
             check(callback != Thread.currentThread() && !callback.getName().equals("nightseam-reader"), "return callback ran on caller/reader stack");
-            var malformed = new LinkedHashMap<>(request("c:1", sink).frame()); malformed.remove("params");
-            fails(() -> wire.send(List.of("call"), new Message(malformed, sink)));
+            var malformed = new LinkedHashMap<>(fields(request("c:1", sink).frame())); malformed.remove("params");
+            fails(() -> wire.send(List.of("call"), new Message(frame(malformed), sink.address)));
             fails(() -> wire.send(List.of("call"), request("c:01", sink)));
             fails(() -> wire.send(List.of("call"), request("c:1", null)));
-            fails(() -> wire.send(List.of("call"), new Message(Peer.map("version",1,"kind","response","id","c:1","result",1), null)));
+            fails(() -> wire.send(List.of("call"), new Message(frame(Peer.map("version",1,"kind","response","id","c:1","result",1)), null)));
         }
     }
 
@@ -119,7 +119,7 @@ public final class PeerWireTest {
             if (observation.get("type").equals("request.ended") && Boolean.FALSE.equals(observation.get("incoming"))) completed.countDown();
         };
         try (var fixture = new Fixture(1, 1, observer)) {
-            Wire wire = fixture.peer.wire(); var first = new Sink(); var second = new Sink();
+            Endpoint wire = fixture.peer.wire(); var first = new Sink(); var second = new Sink();
             wire.send(List.of("call"), request("c:1", first)); Map<String,Object> physical = rawReceive(fixture.remote);
             wire.send(List.of("event"), event(1)); await(gate);
             try {
@@ -132,7 +132,7 @@ public final class PeerWireTest {
                 wire.send(List.of("call"), request("c:2", second));
             } finally { release.countDown(); }
             check(rawReceive(fixture.remote).get("kind").equals("event"), "stale control escaped to carrier");
-            check(((Number)take(first.replies).frame().get("result")).intValue() == 7, "first completion");
+            check(((Number)fields(take(first.replies).frame()).get("result")).intValue() == 7, "first completion");
             check(error(take(second.replies)).equals("busy"), "queued control released reservation early");
             wire.send(List.of("call"), request("c:1", first));
             Map<String,Object> reused = rawReceive(fixture.remote);
@@ -154,7 +154,7 @@ public final class PeerWireTest {
             if (observation.get("type").equals("request.ended") && Boolean.FALSE.equals(observation.get("incoming"))) await(secondRead);
         };
         try (var fixture = new Fixture(1, 1, observer)) {
-            Wire wire = fixture.peer.wire(); var sink = new Sink();
+            Endpoint wire = fixture.peer.wire(); var sink = new Sink();
             wire.send(List.of("call"), request("c:1", sink)); rawReceive(fixture.remote);
             wire.send(List.of("event"), event(1)); await(gate);
             try {
@@ -181,14 +181,14 @@ public final class PeerWireTest {
 
     private static void duplicateAndIdentity() throws Exception {
         try (var fixture = new Fixture(8, 2, null)) {
-            Wire wire = fixture.peer.wire(); var first = new Sink(); var equalButDistinct = new Sink();
+            Endpoint wire = fixture.peer.wire(); var first = new Sink(); var equalButDistinct = new Sink();
             wire.send(List.of("call"), request("c:1", first)); Map<String,Object> physical = rawReceive(fixture.remote);
             wire.send(List.of("call"), request("c:1", first));
             check(error(take(first.replies)).equals("invalid_message"), "duplicate active request admitted");
             wire.send(List.of("call"), request("c:1", equalButDistinct)); Map<String,Object> other = rawReceive(fixture.remote);
             rawReply(fixture.remote, physical, 1); rawReply(fixture.remote, other, 2);
-            check(((Number)take(first.replies).frame().get("result")).intValue() == 1, "first identity");
-            check(((Number)take(equalButDistinct.replies).frame().get("result")).intValue() == 2, "return equality replaced identity");
+            check(((Number)fields(take(first.replies).frame()).get("result")).intValue() == 1, "first identity");
+            check(((Number)fields(take(equalButDistinct.replies).frame()).get("result")).intValue() == 2, "return equality replaced identity");
         }
     }
 
@@ -198,14 +198,14 @@ public final class PeerWireTest {
             if (observation.get("type").equals("event.emitted")) { gate.countDown(); await(release); }
         };
         try (var fixture = new Fixture(1, 1, observer)) {
-            Wire wire = fixture.peer.wire();
-            wire.receive(List.of("inbound"), new Receiver(false, (path,message) -> {}, (code,reason) -> closed.countDown()));
+            Endpoint wire = fixture.peer.wire();
+            Routes.of(wire).register(List.of("inbound"), new Receiver( (path,message) -> {}, (code,reason) -> closed.countDown()));
             wire.send(List.of("event"), event(1)); await(gate);
             try {
                 wire.send(List.of("event"), event(2));
                 fails(() -> wire.send(List.of("event"), event(3)));
                 await(closed);
-                fails(() -> wire.receive(List.of("later"), new Receiver(false, (path,message) -> {}, null)));
+                fails(() -> Routes.of(wire).register(List.of("later"), new Receiver( (path,message) -> {}, null)));
             } finally { release.countDown(); }
         } finally { release.countDown(); }
     }
@@ -214,37 +214,38 @@ public final class PeerWireTest {
         for (String role : List.of("client", "server")) try (var fixture = new Fixture(8, 8, null, role)) {
             String firstId = role.equals("client") ? "s:1" : "c:1";
             String secondId = role.equals("client") ? "s:2" : "c:2";
-            Wire wire = fixture.peer.wire(); var received = new ArrayBlockingQueue<Message>(16);
+            Endpoint wire = fixture.peer.wire(); var received = new ArrayBlockingQueue<Message>(16);
             var paths = new ArrayBlockingQueue<List<String>>(16); var kinds = new ArrayBlockingQueue<String>(16);
-            Receiver exact = new Receiver(false, (path,message) -> { paths.add(path); kinds.add("exact"); received.add(message); }, null);
-            wire.receive(List.of(), new Receiver(true, (path,message) -> { kinds.add("root"); received.add(message); }, null));
-            wire.receive(List.of("a"), new Receiver(true, (path,message) -> { kinds.add("namespace"); received.add(message); }, null));
-            Runnable detach = wire.receive(List.of("a"), exact);
+            Receiver exact = new Receiver( (path,message) -> { paths.add(path); kinds.add("exact"); received.add(message); }, null);
+            Routes.of(wire).registerPrefix(List.of(), new Receiver( (path,message) -> { kinds.add("root"); received.add(message); }, null));
+            Routes.of(wire).registerPrefix(List.of("a"), new Receiver( (path,message) -> { kinds.add("namespace"); received.add(message); }, null));
+            Runnable detach = Routes.of(wire).register(List.of("a"), exact);
             String name = io.nightseam.duplex.Wires.encodePath(List.of("a"));
             fails(() -> fixture.peer.handle(name, (context,params) -> params));
             fails(() -> fixture.peer.onEvent(name, (context,data) -> {}));
             rawSend(fixture.remote, Peer.map("version",1,"kind","request","id",firstId,"method",name,"params",null));
             Message call = take(received); check(take(kinds).equals("exact"), "exact did not outrank namespace");
             check(take(paths).equals(List.of("a")), "callback path changed");
-            Message response = new Message(Peer.map("version",1,"kind","response","id",firstId,"result",null), null);
-            fails(() -> call.returnAddress().send(List.of("a"), response));
-            fails(() -> call.returnAddress().send(List.of(), new Message(Peer.map("version",1,"kind","response","id",secondId,"result",1), null)));
-            fails(() -> call.returnAddress().send(List.of(), new Message(Peer.map("version",1,"kind","response","id",firstId), null)));
-            call.returnAddress().send(List.of(), response);
+            Message response = new Message(frame(Peer.map("version",1,"kind","response","id",firstId,"result",null)), null);
+            fails(() -> call.returnAddress().wire().send(List.of("a"), response));
+            fails(() -> call.returnAddress().wire().send(List.of(), new Message(frame(Peer.map("version",1,"kind","response","id",secondId,"result",1)), null)));
+            fails(() -> call.returnAddress().wire().send(List.of(), new Message(frame(Peer.map("version",1,"kind","response","id",firstId)), null)));
+            call.returnAddress().wire().send(List.of(), response);
             check(rawReceive(fixture.remote).containsKey("result"), "null response omitted");
-            fails(() -> call.returnAddress().send(List.of(), response));
+            fails(() -> call.returnAddress().wire().send(List.of(), response));
             detach.run(); detach.run();
             rawSend(fixture.remote, Peer.map("version",1,"kind","request","id",secondId,"method",name,"params",null));
             Message held = take(received); check(take(kinds).equals("namespace"), "namespace at same path unavailable");
-            wire.receive(List.of("a"), exact);
+            Routes.of(wire).register(List.of("a"), exact);
             rawSend(fixture.remote, Peer.map("version",1,"kind","cancel","id",secondId));
             Message cancellation = take(received);
-            check(take(kinds).equals("namespace") && cancellation.frame().get("kind").equals("cancel"), "cancellation redirected after replacement");
+            check(take(kinds).equals("namespace") && fields(cancellation.frame()).get("kind").equals("cancel"), "cancellation redirected after replacement");
             check(cancellation.returnAddress() == held.returnAddress(), "cancellation changed return identity");
             check(Json.object(rawReceive(fixture.remote).get("error")).get("code").equals("cancelled"), "cancel response");
             String rawName = io.nightseam.duplex.Wires.encodePath(List.of("raw"));
-            fixture.peer.handle(rawName, (context,params) -> "raw");
-            wire.receive(List.of("raw"), new Receiver(true, (path,message) -> { kinds.add("raw-space"); received.add(message); }, null));
+            fails(() -> fixture.peer.handle(rawName, (context,params) -> "raw"));
+            Routes.of(wire).register(List.of("raw"), new Receiver((path,message) -> answer(message, "raw"), null));
+            Routes.of(wire).registerPrefix(List.of("raw"), new Receiver( (path,message) -> { kinds.add("raw-space"); received.add(message); }, null));
             String remotePrefix = role.equals("client") ? "s:" : "c:";
             rawSend(fixture.remote, Peer.map("version",1,"kind","request","id",remotePrefix+"3","method",rawName,"params",null));
             check(rawReceive(fixture.remote).get("result").equals("raw"), "namespace displaced exact raw handler");
@@ -252,9 +253,9 @@ public final class PeerWireTest {
                 io.nightseam.duplex.Wires.encodePath(List.of("raw", "child")),"params",null));
             Message descendant = take(received); check(take(kinds).equals("raw-space"), "raw exact route suppressed namespace descendants");
             answer(descendant, "namespace"); rawReceive(fixture.remote);
-            fails(() -> wire.receive(List.of("raw"), exact));
-            fails(() -> wire.receive(List.of(), exact));
-            fails(() -> wire.receive(List.of("null"), new Receiver(false, null, null)));
+            fails(() -> Routes.of(wire).register(List.of("raw"), exact));
+            Routes.of(wire).register(List.of(), exact);
+            Routes.of(wire).register(List.of("null"), new Receiver(null, null));
         }
     }
 }

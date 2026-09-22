@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import XCTest
 @testable import NightseamDuplex
@@ -62,27 +63,43 @@ final class DuplexTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(root.lastPath, ["outer", "", "op"])
         XCTAssertTrue(root.lastMessage?.returnAddress === address)
         let capture = RecordingWire()
-        let detach = try view.receive(path: ["op"], receiver: Receiver(message: { path, message in
+        let routes = try Dispatcher(root)
+        let selected = routes.select(path: ["outer", ""])
+        let detach = try selected.receive(receiver: Receiver(message: { path, message in
             try? capture.send(path: path, message: message)
         }))
         root.deliver(path: ["outer", "", "op"], message: message)
         XCTAssertEqual(capture.lastPath, ["op"])
         detach(); detach()
+        try selected.close(code: 1000, reason: "done")
+        routes.close()
         XCTAssertEqual(root.registrationCount, 0)
-        try view.close(code: 1000, reason: "done")
-        XCTAssertTrue(root.closed)
+        XCTAssertFalse(root.closed)
+    }
+
+    func testCapturedCancellationSurvivesDispatcherClosure() throws {
+        let root = RecordingWire()
+        let router = try Dispatcher(root)
+        let delivery = try XCTUnwrap(root.attachedReceiver)
+        let controls = Counter()
+        _ = try router.register(path: ["active"], receiver: Receiver(message: { _, _ in controls.increment() }))
+        let address = ReturnAddress(wire: root)
+        delivery.message(["active"], Message(frame: ProfileFrame(kind: .request, id: "held", data: Data("null".utf8)), returnAddress: address))
+        router.close()
+        delivery.message(["active"], Message(frame: ProfileFrame(kind: .cancel, id: "held"), returnAddress: address))
+        XCTAssertEqual(controls.value, 2)
     }
 
     func testMountBorrowsChildrenAndDistinguishesUnicodeKeys() throws {
         let composed = RecordingWire(), decomposed = RecordingWire()
-        let mounted = mount([("é", composed as any Wire), ("e\u{301}", decomposed as any Wire)])
+        let mounted = mount([("é", composed as any Endpoint), ("e\u{301}", decomposed as any Endpoint)])
         let message = Message(frame: ProfileFrame(kind: .event))
         try mounted.send(path: ["é", "a"], message: message)
         try mounted.send(path: ["e\u{301}", "b"], message: message)
         XCTAssertEqual(composed.lastPath, ["a"]); XCTAssertEqual(decomposed.lastPath, ["b"])
         XCTAssertThrowsError(try mounted.send(path: [], message: message))
         let closures = Counter()
-        _ = try mounted.receive(path: [], receiver: Receiver(namespace: true, message: { _, _ in }, closed: { _, _ in closures.increment() }))
+        _ = try mounted.receive(receiver: Receiver( message: { _, _ in }, closed: { _, _ in closures.increment() }))
         XCTAssertEqual(composed.registrationCount, 1)
         try mounted.close(code: 1000, reason: "view done")
         XCTAssertEqual(closures.value, 1)
@@ -147,7 +164,7 @@ private final class Counter: @unchecked Sendable {
     var value: Int { lock.withLock { count } }
 }
 
-private final class RecordingWire: Wire, @unchecked Sendable {
+private final class RecordingWire: Endpoint, @unchecked Sendable {
     let lock = NSLock()
     private var path: [String] = []
     private var message: Message?
@@ -155,11 +172,16 @@ private final class RecordingWire: Wire, @unchecked Sendable {
     private var ended = false
     var lastPath: [String] { lock.withLock { path } }
     var lastMessage: Message? { lock.withLock { message } }
+    var attachedReceiver: Receiver? { lock.withLock { receivers.values.first } }
     var registrationCount: Int { lock.withLock { receivers.count } }
     var closed: Bool { lock.withLock { ended } }
     func send(path: [String], message: Message) throws { lock.withLock { self.path = path; self.message = message } }
-    func receive(path: [String], receiver: Receiver) throws -> Detach {
-        let id = UUID(); lock.withLock { receivers[id] = receiver }
+    func receive(receiver: Receiver) throws -> Detach {
+        let id = UUID(); try lock.withLock {
+            guard !ended else { throw DuplexError.closed }
+            guard receivers.isEmpty else { throw DuplexError.receiverExists }
+            receivers[id] = receiver
+        }
         return { _ = self.lock.withLock { self.receivers.removeValue(forKey: id) } }
     }
     func close(code: Int, reason: String) throws { lock.withLock { ended = true } }

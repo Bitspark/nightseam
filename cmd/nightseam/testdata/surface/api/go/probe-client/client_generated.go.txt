@@ -1,15 +1,15 @@
 func (*Recorder) Append(ctx context.Context, event RecordedEvent) error
-func (*Recorder) Follow(ctx context.Context, after uint64, target duplex.Wire) (*duplex.Follower, error)
+func (*Recorder) Follow(ctx context.Context, after uint64, target bitwire.Wire) (*duplex.Follower, error)
 func (*clientEvents) Changed(ctx context.Context, data protocol.Payload) error
 func (*clientMethods) Reverse(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func (*serverEvents) Noticed(ctx context.Context, data protocol.Seen) error
 func (*serverMethods) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func (*serverMethods) NoArgs(ctx context.Context) (string, error)
 func (*serverMethods) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
-func FromWire(ctx context.Context, wire duplex.Endpoint, environment runtime.AdapterContext) (protocol.ClientModel, error)
-func PrepareFromWire(wire duplex.Endpoint, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ClientModel, error), cleanup func(), err error)
-func Record(ctx context.Context, target duplex.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)
-func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (duplex.Endpoint, error)
+func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ClientModel, error)
+func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ClientModel, error), cleanup func(), err error)
+func Record(ctx context.Context, target bitwire.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)
+func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (bitwire.Endpoint, error)
 type RecordedEvent interface{recordedEvent()}
 type RecordedNoticed struct{Data protocol.Seen}
 type Recorder struct{}

@@ -8,17 +8,18 @@ import (
 	binding "example.test/generated/api/go/cell-binding"
 	client "example.test/generated/api/go/cell-client"
 	cell "example.test/generated/api/go/cell-protocol"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
-func recordDestination(values chan string) (duplex.Endpoint, error) {
+func recordDestination(values chan string) (bitwire.Endpoint, error) {
 	return binding.ToWire(func(cell.Client[string]) (cell.Server[string], error) {
 		return cell.Server[string]{Methods: &wireCell[string]{}, Events: wireNoted[string]{values}}, nil
 	}, runtime.AdapterContext{}, runtime.JSONAdapter[string]())
 }
 
-func recordExercise(ctx context.Context, target duplex.Endpoint) (map[string]any, func(), error) {
+func recordExercise(ctx context.Context, target bitwire.Endpoint) (map[string]any, func(), error) {
 	originals := make(chan string, 4)
 	primary, err := recordDestination(originals)
 	if err != nil {

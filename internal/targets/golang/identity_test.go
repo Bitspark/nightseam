@@ -71,6 +71,8 @@ func TestGeneratedIdentityPreparation(t *testing.T) {
 
 const identityGoProgram = `package identity_test
 import (
+ duplex "github.com/Bitspark/nightseam/duplex/go"
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "encoding/json"
  "errors"
@@ -84,7 +86,7 @@ import (
  protocol "example.test/identity/api/go/x-protocol"
  slotbinding "example.test/identity/api/go/slot-binding"
  slot "example.test/identity/api/go/slot-protocol"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
  runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 type forward struct{calls *atomic.Int64}
@@ -94,17 +96,17 @@ func (backward) Back(_ context.Context,n int64)(int64,error){return n+2,nil}
 type events struct{values chan int64}
 func (e events) Changed(_ context.Context,n int64)error{e.values<-n;return nil}
 type trackedWire struct {
- duplex.Endpoint
+ bitwire.Endpoint
  eventEntered chan struct{}
  receiversDetached chan struct{}
  eventOnce sync.Once
  registrations atomic.Int64
 }
-func(w *trackedWire)Receive(r duplex.Receiver)(func(),error){
+func(w *trackedWire)Receive(r bitwire.Receiver)(func(),error){
  w.registrations.Add(1)
  if w.eventEntered!=nil {
   original:=r.Message
-  r.Message=func(path []string,m duplex.Message){if len(path)==1&&path[0]=="changed"{w.eventOnce.Do(func(){close(w.eventEntered)})};original(path,m)}
+  r.Message=func(path []string,m bitwire.Message){if len(path)==1&&path[0]=="changed"{w.eventOnce.Do(func(){close(w.eventEntered)})};original(path,m)}
  }
  off,err:=w.Endpoint.Receive(r);if err!=nil{return nil,err}
  var once sync.Once
@@ -114,10 +116,10 @@ func(w *trackedWire)Receive(r duplex.Receiver)(func(),error){
 }
 func testContext(t *testing.T)context.Context{t.Helper();ctx,cancel:=context.WithTimeout(context.Background(),3*time.Second);t.Cleanup(cancel);return ctx}
 func wait(t *testing.T,ctx context.Context,ch <-chan struct{}){t.Helper();select{case <-ch:case <-ctx.Done():t.Fatal(ctx.Err())}}
-type testEndpoint struct{duplex.Endpoint; registry runtime.HandlerRegistry}
+type testEndpoint struct{bitwire.Endpoint; registry runtime.HandlerRegistry}
 func pair(t *testing.T)(*testEndpoint,*testEndpoint){
  t.Helper();left,right,err:=runtime.NewWirePair(runtime.Options{});if err!=nil{t.Fatal(err)};t.Cleanup(func(){left.Close(duplex.CodeNormal,"")})
- selectRoot:=func(endpoint duplex.Endpoint)*testEndpoint{dispatcher,err:=runtime.NewDispatcher(endpoint);if err!=nil{t.Fatal(err)};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});return &testEndpoint{Endpoint:dispatcher.Select(nil),registry:dispatcher}}
+ selectRoot:=func(endpoint bitwire.Endpoint)*testEndpoint{dispatcher,err:=runtime.NewDispatcher(endpoint);if err!=nil{t.Fatal(err)};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});return &testEndpoint{Endpoint:dispatcher.Select(nil),registry:dispatcher}}
  return selectRoot(left),selectRoot(right)
 }
 func identity(t *testing.T)runtime.DeclarationIdentity{t.Helper();digest,err:=protocol.WireSchema().DeclarationDigest();if err!=nil{t.Fatal(err)};return runtime.DeclarationIdentity{Path:"x",Digest:digest}}
@@ -126,7 +128,7 @@ func keepCarrier(t *testing.T,left,right *testEndpoint)func(){
  t.Helper();off,err:=runtime.HandleWire(left.registry,[]string{"unrelated"},func(context.Context,json.RawMessage)(any,error){return "alive",nil});if err!=nil{t.Fatal(err)};t.Cleanup(off)
  return func(){var result string;if err:=runtime.CallWire(testContext(t),right,[]string{"unrelated"},nil,&result);err!=nil||result!="alive"{t.Fatalf("shared carrier: %q %v",result,err)}}
 }
-func assertDetached(t *testing.T,w duplex.Endpoint){t.Helper();dispatcher,err:=runtime.NewDispatcher(w);if err!=nil{t.Fatalf("interpretation attachment retained: %v",err)};defer dispatcher.Close(duplex.CodeNormal,"");for _,name:=range []string{runtime.IdentityMethod,"back","changed"}{off,err:=runtime.HandleWire(dispatcher,[]string{name},func(context.Context,json.RawMessage)(any,error){return nil,nil});if err!=nil{t.Fatalf("%s receiver retained: %v",name,err)};off()}}
+func assertDetached(t *testing.T,w bitwire.Endpoint){t.Helper();dispatcher,err:=runtime.NewDispatcher(w);if err!=nil{t.Fatalf("interpretation attachment retained: %v",err)};defer dispatcher.Close(duplex.CodeNormal,"");for _,name:=range []string{runtime.IdentityMethod,"back","changed"}{off,err:=runtime.HandleWire(dispatcher,[]string{name},func(context.Context,json.RawMessage)(any,error){return nil,nil});if err!=nil{t.Fatalf("%s receiver retained: %v",name,err)};off()}}
 func TestEarlyEventAndLocalIdentityProgress(t *testing.T){
  ctx:=testContext(t);var calls atomic.Int64;var remote protocol.Client
  wire,err:=binding.ToWire(func(value protocol.Client)(protocol.Server,error){remote=value;return protocol.Server{Methods:forward{&calls}},nil},runtime.AdapterContext{});if err!=nil{t.Fatal(err)};defer wire.Close(duplex.CodeNormal,"")

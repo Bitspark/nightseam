@@ -30,11 +30,13 @@ Cancelling an active socket read or write closes that connection. Socket close
 waits for the remote acknowledgement, bounded to three seconds; abort immediately
 releases pending reads and writes.
 
-`Wire` is the synchronous admission interface. `Message` carries a profile frame
+Import shared access types and `Metadata` from the upstream `Bitwire` SwiftPM
+module, version 0.2.0. `Wire` is the synchronous send admission interface. `Message` carries a profile frame
 and an optional local `ReturnAddress`; JSON payload fields use `Data?` so absent
 and explicit null remain distinct. `at` and `mount` create routing views.
-Selecting a view retains its endpoint's ownership; closing a mount detaches its
-registrations and leaves its borrowed children usable. `Path.key` returns UTF-8
+`at` grants send access only. `Dispatcher` owns one Bitwire `Endpoint`
+attachment and provides receiving selections. Closing a selection or mount
+releases attachments and leaves borrowed children usable. `Path.key` returns UTF-8
 bytes, preserving distinct Unicode scalar spellings that Swift `String` equality
 would otherwise consider equal. Use the tuple-array overload of `mount` when
 children have canonically equivalent but distinct keys.

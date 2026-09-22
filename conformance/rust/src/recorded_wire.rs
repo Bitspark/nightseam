@@ -1,9 +1,9 @@
 // A consumer composition used only by the testee. The append store owns its
 // replay/follow policy; production Wire supplies path views and queued dispatch.
-use nightseam::{Options, Payload, PublicError, wire_pair};
-use nightseam_duplex::{
-    Detach, Message, ProfileFrame, ProfileKind, Receiver, SharedWire, Wire, at, mount,
-};
+use bitwire::{Detach, Endpoint, Message, ProfileFrame, ProfileKind, Receiver, SharedWire, Wire};
+use bitwire::{Payload, PublicError};
+use nightseam::{Dispatcher, Options, wire_pair};
+use nightseam_duplex::mount;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -84,7 +84,7 @@ impl Recorded {
     fn attach(
         &self,
         after: usize,
-        target: SharedWire,
+        target: Arc<dyn Endpoint>,
         bound: usize,
         pause: bool,
     ) -> (usize, Follower) {
@@ -169,26 +169,17 @@ impl Wire for Recorded {
         });
         Ok(())
     }
-    fn receive(&self, _: &[String], _: Receiver) -> Result<Detach, PublicError> {
-        Err(invalid("recorded input has no receivers"))
-    }
-    fn close(&self, _: u16, _: &str) -> Result<(), PublicError> {
-        for follower in self.0.lock().unwrap().followers.drain(..) {
-            follower.stop.cancel();
-        }
-        Ok(())
-    }
 }
 
 // A fixture loopback uses the real bounded local root. Its two endpoint
 // presentations are joined only here; neither a custom scheduler nor a second
 // implementation of path routing can make a broken production view pass.
 struct Root {
-    sending: SharedWire,
-    receiving: SharedWire,
+    sending: Arc<dyn Endpoint>,
+    receiving: Arc<dyn Endpoint>,
 }
 impl Root {
-    fn create() -> Result<SharedWire, PublicError> {
+    fn create() -> Result<Arc<dyn Endpoint>, PublicError> {
         let (sending, receiving) = wire_pair(Options::default())?;
         Ok(Arc::new(Self { sending, receiving }))
     }
@@ -197,17 +188,20 @@ impl Wire for Root {
     fn send(&self, path: &[String], message: Message) -> Result<(), PublicError> {
         self.sending.send(path, message)
     }
-    fn receive(&self, path: &[String], receiver: Receiver) -> Result<Detach, PublicError> {
-        self.receiving.receive(path, receiver)
+}
+impl Endpoint for Root {
+    fn receive(&self, receiver: Receiver) -> Result<Detach, PublicError> {
+        self.receiving.receive(receiver)
     }
     fn close(&self, code: u16, reason: &str) -> Result<(), PublicError> {
         self.sending.close(code, reason)
     }
 }
 struct Presentation {
-    wire: SharedWire,
-    root: SharedWire,
-    end: SharedWire,
+    wire: Arc<dyn Endpoint>,
+    root: Arc<dyn Endpoint>,
+    end: Arc<dyn Endpoint>,
+    root_routes: Arc<Dispatcher>,
     values: mpsc::UnboundedReceiver<usize>,
     closed: mpsc::UnboundedReceiver<u16>,
     errors: mpsc::UnboundedReceiver<PublicError>,
@@ -226,62 +220,54 @@ impl Presentation {
         let (values, values_rx) = mpsc::unbounded_channel();
         let (closed, closed_rx) = mpsc::unbounded_channel();
         let (errors, errors_rx) = mpsc::unbounded_channel();
-        let destination = at(
+        let root_routes = Dispatcher::new(root.clone())?;
+        let end_routes = Dispatcher::new(end.clone())?;
+        let destination = Dispatcher::new(mount(BTreeMap::from([(
+            "out".into(),
+            end_routes.select(&path(&["destination"])),
+        )])))?
+        .select(&path(&["out"]));
+        let wire = Dispatcher::new(mount(BTreeMap::from([(
+            "outer".into(),
             mount(BTreeMap::from([(
-                "out".into(),
-                at(end.clone(), &path(&["destination"])),
+                "in".into(),
+                root_routes.select(&path(&["source"])),
             )])),
-            &path(&["out"]),
-        );
-        let wire = at(
-            mount(BTreeMap::from([(
-                "outer".into(),
-                mount(BTreeMap::from([(
-                    "in".into(),
-                    at(root.clone(), &path(&["source"])),
-                )])),
-            )])),
-            &path(&["outer", "in"]),
-        );
+        )])))?
+        .select(&path(&["outer", "in"]));
         let store_message = store.clone();
         let destination_errors = errors.clone();
-        destination.receive(
-            &path(&["tick"]),
-            Receiver::new(move |p, message| {
-                // A real callback reenters the append store. Dispatch under its
-                // exclusion deadlocks and fails the witness deadline.
-                let _ = store_message.head();
-                if p != path(&["tick"]) {
-                    let _ = destination_errors.send(invalid("destination path changed"));
-                    return;
+        destination.receive(Receiver::new(move |p, message| {
+            // A real callback reenters the append store. Dispatch under its
+            // exclusion deadlocks and fails the witness deadline.
+            let _ = store_message.head();
+            if p != path(&["tick"]) {
+                let _ = destination_errors.send(invalid("destination path changed"));
+                return;
+            }
+            match message.frame.data.value().ok().and_then(|v| v.as_u64()) {
+                Some(value) => {
+                    let _ = values.send(value as usize);
                 }
-                match message.frame.data.value().ok().and_then(|v| v.as_u64()) {
-                    Some(value) => {
-                        let _ = values.send(value as usize);
-                    }
-                    None => {
-                        let _ =
-                            destination_errors.send(invalid("recorded value is not an integer"));
-                    }
+                None => {
+                    let _ = destination_errors.send(invalid("recorded value is not an integer"));
                 }
-            }),
-        )?;
-        wire.receive(
-            &path(&["tick"]),
-            Receiver {
-                closed: Some(Arc::new(move |code, _| {
-                    let _ = store.head();
-                    let _ = closed.send(code);
-                })),
-                ..Receiver::new(move |p, message| {
-                    if let Err(error) = destination.send(&p, message) {
-                        let _ = errors.send(error);
-                    }
-                })
-            },
-        )?;
+            }
+        }))?;
+        wire.receive(Receiver {
+            closed: Some(Arc::new(move |code, _| {
+                let _ = store.head();
+                let _ = closed.send(code);
+            })),
+            ..Receiver::new(move |p, message| {
+                if let Err(error) = destination.send(&p, message) {
+                    let _ = errors.send(error);
+                }
+            })
+        })?;
         Ok(Self {
             wire,
+            root_routes,
             root,
             end,
             values: values_rx,
@@ -309,7 +295,7 @@ fn message(value: usize) -> Message {
     frame.data = Payload::from_value(&value).unwrap();
     Message::new(frame)
 }
-fn append(wire: &SharedWire, value: usize) -> Result<(), PublicError> {
+fn append<T: Wire + ?Sized>(wire: &Arc<T>, value: usize) -> Result<(), PublicError> {
     wire.send(&path(&["tick"]), message(value))
 }
 fn invalid(message: &str) -> PublicError {
@@ -319,13 +305,7 @@ fn invalid(message: &str) -> PublicError {
 async fn head_case(before: bool) -> Result<Value, PublicError> {
     let store = Recorded::default();
     let mut presentation = Presentation::new(store.clone())?;
-    let source = at(
-        mount(BTreeMap::from([(
-            "record".into(),
-            Arc::new(store.clone()) as SharedWire,
-        )])),
-        &path(&["record"]),
-    );
+    let source = Arc::new(store.clone()) as SharedWire;
     for value in 1..=3 {
         append(&source, value)?;
     }
@@ -387,7 +367,7 @@ async fn stall_case() -> Result<Value, PublicError> {
         return Err(invalid("stalled carrier accepted after close"));
     }
     let (probe_tx, mut probe_rx) = mpsc::unbounded_channel();
-    stalled.root.receive(
+    stalled.root_routes.register(
         &path(&["probe"]),
         Receiver::new(move |_, message| {
             let _ = probe_tx.send(message.frame.data.value().unwrap());

@@ -9,13 +9,14 @@ import (
 	adapter "example.test/generated/api/go/codex-client"
 	protocol "example.test/generated/api/go/codex-protocol"
 	fmt "fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	reflect "reflect"
 	sync "sync"
 )
 
-type Presentation func(context.Context, duplex.Endpoint) (duplex.Endpoint, func(), error)
+type Presentation func(context.Context, bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 type Options struct {
 	Context       runtime.AdapterContext
 	RemoteContext runtime.AdapterContext
@@ -27,13 +28,13 @@ type Options struct {
 func once(f func()) func() { var once sync.Once; return func() { once.Do(f) } }
 
 // Local keeps the bounded asynchronous wire created by ToWire.
-func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
+func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
 	return wire, func() {}, nil
 }
 
 // Mounted selects a nonempty origin from a mount without allocating a carrier.
-func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
-	root := duplex.Mount(map[string]duplex.Endpoint{"family": wire})
+func Mounted(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
+	root := duplex.Mount(map[string]bitwire.Endpoint{"family": wire})
 	dispatcher, err := runtime.NewDispatcher(root)
 	if err != nil {
 		_ = root.Close(1000, "")
@@ -43,7 +44,7 @@ func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), 
 }
 
 // Forwarded introduces one local forwarding hop.
-func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
+func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
 	left, right, err := runtime.NewWirePair(runtime.Options{})
 	if err != nil {
 		return nil, nil, err
@@ -57,7 +58,7 @@ func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func()
 }
 
 // Pipe carries real serialized frames between two prepared peers.
-func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error) {
+func Pipe(ctx context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
 	left, right := duplex.Pipe(1 << 20)
 	var detach func()
 	server, err := runtime.NewPeer(ctx, right, runtime.ServerRole, runtime.Options{Prepare: func(peer *runtime.Peer) error {

@@ -1,12 +1,13 @@
 use crate::{
-    Context, Options, Payload, PublicError, Role,
+    Context, Options, Role,
     wire::{Wire as Envelope, decode},
 };
-use futures_util::FutureExt;
-use nightseam_duplex::{
+use bitwire::{
     Detach, Message, ProfileFrame, ProfileKind, Receiver, ReturnAddress, SharedWire, Wire,
-    encode_path,
 };
+use bitwire::{Payload, PublicError};
+use futures_util::FutureExt;
+use nightseam_duplex::encode_path;
 use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
@@ -44,70 +45,61 @@ pub(crate) struct Registry {
 #[derive(Default)]
 struct RegistryState {
     closed: bool,
-    receivers: BTreeMap<(Vec<String>, bool), Receiver>,
+    next: u64,
+    receiver: Option<(u64, Receiver)>,
 }
 impl Registry {
-    pub(crate) fn receive(
-        self: &Arc<Self>,
-        path: &[String],
-        receiver: Receiver,
-    ) -> Result<Detach, PublicError> {
-        if receiver.message.is_none() {
-            return Err(invalid("a wire receiver requires a callback"));
-        }
-        let key = (path.to_vec(), receiver.namespace);
+    pub(crate) fn receive(self: &Arc<Self>, receiver: Receiver) -> Result<Detach, PublicError> {
         let mut state = self.state.lock().unwrap();
         if state.closed {
             return Err(closed());
         }
-        if state.receivers.contains_key(&key) {
+        if state.receiver.is_some() {
             return Err(PublicError::new(
                 "receiver_exists",
-                "wire path already has a receiver",
+                "endpoint already attached",
             ));
         }
-        state.receivers.insert(key.clone(), receiver);
+        state.next += 1;
+        let id = state.next;
+        state.receiver = Some((id, receiver));
         let weak = Arc::downgrade(self);
-        let once = Arc::new(std::sync::atomic::AtomicBool::new(false));
         Ok(Arc::new(move || {
-            if !once.swap(true, Ordering::SeqCst) {
-                if let Some(registry) = weak.upgrade() {
-                    registry.state.lock().unwrap().receivers.remove(&key);
+            if let Some(registry) = weak.upgrade() {
+                let mut state = registry.state.lock().unwrap();
+                if state.receiver.as_ref().is_some_and(|(held, _)| *held == id) {
+                    state.receiver = None;
                 }
             }
         }))
     }
-    pub(crate) fn find(&self, path: &[String]) -> Option<Receiver> {
-        let state = self.state.lock().unwrap();
-        if state.closed {
-            return None;
-        }
-        state
-            .receivers
-            .get(&(path.to_vec(), false))
-            .cloned()
-            .or_else(|| {
-                state
-                    .receivers
-                    .iter()
-                    .filter(|((prefix, namespace), _)| *namespace && path.starts_with(prefix))
-                    .max_by_key(|((prefix, _), _)| prefix.len())
-                    .map(|(_, receiver)| receiver.clone())
-            })
+    pub(crate) fn find(&self, _: &[String]) -> Option<Receiver> {
+        self.state
+            .lock()
+            .unwrap()
+            .receiver
+            .as_ref()
+            .filter(|(_, receiver)| receiver.message.is_some())
+            .map(|(_, receiver)| receiver.clone())
     }
     pub(crate) fn close(&self, code: u16, reason: &str) {
-        let receivers = {
+        let receiver = {
             let mut state = self.state.lock().unwrap();
             state.closed = true;
-            std::mem::take(&mut state.receivers)
+            state.receiver.take()
         };
-        for receiver in receivers.into_values() {
-            if let Some(callback) = receiver.closed {
-                let reason = reason.to_owned();
-                tokio::spawn(async move {
-                    callback(code, reason);
-                });
-            }
+        if let Some((
+            _,
+            Receiver {
+                closed: Some(callback),
+                ..
+            },
+        )) = receiver
+        {
+            let reason = reason.to_owned();
+            tokio::spawn(async move {
+                callback(code, reason);
+            });
         }
     }
 }
@@ -294,13 +286,6 @@ impl Wire for Reply {
             .send(answer)
             .map_err(|_| closed())
     }
-    fn receive(&self, _: &[String], _: Receiver) -> Result<Detach, PublicError> {
-        Err(invalid("return addresses cannot receive"))
-    }
-    fn close(&self, _: u16, _: &str) -> Result<(), PublicError> {
-        self.sender.lock().unwrap().take();
-        Ok(())
-    }
 }
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -389,7 +374,7 @@ pub fn emit_wire(
 /// The root dispatches this callback asynchronously; handler futures run in
 /// their own tasks while their request budget stays held until the response.
 pub fn handle_wire<F, Fut>(
-    wire: SharedWire,
+    wire: Arc<crate::Dispatcher>,
     path: &[String],
     handler: F,
 ) -> Result<Detach, PublicError>
@@ -400,7 +385,7 @@ where
     let handler = Arc::new(handler);
     let incoming: Arc<Mutex<BTreeMap<Key, Context>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let ending = incoming.clone();
-    wire.receive(
+    wire.register(
         path,
         Receiver {
             closed: Some(Arc::new(move |_, _| {
@@ -444,7 +429,10 @@ where
     )
 }
 
-pub fn forward_wire(left: SharedWire, right: SharedWire) -> Result<Detach, PublicError> {
+pub fn forward_wire(
+    left: Arc<dyn bitwire::Endpoint>,
+    right: Arc<dyn bitwire::Endpoint>,
+) -> Result<Detach, PublicError> {
     let detaches: Arc<Mutex<Option<Vec<Detach>>>> = Arc::new(Mutex::new(Some(Vec::new())));
     let stop: Detach = {
         let detaches = detaches.clone();
@@ -461,7 +449,6 @@ pub fn forward_wire(left: SharedWire, right: SharedWire) -> Result<Detach, Publi
         let ending = stop.clone();
         let failure = stop.clone();
         let receiver = Receiver {
-            namespace: true,
             closed: Some(Arc::new(move |_, _| ending())),
             ..Receiver::new(move |path, message| {
                 if let Err(error) = destination.send(&path, message.clone()) {
@@ -472,7 +459,7 @@ pub fn forward_wire(left: SharedWire, right: SharedWire) -> Result<Detach, Publi
                 }
             })
         };
-        match source.receive(&[], receiver) {
+        match source.receive(receiver) {
             Ok(detach) => {
                 let mut held = detaches.lock().unwrap();
                 if let Some(held) = &mut *held {
@@ -548,7 +535,11 @@ impl Drop for PairLife {
     }
 }
 
-pub fn wire_pair(options: Options) -> Result<(SharedWire, SharedWire), PublicError> {
+// Keep the upstream endpoint type visible in the public signature.
+#[allow(clippy::type_complexity)]
+pub fn wire_pair(
+    options: Options,
+) -> Result<(Arc<dyn bitwire::Endpoint>, Arc<dyn bitwire::Endpoint>), PublicError> {
     if !options.handlers.is_empty() || !options.events.is_empty() {
         return Err(invalid("local wires install receivers through receive"));
     }
@@ -584,8 +575,10 @@ impl Wire for LocalWire {
         }
         self.pair.admit(1 - self.side, path.to_vec(), message)
     }
-    fn receive(&self, path: &[String], receiver: Receiver) -> Result<Detach, PublicError> {
-        self.pair.registries[self.side].receive(path, receiver)
+}
+impl bitwire::Endpoint for LocalWire {
+    fn receive(&self, receiver: Receiver) -> Result<Detach, PublicError> {
+        self.pair.registries[self.side].receive(receiver)
     }
     fn close(&self, code: u16, reason: &str) -> Result<(), PublicError> {
         self.pair.close(code, reason);
@@ -917,14 +910,5 @@ impl Wire for LocalReturn {
             .wire
             .send(path, message)
             .map_err(PublicError::without_unpublished_proof)
-    }
-    fn receive(&self, _: &[String], _: Receiver) -> Result<Detach, PublicError> {
-        Err(invalid("return addresses cannot receive"))
-    }
-    fn close(&self, _: u16, _: &str) -> Result<(), PublicError> {
-        if let Some(pair) = self.pair.upgrade() {
-            pair.complete(self.side, &self.call);
-        }
-        Ok(())
     }
 }

@@ -2,8 +2,8 @@ package tunnel
 
 import (
 	"context"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 
-	"github.com/Bitspark/nightseam/duplex/go"
 	"github.com/Bitspark/nightseam/runtime/go"
 )
 
@@ -13,18 +13,18 @@ type Channel struct {
 	ID     int64
 	Family string
 	Digest string
-	wire   duplex.Endpoint
+	wire   bitwire.Endpoint
 }
 
-var _ duplex.Endpoint = (*Channel)(nil)
+var _ bitwire.Endpoint = (*Channel)(nil)
 
-func (c *Channel) Send(path []string, message duplex.Message) error {
+func (c *Channel) Send(path []string, message bitwire.Message) error {
 	return c.wire.Send(path, message)
 }
-func (c *Channel) Receive(receiver duplex.Receiver) (func(), error) {
+func (c *Channel) Receive(receiver bitwire.Receiver) (func(), error) {
 	return c.wire.Receive(receiver)
 }
-func (c *Channel) Close(code duplex.Code, reason string) error { return c.wire.Close(code, reason) }
+func (c *Channel) Close(code bitwire.Code, reason string) error { return c.wire.Close(code, reason) }
 
 // Open opens a prepared wire. The wait context bounds acquisition; the inner
 // peer lives with the outer peer. Prepare installs handlers before reading.

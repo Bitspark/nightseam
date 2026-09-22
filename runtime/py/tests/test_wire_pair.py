@@ -1,9 +1,11 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import Message, Receiver, ReturnAddress, WireError
+from bitwire import Message, Receiver, ReturnAddress
+from nightseam.duplex import WireError
 from nightseam.runtime import Options, PublicError
 from nightseam.runtime.wire_pair import wire_pair
+from routing import dispatcher
 
 
 class Sink:
@@ -53,7 +55,9 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
     async def test_dispatch_is_deferred_and_snapshots_paths_payloads_and_metadata(self):
         left, right = self.pair()
         received = asyncio.Queue()
-        right.receive([], Receiver(namespace=True, message=lambda path, message: received.put_nowait((path, message))))
+        dispatcher(right).register_prefix(
+            [], Receiver(message=lambda path, message: received.put_nowait((path, message)))
+        )
         path = ["event"]
         frame = {"version": 1, "kind": "event", "data": {"nested": ["before"]}, "meta": {"name": "before"}}
         left.send(path, Message(frame))
@@ -81,7 +85,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             else:
                 delivered.set()
 
-        right.receive([], Receiver(namespace=True, message=receiver))
+        dispatcher(right).register_prefix([], Receiver(message=receiver))
         sink = Sink()
         loop.set_task_factory(asyncio.eager_task_factory)
         try:
@@ -98,7 +102,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_identifier_from_distinct_capabilities_has_independent_calls(self):
         left, right = self.pair()
         held = asyncio.Queue()
-        right.receive(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
         sink = Sink()
         first, second = ReturnAddress(sink), ReturnAddress(sink)
         request(left, first, params=1)
@@ -126,8 +130,8 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             seen.append("event")
             event_seen.set()
 
-        right.receive(["call"], Receiver(message=handler))
-        right.receive(["event"], Receiver(message=event))
+        dispatcher(right).register(["call"], Receiver(message=handler))
+        dispatcher(right).register(["event"], Receiver(message=event))
         sink = Sink()
         request(left, ReturnAddress(sink))
         emit(left)
@@ -140,14 +144,14 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         from nightseam.runtime.wire import call_wire, handle_wire
 
         left, right = self.pair(max_frame_bytes=512)
-        handle_wire(left, ["reverse"], lambda value, context: value)
+        handle_wire(dispatcher(left), ["reverse"], lambda value, context: value)
 
         async def forward(value, context):
             return await call_wire(right, ["reverse"], value)
 
-        handle_wire(right, ["call"], forward)
+        handle_wire(dispatcher(right), ["call"], forward)
         self.assertEqual(await call_wire(left, ["call"], 7), 7)
-        handle_wire(right, ["large"], lambda value, context: "x" * 2048)
+        handle_wire(dispatcher(right), ["large"], lambda value, context: "x" * 2048)
         with self.assertRaises(PublicError) as large:
             await call_wire(left, ["large"])
         self.assertEqual(large.exception.code, "internal")
@@ -170,7 +174,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
 
         left, right = self.pair(propagator=Propagator())
         held = asyncio.Queue()
-        right.receive([], Receiver(namespace=True, message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register_prefix([], Receiver(message=lambda path, message: held.put_nowait(message)))
         sink = Sink()
         address = ReturnAddress(sink)
         source = WireRequestContext(wire=left, request_id="physical:17", cancelled=asyncio.Event())
@@ -212,7 +216,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(frame=message.frame), self.assertRaises(PublicError):
                 left.send([], message)
         sink = Sink()
-        right.receive(["call"], Receiver(message=lambda path, message: respond(message, "usable")))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: respond(message, "usable")))
         request(left, ReturnAddress(sink))
         self.assertEqual((await sink.reply())["result"], "usable")
 
@@ -220,18 +224,18 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         left, right = self.pair()
         seen = []
 
-        def receiver(label, namespace=True):
+        def receiver(label):
             def deliver(path, message):
                 seen.append((label, path))
                 respond(message, label)
 
-            return Receiver(namespace=namespace, message=deliver)
+            return Receiver(message=deliver)
 
-        right.receive([], receiver("root"))
-        right.receive(["a"], receiver("prefix"))
-        detach = right.receive(["a", "b"], receiver("exact", False))
+        dispatcher(right).register_prefix([], receiver("root"))
+        dispatcher(right).register_prefix(["a"], receiver("prefix"))
+        detach = dispatcher(right).register(["a", "b"], receiver("exact"))
         with self.assertRaises(WireError):
-            right.receive(["a", "b"], receiver("duplicate", False))
+            dispatcher(right).register(["a", "b"], receiver("duplicate"))
         sink = Sink()
         address = ReturnAddress(sink)
         request(left, address, path=["a", "b"])
@@ -247,7 +251,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
     async def test_pending_capacity_is_retained_through_response_and_reusable(self):
         left, right = self.pair(max_pending_requests=1)
         held = asyncio.Queue()
-        right.receive(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
         sink = Sink()
         address = ReturnAddress(sink)
         request(left, address)
@@ -269,7 +273,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             seen.append((message.frame["kind"], path))
             held.put_nowait(message)
 
-        detach = right.receive(["call"], Receiver(message=receiver))
+        detach = dispatcher(right).register(["call"], Receiver(message=receiver))
         sink = Sink()
         address = ReturnAddress(sink)
         request(left, address)
@@ -283,7 +287,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
                 entered.set()
                 await release.wait()
 
-        right.receive(["event"], Receiver(message=event))
+        dispatcher(right).register(["event"], Receiver(message=event))
         emit(left, 1)
         await entered.wait()
         emit(left, 2)
@@ -292,7 +296,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             cancel(left, address)
             cancel(left, address, "c:999")
         detach()
-        right.receive(["call"], Receiver(message=lambda path, message: self.fail("cancel was rerouted")))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: self.fail("cancel was rerouted")))
         release.set()
         control = await asyncio.wait_for(held.get(), 1)
         self.assertIs(control.return_address, original.return_address)
@@ -307,7 +311,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_request_retains_queued_cancel_reservation_until_drain(self):
         left, right = self.pair(queue_capacity=1, max_pending_requests=1)
         held = asyncio.Queue()
-        right.receive(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
         second = Sink()
         next_address = ReturnAddress(second)
         first = Sink(lambda path, message: request(left, next_address, "c:2"))
@@ -321,7 +325,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             entered.set()
             await release.wait()
 
-        right.receive(["event"], Receiver(message=event))
+        dispatcher(right).register(["event"], Receiver(message=event))
         emit(left)
         await entered.wait()
         cancel(left, address)
@@ -340,7 +344,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         left, right = self.pair(queue_capacity=1)
         other_left, other_right = self.pair()
         other_sink = Sink()
-        other_right.receive(["call"], Receiver(message=lambda path, message: respond(message, "alive")))
+        dispatcher(other_right).register(["call"], Receiver(message=lambda path, message: respond(message, "alive")))
         entered, release, closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
         self.addCleanup(release.set)
 
@@ -348,7 +352,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
             entered.set()
             await release.wait()
 
-        right.receive(["event"], Receiver(message=blocked, closed=lambda code, reason: closed.set()))
+        dispatcher(right).register(["event"], Receiver(message=blocked, closed=lambda code, reason: closed.set()))
         emit(left)
         await entered.wait()
         emit(left)
@@ -382,7 +386,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
                         except PublicError:
                             pass
 
-                right.receive(["call"], Receiver(message=handler))
+                dispatcher(right).register(["call"], Receiver(message=handler))
                 sink = Sink()
                 address = ReturnAddress(sink)
                 request(left, address)
@@ -414,7 +418,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
         async def handler(path, message):
             await release.wait()
 
-        right.receive(["event"], Receiver(message=handler, closed=lambda code, reason: ended.set()))
+        dispatcher(right).register(["event"], Receiver(message=handler, closed=lambda code, reason: ended.set()))
         emit(left)
         await asyncio.wait_for(ended.wait(), 1)
         self.assertEqual([event["type"] for event in events], ["backpressure", "connection.closed"])
@@ -428,7 +432,7 @@ class WirePairTests(unittest.IsolatedAsyncioTestCase):
 
         left, right = self.pair(max_pending_requests=1)
         held = asyncio.Queue()
-        right.receive(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
+        dispatcher(right).register(["call"], Receiver(message=lambda path, message: held.put_nowait(message)))
         failure = PublicError("busy", "return refused")
 
         def fail(path, message):

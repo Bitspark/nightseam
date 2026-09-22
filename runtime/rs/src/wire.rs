@@ -34,7 +34,7 @@ impl Role {
     }
 }
 
-pub use nightseam_duplex::{Payload, PublicError, Trace, check_unicode};
+use bitwire::{Payload, PublicError, Trace, check_unicode};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(crate) struct Wire {

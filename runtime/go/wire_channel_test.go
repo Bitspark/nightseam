@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -139,8 +140,8 @@ func wireChannelPressure(event ws.ObserverEvent) bool {
 
 // A selected mounted view uses the inner peer already carried by this channel.
 // No new channel or peer is introduced by selecting or mounting it.
-func wireChannelView(peer *ws.Peer) duplex.Wire {
-	return duplex.At(duplex.Mount(map[string]duplex.Endpoint{
+func wireChannelView(peer *ws.Peer) bitwire.Wire {
+	return duplex.At(duplex.Mount(map[string]bitwire.Endpoint{
 		"destination": peer.Wire(),
 	}), []string{"destination", "events"})
 }
@@ -148,7 +149,7 @@ func wireChannelView(peer *ws.Peer) duplex.Wire {
 // The receiver takes nothing. One frame spends the window, the next blocks
 // the transport on credit, and the last two occupy its bounded output queue.
 // Observer barriers establish each phase without depending on scheduler speed.
-func wireChannelFill(t *testing.T, h *wireChannelHarness, channel *tunnel.Connection, wire duplex.Wire, log *recorder) {
+func wireChannelFill(t *testing.T, h *wireChannelHarness, channel *tunnel.Connection, wire bitwire.Wire, log *recorder) {
 	t.Helper()
 	for sequence := range 4 {
 		if err := ws.EmitWire(h.ctx, wire, []string{"item"}, sequence); err != nil {

@@ -19,3 +19,8 @@ Build instructions and CMake source consumption are in the
 [runtime README](../../runtime/cpp/README.md). A frames-only consumer links
 `Nightseam::duplex` and includes `nightseam/duplex/conn.hpp` or
 `nightseam/duplex/ws.hpp`.
+
+Shared access types come from `<bitwire/wire.hpp>` in namespace `bitwire`.
+CMake exposes the pinned upstream dependency as `Bitwire::wire`. `at` accepts
+a send-only Bitwire Wire; `mount` borrows Bitwire Endpoints. `Dispatcher` owns
+one endpoint attachment and provides receiving path selections.

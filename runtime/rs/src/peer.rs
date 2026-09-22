@@ -1,12 +1,11 @@
 use crate::{
-    Payload, PublicError, Role, Trace,
+    Role,
     wire::{Wire, decode, valid_traceparent},
 };
+use bitwire::{Detach, Message, ProfileKind, Receiver};
+use bitwire::{Payload, PublicError, Trace};
 use futures_util::{FutureExt, future::BoxFuture};
-use nightseam_duplex::{
-    Close, Detach, Frame, Message, ProfileKind, Receiver, SharedConnection, SharedWire,
-    decode_path, encode_path,
-};
+use nightseam_duplex::{Close, Frame, SharedConnection, decode_path, encode_path};
 use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
@@ -284,9 +283,9 @@ impl Peer {
         decode_path(name)
             .ok()
             .and_then(|path| self.inner.routes.find(&path))
-            .is_some_and(|receiver| !receiver.namespace)
+            .is_some()
     }
-    pub fn wire(&self) -> SharedWire {
+    pub fn wire(&self) -> Arc<dyn bitwire::Endpoint> {
         Arc::new(PeerWire(self.clone()))
     }
     pub fn close_with(&self, code: u16, reason: &str) {
@@ -1054,7 +1053,7 @@ fn wire_key(message: &Message) -> (usize, String) {
         message.frame.id.clone(),
     )
 }
-impl nightseam_duplex::Wire for PeerWire {
+impl bitwire::Wire for PeerWire {
     fn send(&self, path: &[String], message: Message) -> Result<(), PublicError> {
         let inner = &self.0.inner;
         crate::access::validate(path, &message, inner.options.max_frame_bytes)?;
@@ -1128,17 +1127,16 @@ impl nightseam_duplex::Wire for PeerWire {
         inner.wire_wake.notify_one();
         Ok(())
     }
-    fn receive(&self, path: &[String], receiver: Receiver) -> Result<Detach, PublicError> {
+}
+impl bitwire::Endpoint for PeerWire {
+    fn receive(&self, receiver: Receiver) -> Result<Detach, PublicError> {
         let _registration = self.0.inner.registrations.lock().unwrap();
-        let name = encode_path(path);
-        if !receiver.namespace
-            && (name.is_empty()
-                || self.0.inner.handlers.lock().unwrap().contains_key(&name)
-                || self.0.inner.events.lock().unwrap().contains_key(&name))
+        if !self.0.inner.handlers.lock().unwrap().is_empty()
+            || !self.0.inner.events.lock().unwrap().is_empty()
         {
-            return Err(invalid("wire path is empty or already registered"));
+            return Err(invalid("peer handlers already own receiving"));
         }
-        self.0.inner.routes.receive(path, receiver)
+        self.0.inner.routes.receive(receiver)
     }
     fn close(&self, code: u16, reason: &str) -> Result<(), PublicError> {
         self.0.close_with(code, reason);

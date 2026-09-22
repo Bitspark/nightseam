@@ -1,5 +1,7 @@
 package io.nightseam.duplex;
 
+import dev.bitspark.bitwire.*;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -234,12 +236,15 @@ public final class SeamTest {
         }
         expect(IllegalArgumentException.class, () -> Wires.encodePath(List.of("\udfff")));
         Root root = new Root();
-        Wire selected = Wires.at(Wires.at(root, List.of("outer")), List.of("inner"));
+        var router = new Dispatcher(root);
+        Endpoint selected = router.select(List.of("outer", "inner"));
+        check(!(Wires.at(root, List.of()) instanceof Endpoint), "at is send-only");
         List<List<String>> delivered = new ArrayList<>();
-        Message message = new Message(Map.of("kind", "request"), root);
-        Runnable detach = selected.receive(List.of("read"), new Receiver(false, (path, got) -> {
+        var returning = new ReturnAddress(root);
+        Message message = new Message(new ProfileFrame.Event(new JsonValue("null")), returning);
+        Runnable detach = selected.receive(new Receiver( (path, got) -> {
             delivered.add(path);
-            check(got == message && got.returnAddress() == root, "local return identity");
+            check(got == message && got.returnAddress() == returning, "local return identity");
         }, null));
         selected.send(List.of("read"), message);
         check(delivered.isEmpty(), "views must not invoke an application on send");
@@ -250,19 +255,26 @@ public final class SeamTest {
         root.drain();
         equal(delivered.size(), 1, "detach prevents new dispatch");
         selected.close(1000, "selected");
-        check(root.closed, "selected close owns endpoint");
+        check(!root.closed, "selected close leaves borrowed endpoint open");
+        Receiver admitted = root.receivers.get("");
+        AtomicInteger controls = new AtomicInteger();
+        router.register(List.of("active"), new Receiver((path, got) -> controls.incrementAndGet(), null));
+        admitted.message().accept(List.of("active"), new Message(new ProfileFrame.Request("held", new JsonValue("null")), returning));
+        router.close();
+        admitted.message().accept(List.of("active"), new Message(new ProfileFrame.Cancel("held"), returning));
+        equal(controls.get(), 2, "captured cancellation survives dispatcher closure");
 
         Root first = new Root(), second = new Root();
-        Wire mount = Wires.mount(Map.of("", first, "b", second));
+        Endpoint mount = Wires.mount(Map.of("", first, "b", second));
         List<List<String>> namespace = new ArrayList<>();
         AtomicInteger closes = new AtomicInteger();
-        Runnable off = mount.receive(List.of(), new Receiver(true, (path, got) -> namespace.add(path), (code, reason) -> closes.incrementAndGet()));
+        Runnable off = mount.receive(new Receiver( (path, got) -> namespace.add(path), (code, reason) -> closes.incrementAndGet()));
         mount.send(List.of("", "read"), message);
         mount.send(List.of("b", "write"), message);
         first.drain(); second.drain();
         equal(namespace, List.of(List.of("", "read"), List.of("b", "write")), "mount consumes and restores one segment");
         expect(IllegalArgumentException.class, () -> mount.send(List.of(), message));
-        expect(IllegalStateException.class, () -> mount.receive(List.of(), new Receiver(true, null, null)));
+        expect(IllegalStateException.class, () -> mount.receive(new Receiver( null, null)));
         first.close(1001, "first");
         equal(closes.get(), 0, "one child does not end namespace");
         second.close(1000, "second");
@@ -270,8 +282,8 @@ public final class SeamTest {
         off.run(); off.run();
 
         Root borrowed = new Root();
-        Wire closedMount = Wires.mount(Map.of("borrowed", borrowed));
-        closedMount.receive(List.of("borrowed", "read"), new Receiver(false, null, (code, reason) -> closes.incrementAndGet()));
+        Endpoint closedMount = Wires.mount(Map.of("borrowed", borrowed));
+        closedMount.receive(new Receiver( null, (code, reason) -> closes.incrementAndGet()));
         closedMount.close(1000, "mount");
         closedMount.close(1000, "mount");
         check(!borrowed.closed && borrowed.receivers.isEmpty(), "mount detaches and leaves children usable");
@@ -420,7 +432,7 @@ public final class SeamTest {
         output.flush();
     }
 
-    private static final class Root implements Wire {
+    private static final class Root implements Endpoint {
         final Map<String, Receiver> receivers = new LinkedHashMap<>();
         final List<Runnable> queue = new ArrayList<>();
         boolean closed;
@@ -428,22 +440,13 @@ public final class SeamTest {
             if (closed) throw new IllegalStateException("closed");
             String key = Wires.encodePath(path);
             queue.add(() -> {
-                Receiver receiver = receivers.get(key);
-                if (receiver == null) {
-                    int longest = -1;
-                    for (Map.Entry<String, Receiver> entry : receivers.entrySet()) {
-                        if (entry.getKey().startsWith("namespace ")) {
-                            String prefix = entry.getKey().substring(10);
-                            if (key.startsWith(prefix) && prefix.length() > longest) { longest = prefix.length(); receiver = entry.getValue(); }
-                        }
-                    }
-                }
+                Receiver receiver = receivers.get("");
                 if (receiver != null && receiver.message() != null) receiver.message().accept(path, message);
             });
         }
-        @Override public Runnable receive(List<String> path, Receiver receiver) {
+        @Override public Runnable receive(Receiver receiver) {
             if (closed) throw new IllegalStateException("closed");
-            String key = (receiver.namespace() ? "namespace " : "") + Wires.encodePath(path);
+            String key = "";
             if (receivers.putIfAbsent(key, receiver) != null) throw new IllegalStateException("receiver exists");
             return () -> receivers.remove(key, receiver);
         }

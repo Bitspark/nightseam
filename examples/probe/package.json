@@ -12,6 +12,7 @@
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning client/src/main.ts"
   },
   "dependencies": {
+    "@bitspark/bitwire": "0.2.0",
     "@nightseam/duplex": "0.6.0",
     "@nightseam/live": "0.6.0",
     "@nightseam/runtime": "0.6.0",

@@ -175,11 +175,14 @@ jobs:
       # run writes fresh cells. A provisional cell must be reported without
       # becoming a second, stricter gate through a changed README count.
       - run: node scripts/matrix-table.mjs --check
-      - run: go test ./...
+      # Eight native testee builds and the complete star need an overall
+      # budget beyond the default ten minutes; each build retains its own
+      # five-minute deadline in conformance/go/build.go.
+      - run: go test -timeout 25m ./...
       # The conformance suite is in go test ./... above; it is run again by
       # name so that a failure of the matrix reads as one, and its
       # matrix.json is kept as the run's artifact.
-      - run: go test -v ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
+      - run: go test -v -timeout 25m ./conformance/go -run 'TestSelf|TestStar|TestGenerated' -count=1
       - name: Publish the conformance matrix, provisional cells and absent testees
         if: always()
         run: |

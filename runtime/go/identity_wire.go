@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 	"time"
 
@@ -31,7 +32,7 @@ type IdentityPreparation struct {
 }
 
 type identityRegistration struct {
-	receiver duplex.Receiver
+	receiver bitwire.Receiver
 	detach   func()
 	active   bool
 	closed   sync.Once
@@ -41,7 +42,7 @@ type identityDelivery struct {
 	mu                   sync.Mutex
 	registration         *identityRegistration
 	path                 []string
-	message              duplex.Message
+	message              bitwire.Message
 	cancelled, forwarded bool
 	cancelledSignal      chan struct{}
 }
@@ -52,9 +53,9 @@ type identityWatchWire struct {
 	preparation *IdentityPreparation
 }
 
-func (w identityWatchWire) Register(path []string, receiver duplex.Receiver) (func(), error) {
+func (w identityWatchWire) Register(path []string, receiver bitwire.Receiver) (func(), error) {
 	closed := receiver.Closed
-	receiver.Closed = func(code duplex.Code, reason string) {
+	receiver.Closed = func(code bitwire.Code, reason string) {
 		defer w.preparation.fail(ErrClosed)
 		if closed != nil {
 			closed(code, reason)
@@ -66,7 +67,7 @@ func (w identityWatchWire) Register(path []string, receiver duplex.Receiver) (fu
 // PrepareIdentity is synchronous: callers install receivers through Wire before
 // attaching their carrier, then call Check and bind the model before Ready.
 // RequestTimeout bounds the whole preparation, including a factory never bound.
-func PrepareIdentity(wire duplex.Endpoint, expected DeclarationIdentity, options Options) (*IdentityPreparation, error) {
+func PrepareIdentity(wire bitwire.Endpoint, expected DeclarationIdentity, options Options) (*IdentityPreparation, error) {
 	if wire == nil {
 		return nil, errors.New("identity preparation requires a wire")
 	}
@@ -210,7 +211,7 @@ func (p *IdentityPreparation) fail(err error) {
 	p.releaseOnce.Do(func() { close(p.released) })
 }
 
-func (w *identityWire) Send(path []string, message duplex.Message) error {
+func (w *identityWire) Send(path []string, message bitwire.Message) error {
 	p := w.preparation
 	p.mu.Lock()
 	err, ready := p.err, p.ready
@@ -225,12 +226,12 @@ func (w *identityWire) Send(path []string, message duplex.Message) error {
 }
 
 // Closing the interpretation releases its own attachment, never the borrowed endpoint.
-func (w *identityWire) Close(code duplex.Code, reason string) error {
+func (w *identityWire) Close(code bitwire.Code, reason string) error {
 	w.preparation.Close()
 	return nil
 }
 
-func (w *identityWire) Register(path []string, receiver duplex.Receiver) (func(), error) {
+func (w *identityWire) Register(path []string, receiver bitwire.Receiver) (func(), error) {
 	if receiver.Message == nil {
 		return nil, errors.New("a wire receiver requires a callback")
 	}
@@ -244,9 +245,9 @@ func (w *identityWire) Register(path []string, receiver duplex.Receiver) (func()
 	}
 	p.registrations[registration] = struct{}{}
 	p.mu.Unlock()
-	detach, err := p.source.Register(path, duplex.Receiver{
-		Message: func(path []string, message duplex.Message) { p.deliver(registration, path, message) },
-		Closed:  func(duplex.Code, string) { p.fail(ErrClosed) },
+	detach, err := p.source.Register(path, bitwire.Receiver{
+		Message: func(path []string, message bitwire.Message) { p.deliver(registration, path, message) },
+		Closed:  func(bitwire.Code, string) { p.fail(ErrClosed) },
 	})
 	p.mu.Lock()
 	registration.detach = detach
@@ -274,10 +275,10 @@ func (w *identityWire) Register(path []string, receiver duplex.Receiver) (func()
 	}, nil
 }
 
-func (p *IdentityPreparation) deliver(registration *identityRegistration, path []string, message duplex.Message) {
+func (p *IdentityPreparation) deliver(registration *identityRegistration, path []string, message bitwire.Message) {
 	key := returnKey{message.Return, message.Frame.ID}
 	p.mu.Lock()
-	if message.Frame.Kind == duplex.ProfileCancel {
+	if message.Frame.Kind == bitwire.ProfileCancel {
 		delivery := p.pending[key]
 		ready := p.ready && p.err == nil
 		p.mu.Unlock()
@@ -303,7 +304,7 @@ func (p *IdentityPreparation) deliver(registration *identityRegistration, path [
 	if err != nil || ready {
 		p.mu.Unlock()
 		if err != nil {
-			if message.Frame.Kind == duplex.ProfileRequest {
+			if message.Frame.Kind == bitwire.ProfileRequest {
 				sendWireResponse(message, nil, err)
 			}
 			return
@@ -311,7 +312,7 @@ func (p *IdentityPreparation) deliver(registration *identityRegistration, path [
 		registration.receiver.Message(path, message)
 		return
 	}
-	if message.Frame.Kind == duplex.ProfileEvent {
+	if message.Frame.Kind == bitwire.ProfileEvent {
 		p.mu.Unlock()
 		<-p.released
 		p.mu.Lock()
@@ -324,7 +325,7 @@ func (p *IdentityPreparation) deliver(registration *identityRegistration, path [
 		}
 		return
 	}
-	if message.Frame.Kind != duplex.ProfileRequest {
+	if message.Frame.Kind != bitwire.ProfileRequest {
 		p.mu.Unlock()
 		return
 	}

@@ -1,4 +1,5 @@
-use nightseam::{Options, Payload, Peer, Role};
+use bitwire::{Payload};
+use nightseam::{Options,Peer,Role};
 use nightseam_duplex::ws::{Listener, dial};
 use serde_json::json;
 use std::time::Duration;

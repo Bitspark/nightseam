@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 )
 
@@ -12,7 +13,7 @@ import (
 type WireRecord struct {
 	Sequence uint64
 	Path     []string
-	Message  Message
+	Message  bitwire.Message
 }
 
 // WireLog is consumer-owned storage with one exclusive RecordedWire writer.
@@ -22,7 +23,7 @@ type WireRecord struct {
 // new lifetime or serialization rule for capabilities inside a Message.
 type WireLog interface {
 	Head(context.Context) (uint64, error)
-	Append(context.Context, []string, Message) (uint64, error)
+	Append(context.Context, []string, bitwire.Message) (uint64, error)
 	Read(context.Context, uint64) (WireRecord, error)
 }
 
@@ -49,7 +50,7 @@ func (l *MemoryWireLog) Head(ctx context.Context) (uint64, error) {
 	defer l.mu.RUnlock()
 	return uint64(len(l.entries)), nil
 }
-func (l *MemoryWireLog) Append(ctx context.Context, p []string, m Message) (uint64, error) {
+func (l *MemoryWireLog) Append(ctx context.Context, p []string, m bitwire.Message) (uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -84,14 +85,14 @@ type RecordOptions struct {
 }
 type recordCommand struct {
 	path    []string
-	message Message
+	message bitwire.Message
 	control func(uint64)
 }
 
 // RecordedWire appends before forwarding, with storage work off Send's stack.
 // A successful Send promises admission only; Head fences admitted appends.
 type RecordedWire struct {
-	target    Wire
+	target    bitwire.Wire
 	log       WireLog
 	options   RecordOptions
 	ctx       context.Context
@@ -105,7 +106,7 @@ type RecordedWire struct {
 
 // Record takes exclusive append ownership of log. Setup reads its initial head;
 // the target is borrowed send authority and remains usable when the recorder ends.
-func Record(setup context.Context, target Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
+func Record(setup context.Context, target bitwire.Wire, log WireLog, options RecordOptions) (*RecordedWire, error) {
 	if target == nil || log == nil {
 		return nil, fmt.Errorf("record requires a target and storage")
 	}
@@ -149,14 +150,17 @@ func (w *RecordedWire) admit(command recordCommand) error {
 		return ErrRecordOverflow
 	}
 }
-func (w *RecordedWire) Send(path []string, message Message) error {
+func (w *RecordedWire) Send(path []string, message bitwire.Message) error {
 	if _, err := EncodePath(path); err != nil {
 		return err
 	}
 	return w.admit(recordCommand{path: append([]string{}, path...), message: message})
 }
-func (w *RecordedWire) Close(code Code, reason string) error { w.end(code, reason, nil); return nil }
-func (w *RecordedWire) end(code Code, reason string, err error) {
+func (w *RecordedWire) Close(code bitwire.Code, reason string) error {
+	w.end(code, reason, nil)
+	return nil
+}
+func (w *RecordedWire) end(code bitwire.Code, reason string, err error) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -259,7 +263,7 @@ type Follower struct {
 	Head          uint64
 	Done          <-chan struct{}
 	owner         *RecordedWire
-	target        Wire
+	target        bitwire.Wire
 	live          chan WireRecord
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -285,7 +289,7 @@ func (f *Follower) offer(entry WireRecord) bool {
 		return false
 	}
 }
-func (f *Follower) end(code Code, reason string, err error) {
+func (f *Follower) end(code bitwire.Code, reason string, err error) {
 	f.mu.Lock()
 	if f.stopped {
 		f.mu.Unlock()
@@ -305,7 +309,7 @@ func (f *Follower) end(code Code, reason string, err error) {
 // It replays (after,Head] on its own worker, then follows later appends. after
 // is a local cursor; carrying it remotely requires an ordinary consumer member.
 // ctx owns this follower's lifetime, not the recorder or its other followers.
-func (w *RecordedWire) Follow(ctx context.Context, after uint64, target Wire) (*Follower, error) {
+func (w *RecordedWire) Follow(ctx context.Context, after uint64, target bitwire.Wire) (*Follower, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

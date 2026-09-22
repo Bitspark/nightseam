@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 
 	"github.com/coder/websocket"
@@ -104,7 +105,7 @@ func (c *connection) translate(ctx context.Context, err error) error {
 	}
 	var closeErr websocket.CloseError
 	if errors.As(err, &closeErr) {
-		return &duplex.CloseError{Code: duplex.Code(closeErr.Code), Reason: closeErr.Reason}
+		return &duplex.CloseError{Code: bitwire.Code(closeErr.Code), Reason: closeErr.Reason}
 	}
 	return err
 }
@@ -112,7 +113,7 @@ func (c *connection) translate(ctx context.Context, err error) error {
 // Close sends a close frame with the code and reason and waits for the
 // remote side's acknowledgement; the WebSocket library bounds that wait
 // itself, so ctx is not consulted.
-func (c *connection) Close(ctx context.Context, code duplex.Code, reason string) error {
+func (c *connection) Close(ctx context.Context, code bitwire.Code, reason string) error {
 	if c.closed() {
 		return duplex.ErrClosed
 	}

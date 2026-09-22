@@ -59,9 +59,9 @@ func (f *file) emitWireAdapter(side, opposite string) {
 			lower = "client"
 		}
 		for _, facet := range []string{"Methods", "Events"} {
-			f.linef("type %s%s%s struct { wire %s.Wire; environment %s%s }", lower, facet, decl, seam, contextType, f.slotFields())
+			f.linef("type %s%s%s struct { wire %s.Wire; environment %s%s }", lower, facet, decl, f.bitwire(), contextType, f.slotFields())
 		}
-		f.linef("func access%s%s(wire %s.Wire, environment %s%s) %s%s%s { return %s%s%s{Methods: &%sMethods%s{wire:wire,environment:environment%s}, Events: &%sEvents%s{wire:wire,environment:environment%s}} }", name, decl, seam, contextType, f.slotParameters(), proto, name, args, proto, name, args, lower, args, f.slotValues(), lower, args, f.slotValues())
+		f.linef("func access%s%s(wire %s.Wire, environment %s%s) %s%s%s { return %s%s%s{Methods: &%sMethods%s{wire:wire,environment:environment%s}, Events: &%sEvents%s{wire:wire,environment:environment%s}} }", name, decl, f.bitwire(), contextType, f.slotParameters(), proto, name, args, proto, name, args, lower, args, f.slotValues(), lower, args, f.slotValues())
 		for _, m := range methods {
 			f.wireCaller(m, lower+"Methods"+args)
 		}
@@ -82,7 +82,7 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.line("return environment, nil")
 	})
 	f.linef("// ToWire binds one model factory and returns its owned access endpoint.")
-	f.w.Block(fmt.Sprintf("func ToWire%s(model %s%sModel%s, environment %s%s) (%s.Endpoint, error) {", open, proto, side, args, contextType, f.slotParameters(), seam), "}", func() {
+	f.w.Block(fmt.Sprintf("func ToWire%s(model %s%sModel%s, environment %s%s) (%s.Endpoint, error) {", open, proto, side, args, contextType, f.slotParameters(), f.bitwire()), "}", func() {
 		f.linef("if model == nil { return nil, %s.Errorf(\"model factory is required\") }", f.std("fmt"))
 		f.linef("environment, err := normalizeContext%s(environment%s)", args, f.slotArguments())
 		f.line("if err != nil { return nil, err }")

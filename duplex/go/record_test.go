@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"os"
 	"reflect"
 	"sync"
@@ -23,7 +24,7 @@ type recordTarget struct {
 func newRecordTarget() *recordTarget {
 	return &recordTarget{values: make(chan duplex.WireRecord, 64), closed: make(chan struct{})}
 }
-func (w *recordTarget) Send(p []string, m duplex.Message) error {
+func (w *recordTarget) Send(p []string, m bitwire.Message) error {
 	if w.refuse != nil {
 		return w.refuse
 	}
@@ -41,7 +42,7 @@ type brokenSequenceLog struct {
 	appendGap bool
 }
 
-func (l *brokenSequenceLog) Append(ctx context.Context, p []string, m duplex.Message) (uint64, error) {
+func (l *brokenSequenceLog) Append(ctx context.Context, p []string, m bitwire.Message) (uint64, error) {
 	seq, err := l.MemoryWireLog.Append(ctx, p, m)
 	if l.appendGap {
 		seq++
@@ -150,14 +151,14 @@ func TestRecordedWireStorageAndTargetFailures(t *testing.T) {
 		})
 	}
 }
-func (*recordTarget) Receive(duplex.Receiver) (func(), error) { return func() {}, nil }
-func (w *recordTarget) Close(duplex.Code, string) error {
+func (*recordTarget) Receive(bitwire.Receiver) (func(), error) { return func() {}, nil }
+func (w *recordTarget) Close(bitwire.Code, string) error {
 	w.once.Do(func() { close(w.closed) })
 	return nil
 }
-func recordMessage(i int) duplex.Message {
+func recordMessage(i int) bitwire.Message {
 	b, _ := json.Marshal(i)
-	return duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: b}}
+	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: b}}
 }
 func recordContext(t *testing.T) context.Context {
 	t.Helper()
@@ -233,7 +234,7 @@ func (l *heldLog) Read(ctx context.Context, seq uint64) (duplex.WireRecord, erro
 	}
 	return l.MemoryWireLog.Read(ctx, seq)
 }
-func (l *heldLog) Append(ctx context.Context, p []string, m duplex.Message) (uint64, error) {
+func (l *heldLog) Append(ctx context.Context, p []string, m bitwire.Message) (uint64, error) {
 	if l.holdAppend {
 		if err := l.hold(ctx); err != nil {
 			return 0, err
@@ -263,7 +264,7 @@ func TestRecordedWireHeadAndHandoff(t *testing.T) {
 			ctx := recordContext(t)
 			store := newHeldLog()
 			original := newRecordTarget()
-			mounted := duplex.Mount(map[string]duplex.Endpoint{"history": original})
+			mounted := duplex.Mount(map[string]bitwire.Endpoint{"history": original})
 			defer mounted.Close(1000, "done")
 			w, err := duplex.Record(ctx, duplex.At(mounted, []string{"history"}), store, duplex.RecordOptions{MaxQueuedMessages: 8})
 			if err != nil {
@@ -331,7 +332,7 @@ func TestRecordedWireStalledFollowerIsIsolated(t *testing.T) {
 	defer w.Close(1000, "done")
 	w.Send([]string{"tick"}, recordMessage(1))
 	slowTarget := newRecordTarget()
-	mounted := duplex.Mount(map[string]duplex.Endpoint{"slow": slowTarget})
+	mounted := duplex.Mount(map[string]bitwire.Endpoint{"slow": slowTarget})
 	defer mounted.Close(1000, "done")
 	slow, err := w.Follow(ctx, 0, duplex.At(mounted, []string{"slow"}))
 	if err != nil {
@@ -404,7 +405,7 @@ func TestRecordedWireCursorCancellationAndCapabilities(t *testing.T) {
 	if _, err := w.Follow(ctx, 1, newRecordTarget()); !errors.Is(err, duplex.ErrRecordSequence) {
 		t.Fatal(err)
 	}
-	address := &duplex.ReturnAddress{Wire: target}
+	address := &bitwire.ReturnAddress{Wire: target}
 	message := recordMessage(1)
 	message.Return = address
 	w.Send([]string{"", "é"}, message)

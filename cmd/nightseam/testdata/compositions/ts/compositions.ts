@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { DuplexPeer, forwardWire } from '@nightseam/runtime';
-import type { Endpoint } from '@nightseam/duplex';
+import type { Endpoint } from '@bitspark/bitwire';
 import { Tunnel, type Channel } from '@nightseam/tunnel';
 import { prepareFromWire as prepareWorker, type Handle, type Held } from './api/ts/worker-binding/src/index.ts';
 import { toWire as sinkToWire, wireDigest as sinkDigest, type Ending, type ReportRequest } from './api/ts/sink-client/src/index.ts';

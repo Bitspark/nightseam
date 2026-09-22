@@ -1,3 +1,4 @@
+import Bitwire
 import NightseamDuplex
 
 extension Metadata {

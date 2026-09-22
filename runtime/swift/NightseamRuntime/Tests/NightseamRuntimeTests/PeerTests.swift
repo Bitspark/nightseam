@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import Testing
 import NightseamDuplex

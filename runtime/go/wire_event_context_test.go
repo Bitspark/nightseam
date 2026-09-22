@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"reflect"
 	"testing"
 	"time"
@@ -30,12 +31,12 @@ func TestWireEventContextSurvivesPhysicalForwardLocalPairAndMount(t *testing.T) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = access.Close(duplex.CodeNormal, "done") })
-	stop, err := ws.ForwardWire(server.Wire(), testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"local": access})).Select([]string{"local"}))
+	stop, err := ws.ForwardWire(server.Wire(), testBinding(t, duplex.Mount(map[string]bitwire.Endpoint{"local": access})).Select([]string{"local"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
-	mountBinding := testBinding(t, duplex.Mount(map[string]duplex.Endpoint{"model": binding}))
+	mountBinding := testBinding(t, duplex.Mount(map[string]bitwire.Endpoint{"model": binding}))
 	model := mountBinding.Select([]string{"model", "events"})
 	observed := make(chan context.Context, 1)
 	effects := 0

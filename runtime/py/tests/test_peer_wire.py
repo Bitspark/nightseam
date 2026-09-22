@@ -1,10 +1,12 @@
 import asyncio
 import unittest
 
-from nightseam.duplex import Frame, Message, Receiver, ReturnAddress, at, encode_path, mount, pipe
+from bitwire import Message, Receiver, ReturnAddress
+from nightseam.duplex import Frame, at, encode_path, mount, pipe
 from nightseam.duplex.websocket import dial, listen
 from nightseam.runtime import Options, Peer, PublicError
 from nightseam.runtime.json import loads
+from routing import dispatcher
 
 
 class PeerWireTests(unittest.IsolatedAsyncioTestCase):
@@ -89,7 +91,7 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
         paths = [[""], ["a/b"], ["a", "b"], ["😀", "\ufeff"]]
         for index, path in enumerate(paths):
             register_wire(
-                server.wire(),
+                dispatcher(server.wire()),
                 path,
                 WireHandlers(
                     request=lambda value, context, i=index: [i, value],
@@ -137,7 +139,7 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
 
         def prepare(peer):
             prepared.append(peer.status)
-            handle_wire(peer.wire(), ["echo"], lambda value, context: value)
+            handle_wire(dispatcher(peer.wire()), ["echo"], lambda value, context: value)
 
         server = Peer(far, "server", Options(prepare=prepare))
         self.addAsyncCleanup(server.close)
@@ -159,7 +161,7 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()  # Deliberately ignore context cancellation.
             return value
 
-        handle_wire(server.wire(), ["work"], work)
+        handle_wire(dispatcher(server.wire()), ["work"], work)
         first = asyncio.create_task(call_wire(client.wire(), ["work"], 1, timeout_ms=20))
         await asyncio.wait_for(entered.wait(), 1)
         try:
@@ -188,11 +190,11 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
             await context.cancelled.wait()
             cancelled.set()
 
-        detach = handle_wire(server.wire(), ["hold"], original)
+        detach = handle_wire(dispatcher(server.wire()), ["hold"], original)
         call = asyncio.create_task(call_wire(client.wire(), ["hold"], timeout_ms=500))
         await asyncio.wait_for(entered.wait(), 1)
         detach()
-        handle_wire(server.wire(), ["hold"], lambda value, context: replacements.append(value))
+        handle_wire(dispatcher(server.wire()), ["hold"], lambda value, context: replacements.append(value))
         call.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await call
@@ -206,9 +208,11 @@ class PeerWireTests(unittest.IsolatedAsyncioTestCase):
 
         client, server = await self.peers()
         root = server.wire()
-        root.receive([], Receiver(namespace=True, message=lambda path, message: response(message, "root")))
-        root.receive(["a"], Receiver(namespace=True, message=lambda path, message: response(message, "a")))
-        detach = root.receive(["a", "b"], Receiver(message=lambda path, message: response(message, "exact")))
+        dispatcher(root).register_prefix([], Receiver(message=lambda path, message: response(message, "root")))
+        dispatcher(root).register_prefix(["a"], Receiver(message=lambda path, message: response(message, "a")))
+        detach = dispatcher(root).register(
+            ["a", "b"], Receiver(message=lambda path, message: response(message, "exact"))
+        )
         self.assertEqual(await call_wire(client.wire(), ["a", "b"]), "exact")
         detach()
         self.assertEqual(await call_wire(client.wire(), ["a", "b"]), "a")

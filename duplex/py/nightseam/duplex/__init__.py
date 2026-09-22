@@ -6,33 +6,13 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from .record import Follower, MemoryWireLog, RecordedWire, RecordError, RecordOptions, WireLog, WireRecord, record
-from .wire import (
-    Message,
-    Path,
-    ProfileError,
-    ProfileFrame,
-    Receiver,
-    ReturnAddress,
-    Wire,
-    WireError,
-    at,
-    decode_path,
-    encode_path,
-    mount,
-)
+from .wire import WireError, at, decode_path, encode_path, mount
 
 __all__ = [
     "CloseError",
     "Frame",
     "FrameConnection",
     "pipe",
-    "Message",
-    "Path",
-    "ProfileError",
-    "ProfileFrame",
-    "Receiver",
-    "ReturnAddress",
-    "Wire",
     "WireError",
     "at",
     "decode_path",

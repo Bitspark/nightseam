@@ -1,3 +1,4 @@
+import Bitwire
 import Foundation
 import NightseamDuplex
 
@@ -22,10 +23,10 @@ private final class PeerWireHandoff: @unchecked Sendable {
 /// The existing Peer owns the socket; its Wire owns bounded relative dispatch.
 /// Reusing the local dispatch primitive keeps cancellation reservations, return
 /// identity, namespace selection and handler lifetime identical for both roots.
-final class PeerWire: Wire, @unchecked Sendable {
+final class PeerWire: Endpoint, @unchecked Sendable {
     private let peer: Peer
-    private let front: any Wire
-    private let back: any Wire
+    private let front: any Endpoint
+    private let back: any Endpoint
     private let lock = NSLock()
     private var calls: [ObjectIdentifier: PeerWireHandoff] = [:]
 
@@ -58,7 +59,7 @@ final class PeerWire: Wire, @unchecked Sendable {
     }
 
     private func installOutbound() throws {
-        _ = try back.receive(path: [], receiver: Receiver(namespace: true, message: { [weak self] path, message in
+        _ = try back.receive(receiver: Receiver( message: { [weak self] path, message in
             self?.dispatch(path: path, message: message)
         }, closed: { [peer] code, reason in Task { await peer.close(code: code, reason: reason) } }))
     }
@@ -118,6 +119,6 @@ final class PeerWire: Wire, @unchecked Sendable {
     }
 
     func send(path: [String], message: Message) throws { try front.send(path: path, message: message) }
-    func receive(path: [String], receiver: Receiver) throws -> Detach { try front.receive(path: path, receiver: receiver) }
+    func receive(receiver: Receiver) throws -> Detach { try front.receive(receiver: receiver) }
     func close(code: Int, reason: String) throws { try front.close(code: code, reason: reason) }
 }

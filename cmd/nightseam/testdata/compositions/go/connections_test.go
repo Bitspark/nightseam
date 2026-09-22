@@ -10,6 +10,7 @@ import (
 	topicprotocol "example.test/generated/api/go/topic-protocol"
 	workerbinding "example.test/generated/api/go/worker-binding"
 	workerprotocol "example.test/generated/api/go/worker-protocol"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	duplex "github.com/Bitspark/nightseam/duplex/go"
 	runtime "github.com/Bitspark/nightseam/runtime/go"
 	tunnel "github.com/Bitspark/nightseam/tunnel/go"
@@ -23,7 +24,7 @@ import (
 
 const settle = 3 * time.Second
 
-func serveModel(t *testing.T, build func(*runtime.Peer, *scope) (duplex.Endpoint, error)) *httptest.Server {
+func serveModel(t *testing.T, build func(*runtime.Peer, *scope) (bitwire.Endpoint, error)) *httptest.Server {
 	t.Helper()
 	handler, err := runtime.NewHandler(runtime.ServerOptions{
 		Options: runtime.Options{Prepare: func(peer *runtime.Peer) error {
@@ -82,7 +83,7 @@ type workers struct {
 
 func serveWorkers(t *testing.T) *workers {
 	worker := newWorker()
-	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Endpoint, error) {
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (bitwire.Endpoint, error) {
 		worker.attach(peer, s)
 		return workerbinding.ToWire(func(workerprotocol.Client) (workerprotocol.Server, error) {
 			return workerprotocol.Server{Methods: &workerSession{worker, s}, Events: struct{}{}}, nil
@@ -141,7 +142,7 @@ type cells struct {
 
 func serveCells(t *testing.T) *cells {
 	cell := newCell()
-	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Endpoint, error) {
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (bitwire.Endpoint, error) {
 		cell.attach(peer, s)
 		return cellbinding.ToWire(func(cellprotocol.Client) (cellprotocol.Server, error) {
 			return cellprotocol.Server{Methods: &cellSession{cell, s}, Events: struct{}{}}, nil
@@ -194,7 +195,7 @@ type topics struct {
 
 func serveTopics(t *testing.T) *topics {
 	topic := newTopic()
-	server := serveModel(t, func(peer *runtime.Peer, s *scope) (duplex.Endpoint, error) {
+	server := serveModel(t, func(peer *runtime.Peer, s *scope) (bitwire.Endpoint, error) {
 		topic.attach(peer, s)
 		return topicbinding.ToWire(func(topicprotocol.Client) (topicprotocol.Server, error) {
 			return topicprotocol.Server{Methods: &topicSession{topic, s}, Events: struct{}{}}, nil

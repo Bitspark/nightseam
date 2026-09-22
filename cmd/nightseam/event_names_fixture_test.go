@@ -72,13 +72,15 @@ for (const mounted of [false,true]) {
 
 const goEventNameOverrideFixture = `package generated_test
 import (
+	duplex "github.com/Bitspark/nightseam/duplex/go"
+ bitwire "github.com/Bitspark/bitwire/wire/go"
  "context"
  "fmt"
  "testing"
  "time"
  binding "example.test/generated/api/go/probe-binding"
  protocol "example.test/generated/api/go/probe-protocol"
- duplex "github.com/Bitspark/nightseam/duplex/go"
+
  runtime "github.com/Bitspark/nightseam/runtime/go"
 )
 type events struct{received chan string}
@@ -92,10 +94,10 @@ func TestEventWireName(t *testing.T) {
    var complete func(context.Context)(protocol.ServerModel,error)
    var cleanup func()
    options := runtime.Options{Prepare:func(peer *runtime.Peer)error {
-    wire:=peer.Wire();if mounted{root:=duplex.Mount(map[string]duplex.Endpoint{"nested":wire});t.Cleanup(func(){root.Close(duplex.CodeNormal,"")});dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{return err};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});wire=dispatcher.Select([]string{"nested"})}
+    wire:=peer.Wire();if mounted{root:=duplex.Mount(map[string]bitwire.Endpoint{"nested":wire});t.Cleanup(func(){root.Close(duplex.CodeNormal,"")});dispatcher,err:=runtime.NewDispatcher(root);if err!=nil{return err};t.Cleanup(func(){dispatcher.Close(duplex.CodeNormal,"")});wire=dispatcher.Select([]string{"nested"})}
     var err error
     complete,cleanup,err=binding.PrepareFromWire(wire,runtime.AdapterContext{});if err!=nil{return err}
-    if _,err=wire.Receive(duplex.Receiver{Message:func([]string,duplex.Message){}});err==nil{return fmt.Errorf("typed event attachment was not installed")}
+    if _,err=wire.Receive(bitwire.Receiver{Message:func([]string,bitwire.Message){}});err==nil{return fmt.Errorf("typed event attachment was not installed")}
     return nil
    }}
    if err := far.Send(ctx,duplex.Frame{Kind:duplex.Text,Data:[]byte("{\"version\":1,\"kind\":\"event\",\"event\":\"9:to_string\",\"data\":\"first\"}")}); err != nil { t.Fatal(err) }

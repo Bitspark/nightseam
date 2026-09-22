@@ -1,4 +1,5 @@
-use nightseam::{Context, Options, Payload, Peer, PublicError, Role};
+use bitwire::{Payload, PublicError};
+use nightseam::{Context, Options, Peer, Role};
 use nightseam_duplex::pipe;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};

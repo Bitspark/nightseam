@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"errors"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"slices"
 	"testing"
 
@@ -18,11 +19,11 @@ func TestAnEndpointHasOneOwningAttachment(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = left.Close(duplex.CodeNormal, "") })
 	first := make(chan []string, 4)
-	detach, err := right.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { first <- path }})
+	detach, err := right.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { first <- path }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := right.Receive(duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
+	if _, err := right.Receive(bitwire.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
 		t.Fatalf("a second attachment was accepted: %v", err)
 	}
 	if err := ws.EmitWire(t.Context(), left, []string{"one"}, nil); err != nil {
@@ -34,7 +35,7 @@ func TestAnEndpointHasOneOwningAttachment(t *testing.T) {
 	detach()
 	detach()
 	second := make(chan []string, 4)
-	if _, err := right.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { second <- path }}); err != nil {
+	if _, err := right.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { second <- path }}); err != nil {
 		t.Fatalf("a later attachment was refused: %v", err)
 	}
 	if err := ws.EmitWire(t.Context(), left, []string{"two"}, nil); err != nil {
@@ -58,21 +59,21 @@ func TestADispatcherRefusesADuplicatePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	detach, err := dispatch.Register([]string{"a", "b"}, duplex.Receiver{Message: func([]string, duplex.Message) {}})
+	detach, err := dispatch.Register([]string{"a", "b"}, bitwire.Receiver{Message: func([]string, bitwire.Message) {}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dispatch.Register([]string{"a", "b"}, duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
+	if _, err := dispatch.Register([]string{"a", "b"}, bitwire.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
 		t.Fatalf("a duplicate exact path was accepted: %v", err)
 	}
-	if _, err := dispatch.RegisterPrefix([]string{"a", "b"}, duplex.Receiver{}); err != nil {
+	if _, err := dispatch.RegisterPrefix([]string{"a", "b"}, bitwire.Receiver{}); err != nil {
 		t.Fatalf("a prefix at an exact path was refused: %v", err)
 	}
-	if _, err := dispatch.RegisterPrefix([]string{"a", "b"}, duplex.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
+	if _, err := dispatch.RegisterPrefix([]string{"a", "b"}, bitwire.Receiver{}); !errors.Is(err, duplex.ErrReceiverExists) {
 		t.Fatalf("a duplicate prefix path was accepted: %v", err)
 	}
 	detach()
-	if _, err := dispatch.Register([]string{"a", "b"}, duplex.Receiver{}); err != nil {
+	if _, err := dispatch.Register([]string{"a", "b"}, bitwire.Receiver{}); err != nil {
 		t.Fatalf("a detached path was not freed: %v", err)
 	}
 }
@@ -86,8 +87,8 @@ func TestOverlappingRoutesSelectTheLongestThenTheExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	reached := make(chan string, 8)
-	name := func(label string) duplex.Receiver {
-		return duplex.Receiver{Message: func([]string, duplex.Message) { reached <- label }}
+	name := func(label string) bitwire.Receiver {
+		return bitwire.Receiver{Message: func([]string, bitwire.Message) { reached <- label }}
 	}
 	for _, route := range []struct {
 		path  []string
@@ -109,7 +110,7 @@ func TestOverlappingRoutesSelectTheLongestThenTheExact(t *testing.T) {
 		{[]string{"a", "b", "z"}, "a/b"},
 		{[]string{"a", "b", "c"}, "exact a/b/c"},
 	} {
-		endpoint.deliver(want.path, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: []byte("null")}})
+		endpoint.deliver(want.path, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: []byte("null")}})
 		if got := <-reached; got != want.label {
 			t.Fatalf("%v reached %q, want %q", want.path, got, want.label)
 		}
@@ -130,7 +131,7 @@ func TestNestedSelectionPrependsAndStrips(t *testing.T) {
 	}
 	inner := dispatch.Select([]string{"a"}).Select([]string{"b"})
 	delivered := make(chan []string, 4)
-	if _, err := inner.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { delivered <- path }}); err != nil {
+	if _, err := inner.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { delivered <- path }}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ws.EmitWire(t.Context(), left, []string{"a", "b", "read"}, nil); err != nil {
@@ -141,7 +142,7 @@ func TestNestedSelectionPrependsAndStrips(t *testing.T) {
 	}
 	// And outgoing: what the view sends arrives at the root's full path.
 	back := make(chan []string, 4)
-	if _, err := left.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { back <- path }}); err != nil {
+	if _, err := left.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { back <- path }}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ws.EmitWire(t.Context(), inner, []string{"reply"}, nil); err != nil {
@@ -160,9 +161,9 @@ func TestMountRoutesByOneSegmentAndBorrowsItsChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = left.Close(duplex.CodeNormal, "") })
-	mount := duplex.Mount(map[string]duplex.Endpoint{"child": right})
+	mount := duplex.Mount(map[string]bitwire.Endpoint{"child": right})
 	delivered := make(chan []string, 4)
-	if _, err := mount.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { delivered <- path }}); err != nil {
+	if _, err := mount.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { delivered <- path }}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ws.EmitWire(t.Context(), left, []string{"read"}, nil); err != nil {
@@ -173,17 +174,17 @@ func TestMountRoutesByOneSegmentAndBorrowsItsChildren(t *testing.T) {
 	}
 	// A mount has no destination at the empty path, and an unknown child has
 	// no route at all.
-	if err := mount.Send(nil, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: []byte("null")}}); !errors.Is(err, duplex.ErrNoRoute) {
+	if err := mount.Send(nil, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: []byte("null")}}); !errors.Is(err, duplex.ErrNoRoute) {
 		t.Fatalf("the mount had a destination at []: %v", err)
 	}
-	if err := mount.Send([]string{"absent"}, duplex.Message{Frame: duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileEvent, Data: []byte("null")}}); !errors.Is(err, duplex.ErrNoRoute) {
+	if err := mount.Send([]string{"absent"}, bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent, Data: []byte("null")}}); !errors.Is(err, duplex.ErrNoRoute) {
 		t.Fatalf("an unknown child had a route: %v", err)
 	}
 	if err := mount.Close(duplex.CodeNormal, ""); err != nil {
 		t.Fatal(err)
 	}
 	after := make(chan []string, 4)
-	if _, err := right.Receive(duplex.Receiver{Message: func(path []string, _ duplex.Message) { after <- path }}); err != nil {
+	if _, err := right.Receive(bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { after <- path }}); err != nil {
 		t.Fatalf("closing the mount closed its borrowed child: %v", err)
 	}
 	if err := ws.EmitWire(t.Context(), left, []string{"again"}, nil); err != nil {

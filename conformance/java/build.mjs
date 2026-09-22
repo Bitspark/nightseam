@@ -23,16 +23,25 @@ function files(path) {
   return readdirSync(path, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? files(join(path, entry.name)) : entry.name.endsWith('.java') ? [join(path, entry.name)] : []);
 }
+// Bitwire is an upstream artifact, never included in either Nightseam jar.
+const bitwire = join(out, 'bitwire-0.2.0.jar');
+if (!existsSync(bitwire)) {
+  const response = await fetch('https://repo.maven.apache.org/maven2/dev/bitspark/bitwire/0.2.0/bitwire-0.2.0.jar');
+  if (!response.ok) throw new Error(`Bitwire download failed: ${response.status}`);
+  writeFileSync(bitwire, Buffer.from(await response.arrayBuffer()));
+}
+// The standalone testee launches from one class directory.
+run('jar', ['--extract', '--file', bitwire], classes);
 const components = ['duplex/java', 'runtime/java', 'conformance/java'];
 const source = components.flatMap(part => files(join(root, part, 'src/main')));
 const args = join(out, 'sources.args');
 writeFileSync(args, source.map(path => JSON.stringify(path.replaceAll('\\', '/'))).join('\n'));
-run('javac', ['--release', '21', '-encoding', 'UTF-8', '-d', classes, `@${args}`]);
+run('javac', ['--release', '21', '-encoding', 'UTF-8', '-cp', classes, '-d', classes, `@${args}`]);
 const notices = join(out, 'notices');
 mkdirSync(notices, { recursive: true });
 copyFileSync(join(root, 'LICENSE'), join(notices, 'LICENSE'));
 copyFileSync(join(root, 'NOTICE'), join(notices, 'NOTICE'));
-const jars = [];
+const jars = [bitwire];
 for (const component of ['duplex', 'runtime']) {
   const artifact = join(out, `nightseam-${component}.jar`);
   run('jar', ['--create', '--file', artifact, '-C', classes, `io/nightseam/${component}`, '-C', notices, 'LICENSE', '-C', notices, 'NOTICE']);
@@ -54,7 +63,7 @@ if (process.argv.includes('--test')) {
   const consumer = mkdtempSync(join(tmpdir(), 'nightseam-java-consumer-'));
   try {
     for (const jar of jars) copyFileSync(jar, join(consumer, jar.split(/[\\/]/).at(-1)));
-    const classpath = ['nightseam-duplex.jar', 'nightseam-runtime.jar'].join(delimiter);
+    const classpath = ['bitwire-0.2.0.jar', 'nightseam-duplex.jar', 'nightseam-runtime.jar'].join(delimiter);
     writeFileSync(join(consumer, 'Consumer.java'), `
 import io.nightseam.duplex.Pipe;
 import io.nightseam.runtime.*;

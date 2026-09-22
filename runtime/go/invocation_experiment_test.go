@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,7 +22,7 @@ import (
 // is public in fact and not only in name.
 type ledgerEndpoint struct {
 	mu          sync.Mutex
-	receiver    *duplex.Receiver
+	receiver    *bitwire.Receiver
 	captureCap  int
 	bodyCap     int
 	calls       map[string]*ledgerCall
@@ -33,16 +34,16 @@ type ledgerEndpoint struct {
 type ledgerCall struct {
 	mu        sync.Mutex
 	owner     *ledgerEndpoint
-	address   *duplex.ReturnAddress
-	outcome   chan duplex.Message
-	sinks     map[string]duplex.Wire
+	address   *bitwire.ReturnAddress
+	outcome   chan bitwire.Message
+	sinks     map[string]bitwire.Wire
 	delivered map[string]bool
 	told      map[string]bool
 	bodies    map[string]bool
 	takenCaps int
 	takenBody int
 	pending   int
-	control   *duplex.Message
+	control   *bitwire.Message
 	settled   bool
 	retired   bool
 }
@@ -51,8 +52,8 @@ func newLedgerEndpoint(captures, bodies int) *ledgerEndpoint {
 	return &ledgerEndpoint{captureCap: captures, bodyCap: bodies, calls: map[string]*ledgerCall{}}
 }
 
-func (e *ledgerEndpoint) Send([]string, duplex.Message) error { return nil }
-func (e *ledgerEndpoint) Close(code duplex.Code, reason string) error {
+func (e *ledgerEndpoint) Send([]string, bitwire.Message) error { return nil }
+func (e *ledgerEndpoint) Close(code bitwire.Code, reason string) error {
 	e.mu.Lock()
 	receiver := e.receiver
 	e.receiver = nil
@@ -62,7 +63,7 @@ func (e *ledgerEndpoint) Close(code duplex.Code, reason string) error {
 	}
 	return nil
 }
-func (e *ledgerEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (e *ledgerEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.receiver != nil {
@@ -83,10 +84,10 @@ func (e *ledgerEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
 // vocabulary everywhere else, refusing any path it does not implement.
 type ledgerReturn struct{ call *ledgerCall }
 
-func (r *ledgerReturn) Send(path []string, message duplex.Message) error {
+func (r *ledgerReturn) Send(path []string, message bitwire.Message) error {
 	call := r.call
 	if len(path) == 0 {
-		if message.Frame.Kind != duplex.ProfileResponse {
+		if message.Frame.Kind != bitwire.ProfileResponse {
 			return errors.New("invalid outcome")
 		}
 		select {
@@ -98,7 +99,7 @@ func (r *ledgerReturn) Send(path []string, message duplex.Message) error {
 	}
 	switch path[0] {
 	case ws.InvocationControl:
-		if len(path) != 1 || message.Frame.Kind != duplex.ProfileCancel {
+		if len(path) != 1 || message.Frame.Kind != bitwire.ProfileCancel {
 			return errors.New("unknown invocation operation")
 		}
 		call.latch(message)
@@ -135,7 +136,7 @@ func (r *ledgerReturn) Send(path []string, message duplex.Message) error {
 	return errors.New("unknown invocation operation")
 }
 
-func (c *ledgerCall) capture(identifier string, sink duplex.Wire) error {
+func (c *ledgerCall) capture(identifier string, sink bitwire.Wire) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.retired {
@@ -160,8 +161,8 @@ func (c *ledgerCall) markReady(identifier string) {
 	}
 	c.delivered[identifier] = true
 	c.pending--
-	var deliver duplex.Wire
-	var control duplex.Message
+	var deliver bitwire.Wire
+	var control bitwire.Message
 	if c.control != nil && !c.told[identifier] {
 		c.told[identifier] = true
 		deliver, control = sink, *c.control
@@ -214,14 +215,14 @@ func (c *ledgerCall) done(identifier string) {
 	c.retire()
 }
 
-func (c *ledgerCall) latch(message duplex.Message) {
+func (c *ledgerCall) latch(message bitwire.Message) {
 	c.mu.Lock()
 	if c.retired || c.control != nil {
 		c.mu.Unlock()
 		return
 	}
 	c.control = &message
-	var sinks []duplex.Wire
+	var sinks []bitwire.Wire
 	for identifier, sink := range c.sinks {
 		if c.delivered[identifier] && !c.told[identifier] {
 			c.told[identifier] = true
@@ -253,18 +254,18 @@ func (c *ledgerCall) retire() {
 	c.owner.retirements.Add(1)
 }
 
-func (e *ledgerEndpoint) admit(path []string, params json.RawMessage) (*ledgerCall, chan duplex.Message) {
+func (e *ledgerEndpoint) admit(path []string, params json.RawMessage) (*ledgerCall, chan bitwire.Message) {
 	identifier := fmt.Sprintf("l:%d", e.next.Add(1))
-	call := &ledgerCall{owner: e, outcome: make(chan duplex.Message, 1), sinks: map[string]duplex.Wire{},
+	call := &ledgerCall{owner: e, outcome: make(chan bitwire.Message, 1), sinks: map[string]bitwire.Wire{},
 		delivered: map[string]bool{}, told: map[string]bool{}, bodies: map[string]bool{}, pending: 1}
-	call.address = &duplex.ReturnAddress{Wire: &ledgerReturn{call: call}}
+	call.address = &bitwire.ReturnAddress{Wire: &ledgerReturn{call: call}}
 	e.mu.Lock()
 	e.calls[identifier] = call
 	receiver := e.receiver
 	e.mu.Unlock()
 	if receiver != nil && receiver.Message != nil {
-		receiver.Message(path, duplex.Message{
-			Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileRequest, ID: identifier, Params: params},
+		receiver.Message(path, bitwire.Message{
+			Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: identifier, Params: params},
 			Return: call.address,
 		})
 	}
@@ -277,8 +278,8 @@ func (e *ledgerEndpoint) admit(path []string, params json.RawMessage) (*ledgerCa
 }
 
 func (c *ledgerCall) cancel(identifier string) {
-	_ = c.address.Wire.Send([]string{ws.InvocationControl}, duplex.Message{
-		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: identifier},
+	_ = c.address.Wire.Send([]string{ws.InvocationControl}, bitwire.Message{
+		Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: identifier},
 		Return: c.address,
 	})
 }
@@ -348,7 +349,7 @@ func TestASecondIntegrationParticipatesWithNoSharedLedger(t *testing.T) {
 // composition over it is pure forwarding rather than a carrier hop.
 type conduitEndpoint struct {
 	mu       sync.Mutex
-	receiver *duplex.Receiver
+	receiver *bitwire.Receiver
 	other    *conduitEndpoint
 }
 
@@ -358,7 +359,7 @@ func newConduit() (*conduitEndpoint, *conduitEndpoint) {
 	return near, far
 }
 
-func (c *conduitEndpoint) Send(path []string, message duplex.Message) error {
+func (c *conduitEndpoint) Send(path []string, message bitwire.Message) error {
 	c.other.mu.Lock()
 	receiver := c.other.receiver
 	c.other.mu.Unlock()
@@ -368,7 +369,7 @@ func (c *conduitEndpoint) Send(path []string, message duplex.Message) error {
 	receiver.Message(path, message)
 	return nil
 }
-func (c *conduitEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
+func (c *conduitEndpoint) Receive(receiver bitwire.Receiver) (func(), error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.receiver != nil {
@@ -384,7 +385,7 @@ func (c *conduitEndpoint) Receive(receiver duplex.Receiver) (func(), error) {
 		c.mu.Unlock()
 	}, nil
 }
-func (c *conduitEndpoint) Close(duplex.Code, string) error { return nil }
+func (c *conduitEndpoint) Close(bitwire.Code, string) error { return nil }
 
 // TestForwardingPreservesLifecycleParticipation admits on one integration and
 // forwards through an opaque wrapper and a pure route into a dispatcher on the
@@ -403,9 +404,9 @@ func TestForwardingPreservesLifecycleParticipation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controls, requests := make(chan duplex.Message, 4), make(chan duplex.Message, 4)
-	detach, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
-		if m.Frame.Kind == duplex.ProfileCancel {
+	controls, requests := make(chan bitwire.Message, 4), make(chan bitwire.Message, 4)
+	detach, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
+		if m.Frame.Kind == bitwire.ProfileCancel {
 			controls <- m
 			return
 		}
@@ -415,7 +416,7 @@ func TestForwardingPreservesLifecycleParticipation(t *testing.T) {
 		t.Fatal(err)
 	}
 	call, _ := origin.admit([]string{"read"}, nil)
-	var admitted duplex.Message
+	var admitted bitwire.Message
 	select {
 	case admitted = <-requests:
 	case <-time.After(5 * time.Second):
@@ -425,14 +426,14 @@ func TestForwardingPreservesLifecycleParticipation(t *testing.T) {
 		t.Fatal("forwarding did not preserve the original return capability")
 	}
 	detach()
-	rebound := make(chan duplex.Message, 4)
-	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) { rebound <- m }}); err != nil {
+	rebound := make(chan bitwire.Message, 4)
+	if _, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) { rebound <- m }}); err != nil {
 		t.Fatal(err)
 	}
 	call.cancel("l:1")
 	select {
 	case m := <-controls:
-		if m.Frame.Kind != duplex.ProfileCancel {
+		if m.Frame.Kind != bitwire.ProfileCancel {
 			t.Fatalf("control was %q", m.Frame.Kind)
 		}
 	case <-time.After(5 * time.Second):
@@ -455,7 +456,7 @@ func TestAQueuedControlCannotReachAReusedIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	seen := make(chan string, 8)
-	if _, err := dispatch.Register([]string{"read"}, duplex.Receiver{Message: func(_ []string, m duplex.Message) {
+	if _, err := dispatch.Register([]string{"read"}, bitwire.Receiver{Message: func(_ []string, m bitwire.Message) {
 		seen <- string(m.Frame.Kind) + ":" + m.Frame.ID
 	}}); err != nil {
 		t.Fatal(err)
@@ -474,8 +475,8 @@ func TestAQueuedControlCannotReachAReusedIdentity(t *testing.T) {
 	}
 	// The stale control names the first invocation's identifier and travels on
 	// the first invocation's own return capability. It reaches nothing.
-	_ = stale.Wire.Send([]string{ws.InvocationControl}, duplex.Message{
-		Frame:  duplex.ProfileFrame{Version: 1, Kind: duplex.ProfileCancel, ID: "l:1"},
+	_ = stale.Wire.Send([]string{ws.InvocationControl}, bitwire.Message{
+		Frame:  bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: "l:1"},
 		Return: stale,
 	})
 	select {
@@ -541,7 +542,7 @@ func TestCaptureBoundRefusesRatherThanGrowing(t *testing.T) {
 		t.Fatal(err)
 	}
 	delivered := make(chan struct{}, 1)
-	if _, err := inner.Register([]string{"read"}, duplex.Receiver{Message: func([]string, duplex.Message) { delivered <- struct{}{} }}); err != nil {
+	if _, err := inner.Register([]string{"read"}, bitwire.Receiver{Message: func([]string, bitwire.Message) { delivered <- struct{}{} }}); err != nil {
 		t.Fatal(err)
 	}
 	_, outcome := endpoint.admit([]string{"a", "read"}, nil)

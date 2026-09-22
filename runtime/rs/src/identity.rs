@@ -1,4 +1,5 @@
-use crate::{Context, Payload, Peer, PublicError};
+use crate::{Context, Peer};
+use bitwire::{Payload, PublicError};
 use serde::{Deserialize, Serialize};
 
 /// Identity agreement is an ordinary request, independent of transport setup.

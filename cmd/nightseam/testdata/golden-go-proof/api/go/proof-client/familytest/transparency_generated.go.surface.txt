@@ -1,9 +1,9 @@
 func Example[T any](name string) (T, error)
-func Forwarded(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
-func Local(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
-func Mounted(_ context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
+func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
+func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
+func Mounted(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Pair[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, Item], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) (protocol.ClientModel[SEnvelope, SHandle, Item], func(), error)
-func Pipe(ctx context.Context, wire duplex.Endpoint) (duplex.Endpoint, func(), error)
+func Pipe(ctx context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Smoke[SEnvelope runtime.Of[STag], SHandle runtime.Of[STag], Item any, STag any](ctx context.Context, model protocol.ClientModel[SEnvelope, SHandle, Item], opposite protocol.Server[SEnvelope, SHandle, Item], options Options, adapterSEnvelope runtime.ValueAdapter[SEnvelope], adapterSHandle runtime.ValueAdapter[SHandle], adapterItem runtime.ValueAdapter[Item]) error
 type Options struct{Context runtime.AdapterContext; RemoteContext runtime.AdapterContext; Presentation Presentation; Inputs map[string]any; Equal func(string, any, any) error}
-type Presentation func(context.Context, duplex.Endpoint) (duplex.Endpoint, func(), error)
+type Presentation func(context.Context, bitwire.Endpoint) (bitwire.Endpoint, func(), error)

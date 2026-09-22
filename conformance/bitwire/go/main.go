@@ -73,7 +73,7 @@ func reply(message bitwire.Message, value any) {
 	}}))
 }
 func closeWire(wire interface {
-	Close(duplex.Code, string) error
+	Close(bitwire.Code, string) error
 }) {
 	check(wire.Close(duplex.CodeNormal, "conformance complete"))
 }
@@ -286,10 +286,10 @@ func selectedEndpoints() any {
 	initial()
 	done := make(chan struct{}, 4)
 	rootClosed := make(chan struct{}, 1)
-	attach(a, bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { nestedPath = copyPath(path); done <- struct{}{} }, Closed: func(duplex.Code, string) { notifications["active"]++ }})
+	attach(a, bitwire.Receiver{Message: func(path []string, _ bitwire.Message) { nestedPath = copyPath(path); done <- struct{}{} }, Closed: func(bitwire.Code, string) { notifications["active"]++ }})
 	initial()
-	attach(b, bitwire.Receiver{Message: func([]string, bitwire.Message) { siblingAfterViewClose = true; done <- struct{}{} }, Closed: func(duplex.Code, string) { notifications["sibling"]++; rootClosed <- struct{}{} }})
-	unused := attach(detached, bitwire.Receiver{Closed: func(duplex.Code, string) { notifications["detached"]++ }})
+	attach(b, bitwire.Receiver{Message: func([]string, bitwire.Message) { siblingAfterViewClose = true; done <- struct{}{} }, Closed: func(bitwire.Code, string) { notifications["sibling"]++; rootClosed <- struct{}{} }})
+	unused := attach(detached, bitwire.Receiver{Closed: func(bitwire.Code, string) { notifications["detached"]++ }})
 	unused()
 	closeWire(detached)
 	closeWire(detached)

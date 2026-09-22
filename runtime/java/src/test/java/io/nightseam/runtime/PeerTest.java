@@ -1,5 +1,9 @@
 package io.nightseam.runtime;
 
+import static io.nightseam.runtime.WireFrames.*;
+
+import dev.bitspark.bitwire.*;
+
 import io.nightseam.duplex.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -59,8 +63,10 @@ public final class PeerTest {
                 check(error.code().equals("internal") && !error.getMessage().contains("private"),"handler failure leaked");
             }
             check(client.call("echo","after-panic").result().get(3,TimeUnit.SECONDS).equals("after-panic"),"handler Error stranded peer");
-            peerWireRoundTrip(server,client);
+
         }
+        pair=Pipe.pair(1<<20,8);
+        try(var server=new Peer(pair[0],"server",PeerOptions.defaults()); var client=new Peer(pair[1],"client",PeerOptions.defaults())) { peerWireRoundTrip(server,client); }
         pair=Pipe.pair(1<<20,8);
         try(var peer=new Peer(pair[0],"server",PeerOptions.defaults())) {
             pair[1].send(new Frame("text","{\"version\":1,\"kind\":\"event\",\"event\":\"tick\",\"data\":null,\"extra\":1}".getBytes(StandardCharsets.UTF_8)),BOUND);
@@ -188,17 +194,17 @@ public final class PeerTest {
     }
     private static void peerWireRoundTrip(Peer server,Peer client) throws Exception {
         List<String> path=List.of("a/b","", "😀", "read");
-        Runnable detach=server.wire().receive(path,new Receiver(false,(delivered,message)-> {
+        Runnable detach=Routes.of(server.wire()).register(path, new Receiver((delivered,message)-> {
             check(delivered.equals(path),"wire path changed");
-            message.returnAddress().send(List.of(),new Message(Peer.map("version",1,"kind","response","id",message.frame().get("id"),"result",message.frame().get("params")),null));
+            message.returnAddress().wire().send(List.of(),new Message(frame(Peer.map("version",1,"kind","response","id",fields(message.frame()).get("id"),"result",fields(message.frame()).get("params"))),null));
         },null));
         var result=new CompletableFuture<Map<String,Object>>();
         Wire address=new Wire() {
-            public void send(List<String> delivered,Message message) { result.complete(message.frame()); }
-            public Runnable receive(List<String> delivered,Receiver receiver) { throw new UnsupportedOperationException(); }
-            public void close(int code,String reason) {}
+            public void send(List<String> delivered,Message message) { result.complete(fields(message.frame())); }
+
+
         };
-        client.wire().send(path,new Message(Peer.map("version",1,"kind","request","id","c:123","params",null),address));
+        client.wire().send(path,new Message(frame(Peer.map("version",1,"kind","request","id","c:123","params",null)),new ReturnAddress(address)));
         var response=result.get(3,TimeUnit.SECONDS);
         check(response.containsKey("result") && response.get("result")==null,"Wire null result lost");
         detach.run(); detach.run();
