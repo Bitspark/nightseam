@@ -6,6 +6,11 @@ import Control.Concurrent.STM
 import Control.Exception (try)
 import Control.Monad
 import Data.Aeson hiding (Options, defaultOptions)
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString.Lazy as L
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Data.Foldable (toList)
 import qualified Data.Map.Strict as M
 import Nightseam.Duplex
 import Nightseam.Runtime
@@ -13,6 +18,7 @@ import System.Timeout
 
 main :: IO ()
 main = do
+  serials
   (a,b) <- pipe 1048576
   client <- newPeer a Client defaultOptions
   server <- newPeer b Server defaultOptions
@@ -94,3 +100,41 @@ main = do
   closePeer caller
   closePeer callee
   putStrLn "peer tests passed"
+
+
+serials :: IO ()
+serials = do
+  table <- eitherDecodeFileStrict "../../conformance/tables/serials.json" >>= either error pure
+  let field key (Object fields) = maybe Null id (KM.lookup key fields)
+      field _ _ = Null
+      text (String value) = value
+      text _ = error "expected serial-table text"
+      rows = case field "rows" table of Array values -> toList values; _ -> error "serial rows missing"
+  forM_ rows $ \row -> do
+    (raw, transport) <- pipe 1048576
+    peer <- newPeer transport Server defaultOptions
+    handle peer "echo" (\_ _ value -> pure value)
+    let before = text (field "before" row)
+    sendFrame raw (Frame TextFrame (TE.encodeUtf8 before))
+    when (field "kind" (maybe Null id (decodeStrict (TE.encodeUtf8 before))) == String "request") $
+      void (receiveFrame raw)
+    sendFrame raw (Frame TextFrame (TE.encodeUtf8 (text (field "frame" row))))
+    if field "valid" row == Bool True then do
+      reply <- timeout 1000000 (receiveFrame raw)
+      when (reply == Nothing) (error "valid serial did not receive a response")
+    else do
+      ended <- timeout 1000000 (awaitClosed peer)
+      unless (maybe False ((==4011) . closeCode) ended) (error "non-increasing serial admitted")
+    closePeer peer
+  replicateM_ 8 $ do
+    (raw, transport) <- pipe 1048576
+    peer <- newPeer transport Client defaultOptions { queueCapacity = 1 }
+    ctx <- newCallContext
+    calls <- replicateM 24 (async (call peer ctx "probe" Null))
+    ids <- replicateM 24 $ do
+      frame <- timeout 1000000 (receiveFrame raw) >>= maybe (error "missing published request") pure
+      let value = maybe Null id (decode (L.fromStrict (frameData frame)))
+      pure (read (T.unpack (T.drop 2 (text (field "id" value)))) :: Integer)
+    closePeer peer
+    mapM_ waitCatch calls
+    unless (and (zipWith (<) ids (drop 1 ids))) (error "request publication inverted serials")
