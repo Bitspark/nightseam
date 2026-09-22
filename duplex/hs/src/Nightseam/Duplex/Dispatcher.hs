@@ -24,8 +24,8 @@ newDispatcher endpoint = mask $ \restore -> do
   state <- newTVarIO (State False M.empty)
   captured <- newMVar []
   let dispatch path message = do
-        State ended routes <- readTVarIO state
-        unless ended $ do
+        State _ routes <- readTVarIO state
+        do
           let target = case M.lookup (path, False) routes of
                 Just exact -> Just exact
                 Nothing -> listToMaybe [r | ((prefix, namespace), r) <- reverse (sortOn (length . fst . fst) (M.toList routes)), namespace, prefix == take (length prefix) path]
@@ -49,7 +49,6 @@ newDispatcher endpoint = mask $ \restore -> do
           State ended routes <- readTVar state
           writeTVar state (State True M.empty)
           pure (if ended then [] else M.elems routes)
-        modifyMVar_ captured (const (pure []))
         forM_ held $ \(Registration _ _ receiver) -> forM_ (onClosed receiver) (\f -> f code reason)
   detach <- restore (receive endpoint (Receiver (Just dispatch) (Just finish)))
   State ended _ <- readTVarIO state
@@ -115,11 +114,10 @@ selectEndpoint owner prefix = do
     , receive = attach, close = end }
 
 closeDispatcher :: Dispatcher -> Code -> Text -> IO ()
-closeDispatcher (Dispatcher _ state captured detach) code reason = do
+closeDispatcher (Dispatcher _ state _ detach) code reason = do
   held <- atomically $ do
     State ended routes <- readTVar state
     writeTVar state (State True M.empty)
     pure (if ended then [] else M.elems routes)
   detach
-  modifyMVar_ captured (const (pure []))
   forM_ held $ \(Registration _ _ receiver) -> forM_ (onClosed receiver) (\f -> f code reason)

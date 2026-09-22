@@ -45,7 +45,14 @@ main = do
   detach
   detach
   close endpoint (Code 1000) "done"
+  admitted <- (Map.! []) <$> readIORef registered
+  controls <- newIORef (0 :: Int)
+  _ <- register routes ["active"] (Receiver (Just (\_ _ -> modifyIORef' controls (+1))) Nothing)
+  let Just delivery = onMessage admitted
+  delivery ["active"] (Message (ProfileFrame (Trace Nothing Nothing) (Request "held" (JsonPayload "null") Nothing)) (Just returning))
   closeDispatcher routes (Code 1000) "done"
+  delivery ["active"] (Message (ProfileFrame (Trace Nothing Nothing) (Cancel "held")) (Just returning))
+  assert "captured cancellation survives dispatcher closure" . (== 2) =<< readIORef controls
   assert "detach removes child registration" . Map.null =<< readIORef registered
   assert "selected close leaves borrowed root open" . null =<< readIORef rootCloses
   mountTests

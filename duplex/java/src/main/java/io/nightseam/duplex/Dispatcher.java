@@ -36,7 +36,6 @@ public final class Dispatcher implements Wire, AutoCloseable {
     private void dispatch(List<String> path, Message message) {
         Registration selected = null;
         synchronized (this) {
-            if (ended) return;
             if (message.frame() instanceof ProfileFrame.Cancel cancel && message.returnAddress() != null) {
                 var captured = calls.get(message.returnAddress());
                 if (captured != null) selected = captured.remove(cancel.id());
@@ -98,7 +97,7 @@ public final class Dispatcher implements Wire, AutoCloseable {
         List<Registration> held; Runnable off;
         synchronized (this) {
             if (ended) return;
-            ended = true; held = List.copyOf(routes.values()); routes.clear(); calls.clear(); off = detach; detach = null;
+            ended = true; held = List.copyOf(routes.values()); routes.clear(); off = detach; detach = null;
         }
         if (off != null) off.run();
         for (var registration : held) if (registration.receiver().closed() != null) registration.receiver().closed().accept(code, reason);

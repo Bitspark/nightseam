@@ -77,6 +77,19 @@ final class DuplexTests: XCTestCase, @unchecked Sendable {
         XCTAssertFalse(root.closed)
     }
 
+    func testCapturedCancellationSurvivesDispatcherClosure() throws {
+        let root = RecordingWire()
+        let router = try Dispatcher(root)
+        let delivery = try XCTUnwrap(root.attachedReceiver)
+        let controls = Counter()
+        _ = try router.register(path: ["active"], receiver: Receiver(message: { _, _ in controls.increment() }))
+        let address = ReturnAddress(wire: root)
+        delivery.message(["active"], Message(frame: ProfileFrame(kind: .request, id: "held", data: Data("null".utf8)), returnAddress: address))
+        router.close()
+        delivery.message(["active"], Message(frame: ProfileFrame(kind: .cancel, id: "held"), returnAddress: address))
+        XCTAssertEqual(controls.value, 2)
+    }
+
     func testMountBorrowsChildrenAndDistinguishesUnicodeKeys() throws {
         let composed = RecordingWire(), decomposed = RecordingWire()
         let mounted = mount([("é", composed as any Endpoint), ("e\u{301}", decomposed as any Endpoint)])
@@ -159,6 +172,7 @@ private final class RecordingWire: Endpoint, @unchecked Sendable {
     private var ended = false
     var lastPath: [String] { lock.withLock { path } }
     var lastMessage: Message? { lock.withLock { message } }
+    var attachedReceiver: Receiver? { lock.withLock { receivers.values.first } }
     var registrationCount: Int { lock.withLock { receivers.count } }
     var closed: Bool { lock.withLock { ended } }
     func send(path: [String], message: Message) throws { lock.withLock { self.path = path; self.message = message } }

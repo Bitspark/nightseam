@@ -49,7 +49,6 @@ public final class Dispatcher: Wire, @unchecked Sendable {
     }
     private func dispatch(_ path: [String], _ message: Message) {
         let selected: Registration? = lock.withLock {
-            guard !ended else { return nil }
             captured = captured.filter { $0.value.address != nil }
             if message.frame.kind == .cancel, let address = message.returnAddress, let id = message.frame.id {
                 return captured[ObjectIdentifier(address)]?.calls.removeValue(forKey: id)
@@ -80,7 +79,7 @@ public final class Dispatcher: Wire, @unchecked Sendable {
             guard !ended else { return ([], nil) }
             ended = true
             let held = (Array(routes.values), detach)
-            routes.removeAll(); captured.removeAll(); detach = nil
+            routes.removeAll(); detach = nil
             return held
         }
         held.1?()

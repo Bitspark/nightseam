@@ -256,7 +256,13 @@ public final class SeamTest {
         equal(delivered.size(), 1, "detach prevents new dispatch");
         selected.close(1000, "selected");
         check(!root.closed, "selected close leaves borrowed endpoint open");
+        Receiver admitted = root.receivers.get("");
+        AtomicInteger controls = new AtomicInteger();
+        router.register(List.of("active"), new Receiver((path, got) -> controls.incrementAndGet(), null));
+        admitted.message().accept(List.of("active"), new Message(new ProfileFrame.Request("held", new JsonValue("null")), returning));
         router.close();
+        admitted.message().accept(List.of("active"), new Message(new ProfileFrame.Cancel("held"), returning));
+        equal(controls.get(), 2, "captured cancellation survives dispatcher closure");
 
         Root first = new Root(), second = new Root();
         Endpoint mount = Wires.mount(Map.of("", first, "b", second));
