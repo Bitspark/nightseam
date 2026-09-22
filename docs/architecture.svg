@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 920" width="1280" height="920" role="img" aria-labelledby="title desc" font-family="ui-sans-serif, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="title">Nightseam 0.6.0 — the projection stages and their interfaces</title>
+  <desc id="desc">One declaration is rendered into a Go and a TypeScript realization. In each, the generated packages carry a native model to an adapter boundary, which presents the model as a wire; a dispatcher owns the endpoint; the live and tunnel layers compose over the peer; the peer speaks the profile's frames over a connection of the seam. The two realizations meet at the frames on the wire. A connection, a channel, a selection, a mount and a forward are each a wire again.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b3b3b"/>
+    </marker>
+    <style>
+      .paper { fill: #fbfaf7; }
+      .t { fill: #1f1f1f; }
+      .muted { fill: #5a5a5a; }
+      .h1 { font-size: 20px; font-weight: 700; }
+      .h2 { font-size: 13px; }
+      .col { font-size: 14px; font-weight: 700; }
+      .l1 { font-size: 13px; font-weight: 700; }
+      .l2 { font-size: 11.5px; }
+      .mid { font-size: 11px; font-style: italic; }
+      .box { stroke-width: 1.2; }
+      .decl { fill: #ebe8f7; stroke: #4a3f9a; }
+      .gen  { fill: #eef3e4; stroke: #5b7a2a; }
+      .model{ fill: #fdf1dc; stroke: #a0641c; }
+      .adapt{ fill: #fde9e2; stroke: #b3461f; }
+      .wire { fill: #e3f1f7; stroke: #1c6b8a; }
+      .layer{ fill: #eaf5ea; stroke: #2e7d4f; }
+      .peer { fill: #f0eef8; stroke: #5b4fb3; }
+      .seam { fill: #ececec; stroke: #555; }
+      .strip{ fill: #f1efe9; stroke: #b9b5ab; }
+      .line { stroke: #3b3b3b; stroke-width: 1.6; fill: none; }
+      .spine{ stroke: #9a9a9a; stroke-width: 1; stroke-dasharray: 3 4; }
+    </style>
+  </defs>
+
+  <rect class="paper" x="0" y="0" width="1280" height="920" rx="16"/>
+
+  <text class="h1 t" x="640" y="42" text-anchor="middle">Nightseam 0.6.0 — projection stages and interfaces</text>
+  <text class="h2 muted" x="640" y="64" text-anchor="middle">one declaration, two realizations, one wire — each layer speaks the one beneath it and knows nothing of those above</text>
+
+  <!-- the declaration -->
+  <rect class="box decl" x="380" y="84" width="520" height="74" rx="8"/>
+  <text class="l1 t" x="640" y="106" text-anchor="middle">declaration — one family</text>
+  <text class="l2 t" x="640" y="124" text-anchor="middle">model.json · protocol.json · live.json — the data, RPC and live tiers</text>
+  <text class="l2 t" x="640" y="142" text-anchor="middle">identity = (path, digest) of the canonical rendering; checked wherever a wire is interpreted</text>
+
+  <!-- rendering -->
+  <line class="line" x1="500" y1="158" x2="316" y2="198" marker-end="url(#arrow)"/>
+  <line class="line" x1="780" y1="158" x2="964" y2="198" marker-end="url(#arrow)"/>
+  <text class="mid muted" x="380" y="172" text-anchor="middle">render — Go target</text>
+  <text class="mid muted" x="900" y="172" text-anchor="middle">render — TypeScript target</text>
+
+  <!-- column headers -->
+  <text class="col t" x="60" y="192">Go</text>
+  <text class="col t" x="1220" y="192" text-anchor="end">TypeScript</text>
+
+  <!-- stack spines -->
+  <line class="spine" x1="310" y1="200" x2="310" y2="722"/>
+  <line class="spine" x1="970" y1="200" x2="970" y2="722"/>
+
+  <!-- Go column -->
+  <rect class="box gen" x="60" y="200" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="222" text-anchor="middle">generated packages</text>
+  <text class="l2 t" x="310" y="240" text-anchor="middle">&lt;family&gt;-protocol: types, validators, WireSchema, WireDigest</text>
+  <text class="l2 t" x="310" y="256" text-anchor="middle">&lt;family&gt;-client · -binding: ToWire, PrepareFromWire, FromWire, Record; familytest</text>
+
+  <rect class="box model" x="60" y="276" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="298" text-anchor="middle">native model</text>
+  <text class="l2 t" x="310" y="316" text-anchor="middle">protocol.ClientModel · protocol.ServerModel — records of Go functions</text>
+  <text class="l2 t" x="310" y="332" text-anchor="middle">live values are functions; owners supplied through runtime.AdapterContext</text>
+
+  <rect class="box adapt" x="60" y="352" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="374" text-anchor="middle">adapter boundary</text>
+  <text class="l2 t" x="310" y="392" text-anchor="middle">ToWire(model, env) → bitwire.Endpoint · FromWire(ctx, endpoint, env) → model</text>
+  <text class="l2 t" x="310" y="408" text-anchor="middle">validates, runs identity.check, converts values under the caller's owner</text>
+
+  <rect class="box wire" x="60" y="428" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="450" text-anchor="middle">wire and dispatcher</text>
+  <text class="l2 t" x="310" y="468" text-anchor="middle">bitwire.Wire.Send · bitwire.Endpoint.Receive, Close — one owning attachment</text>
+  <text class="l2 t" x="310" y="484" text-anchor="middle">runtime.NewDispatcher: Register, Select; duplex.At, Mount; runtime.ForwardWire</text>
+
+  <rect class="box layer" x="60" y="504" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="526" text-anchor="middle">layers over the peer</text>
+  <text class="l2 t" x="310" y="544" text-anchor="middle">live.Over(peer) → Scope: Owner, Export, Import, Release; references in a scope</text>
+  <text class="l2 t" x="310" y="560" text-anchor="middle">tunnel.Tunnel: channels with credit — each channel a connection of the seam</text>
+
+  <rect class="box peer" x="60" y="580" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="602" text-anchor="middle">peer — runtime.Peer</text>
+  <text class="l2 t" x="310" y="620" text-anchor="middle">request · response · event · cancel; correlation; serials; coded refusals</text>
+  <text class="l2 t" x="310" y="636" text-anchor="middle">the meta header; trace context; one observer, told at the write</text>
+
+  <rect class="box seam" x="60" y="656" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="310" y="678" text-anchor="middle">seam — duplex.Conn</text>
+  <text class="l2 t" x="310" y="696" text-anchor="middle">a WebSocket, a pipe or a tunnel channel: sends, receives, closes frames</text>
+  <text class="l2 t" x="310" y="712" text-anchor="middle">the floor — not Nightseam's to decompose</text>
+
+  <!-- TypeScript column -->
+  <rect class="box gen" x="720" y="200" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="222" text-anchor="middle">generated packages</text>
+  <text class="l2 t" x="970" y="240" text-anchor="middle">&lt;family&gt;-client/src/types.ts: types, validateWire, wireDigest</text>
+  <text class="l2 t" x="970" y="256" text-anchor="middle">&lt;family&gt;-client · -binding: toWire, prepareFromWire, record; test helpers</text>
+
+  <rect class="box model" x="720" y="276" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="298" text-anchor="middle">native model</text>
+  <text class="l2 t" x="970" y="316" text-anchor="middle">ClientModel · ServerModel — records of TypeScript functions</text>
+  <text class="l2 t" x="970" y="332" text-anchor="middle">live values are functions; owners supplied through the value environment</text>
+
+  <rect class="box adapt" x="720" y="352" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="374" text-anchor="middle">adapter boundary</text>
+  <text class="l2 t" x="970" y="392" text-anchor="middle">toWire(model, context) → Endpoint · prepareFromWire(endpoint, context).complete()</text>
+  <text class="l2 t" x="970" y="408" text-anchor="middle">validates, runs identity.check, converts values under the caller's owner</text>
+
+  <rect class="box wire" x="720" y="428" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="450" text-anchor="middle">wire and dispatcher</text>
+  <text class="l2 t" x="970" y="468" text-anchor="middle">wire.send · endpoint.receive, close — one owning attachment</text>
+  <text class="l2 t" x="970" y="484" text-anchor="middle">createDispatcher: register, select; at, mount; forwardWire</text>
+
+  <rect class="box layer" x="720" y="504" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="526" text-anchor="middle">layers over the peer</text>
+  <text class="l2 t" x="970" y="544" text-anchor="middle">liveOver(peer) → LiveScope: owner, export, import, release; references in a scope</text>
+  <text class="l2 t" x="970" y="560" text-anchor="middle">Tunnel: channels with credit — each channel a FrameConnection of the seam</text>
+
+  <rect class="box peer" x="720" y="580" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="602" text-anchor="middle">peer — DuplexPeer</text>
+  <text class="l2 t" x="970" y="620" text-anchor="middle">request · response · event · cancel; correlation; serials; coded refusals</text>
+  <text class="l2 t" x="970" y="636" text-anchor="middle">the meta header; trace context; one observer, told at the write</text>
+
+  <rect class="box seam" x="720" y="656" width="500" height="66" rx="8"/>
+  <text class="l1 t" x="970" y="678" text-anchor="middle">seam — FrameConnection</text>
+  <text class="l2 t" x="970" y="696" text-anchor="middle">a WebSocket, a pipe or a tunnel channel: sends, receives, closes frames</text>
+  <text class="l2 t" x="970" y="712" text-anchor="middle">the floor — not Nightseam's to decompose</text>
+
+  <!-- what each stage is, between the columns -->
+  <text class="mid muted" x="640" y="229" text-anchor="middle">rendered,</text>
+  <text class="mid muted" x="640" y="243" text-anchor="middle">not written</text>
+  <text class="mid muted" x="640" y="305" text-anchor="middle">native, each in</text>
+  <text class="mid muted" x="640" y="319" text-anchor="middle">its own idiom</text>
+  <text class="mid muted" x="640" y="381" text-anchor="middle">the crossing:</text>
+  <text class="mid muted" x="640" y="395" text-anchor="middle">model ↔ wire</text>
+  <text class="mid muted" x="640" y="457" text-anchor="middle">Bitwire 0.2.0 —</text>
+  <text class="mid muted" x="640" y="471" text-anchor="middle">the shared contract</text>
+  <text class="mid muted" x="640" y="533" text-anchor="middle">compositions</text>
+  <text class="mid muted" x="640" y="547" text-anchor="middle">over the peer</text>
+  <text class="mid muted" x="640" y="609" text-anchor="middle">nightseam.duplex/1 —</text>
+  <text class="mid muted" x="640" y="623" text-anchor="middle">the envelope</text>
+  <text class="mid muted" x="640" y="685" text-anchor="middle">any connection</text>
+  <text class="mid muted" x="640" y="699" text-anchor="middle">of the seam</text>
+
+  <!-- the transport between the two seams -->
+  <line class="line" x1="310" y1="722" x2="310" y2="760"/>
+  <line class="line" x1="970" y1="722" x2="970" y2="760"/>
+  <line class="line" x1="316" y1="760" x2="964" y2="760" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text class="l1 t" x="640" y="750" text-anchor="middle">frames of the profile — over a WebSocket, a pipe or a tunnel channel</text>
+  <text class="l2 muted" x="640" y="782" text-anchor="middle">what crosses: request · response · event · cancel, with the meta header and trace context; the reserved vocabularies channel.* live.* identity.* as ordinary frames;</text>
+  <text class="l2 muted" x="640" y="798" text-anchor="middle">request serials that increase per direction; the declaration's digest at channel.open, at identity.check and on a transferred reference — never a path member, never a lifecycle verb</text>
+
+  <!-- the recurrence -->
+  <rect class="box strip" x="60" y="816" width="1160" height="86" rx="8"/>
+  <text class="l1 t" x="80" y="838">the recurrence — and where the layers meet it</text>
+  <text class="l2 t" x="80" y="858">a connection is a wire at [] · a tunnel channel is a wire, being a connection of the seam · at(w, p), mount({…}) and forward(w) yield a wire again</text>
+  <text class="l2 t" x="80" y="874">a model adapter targets a wire — ToWire(model) → Endpoint, FromWire(endpoint) → model — so a selected part and an assembled whole are used the same way</text>
+  <text class="l2 t" x="80" y="890">a live reference names a binding in a scope, beside the wire, under an owner the caller supplies; the conformance suite holds every language to this one definition</text>
+</svg>

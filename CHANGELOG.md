@@ -6,6 +6,15 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+### Added
+
+- A figure of the projection stages and their interfaces — the declaration,
+  its rendering, the generated packages, the native model, the adapter
+  boundary, the wire and the dispatcher, the layers over the peer, the peer
+  and the seam, as two realizations meeting at the frames — with a page that
+  reads it stage by stage and links each stage to the page that documents it
+  (`docs/architecture.md`).
+
 ### Fixed
 
 - duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.
