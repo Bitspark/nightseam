@@ -66,14 +66,15 @@ test("the title is the scenario and nothing that moves between runs", () => {
   assert.equal(title(failures(stream)[0]), title(found));
 });
 
-test("the body names every pairing, carries what each said, and says why the scenario is the issue", () => {
+test("the body names every pairing, carries what each said, without claiming an unobserved cause", () => {
   const gate = failures(stream).find(f => f.scenario === "open_refused");
   const text = body(gate, "https://github.com/Bitspark/nightseam/actions/runs/1");
   assert.match(text, /^<!-- nightly-matrix -->/);
   assert.ok(text.includes(marker));
   assert.match(text, /\| `python-with-rust` \|/);
   assert.match(text, /\| `rust-with-python` \|/);
-  assert.match(text, /the reference tolerates/);
+  assert.doesNotMatch(text, /it is green|the reference tolerates|both languages pass against Go/);
+  assert.match(text, /runtime, driver, or scenario/);
   assert.match(text, /step 7, tunnel\.open on b/);
   assert.match(text, /actions\/runs\/1/);
 });
