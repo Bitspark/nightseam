@@ -80,6 +80,7 @@ struct Peer::Impl {
     std::string received_serial;
     struct Publication;
     std::deque<Publication*> publications;
+    std::size_t call_slots = 0;
     std::map<std::string,std::shared_ptr<Pending>> pending;
     std::map<std::string,std::shared_ptr<Incoming>> incoming;
     std::map<std::string,RawHandler> raw_handlers;
@@ -88,6 +89,18 @@ struct Peer::Impl {
     std::size_t output_data = 0, output_control = 0;
     std::thread reader, writer, event_worker, timer;
     std::vector<Worker> workers; // reader owns and reaps completed handlers
+
+    struct CallSlot {
+        Impl& peer;
+        explicit CallSlot(Impl& peer) : peer(peer) {
+            std::lock_guard lock(peer.mutex); peer.check_open();
+            if (peer.call_slots>=peer.options.max_pending_requests) throw PublicError("busy","Too many outstanding requests");
+            ++peer.call_slots;
+        }
+        ~CallSlot() { std::lock_guard lock(peer.mutex); --peer.call_slots; }
+        CallSlot(const CallSlot&) = delete;
+        CallSlot& operator=(const CallSlot&) = delete;
+    };
 
     // A cancellable FIFO gate spans reservation, encoding, and queue admission.
     // Entries remain queued while capacity is awaited; new calls cannot pass them.
@@ -413,10 +426,10 @@ Value Peer::call_raw(std::string method, std::optional<std::string> params, Call
     frame.params=parse_value(*frame.raw_params); frame.meta=options.meta; frame.trace=p.options.propagator->inject(parent);
     auto pending=std::make_shared<Impl::Pending>();
     Impl::Queued queued;
+    Impl::CallSlot slot(p);
     std::optional<Impl::Publication> publication(std::in_place,p,wait);
     {
         std::unique_lock lock(p.mutex); p.check_open();
-        if (p.pending.size()>=p.options.max_pending_requests) throw PublicError("busy","Too many outstanding requests");
         if (p.next_id==static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
             lock.unlock(); publication.reset();
             p.end(std::make_exception_ptr(std::runtime_error("request serials exhausted")),4011,"request serials exhausted");

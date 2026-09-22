@@ -26,6 +26,22 @@ int main(int argc,char** argv) {
             } else require(peer.await_close(Wait::after(1s)).code==4011,"non-increasing serial admitted");
             peer.close();
         }
+        {
+            auto [raw,carrier]=pipe();
+            std::promise<void> reserved,release;
+            auto released=release.get_future().share();
+            PeerOptions options; options.max_pending_requests=1;
+            options.observer=[&](const Observation& event) {
+                if(event.type=="request.started" && !event.incoming) { reserved.set_value(); released.wait(); }
+            };
+            Peer peer(carrier,Role::client,options);
+            auto first=std::async(std::launch::async,[&]{try {peer.call("first");} catch(const std::exception&) {}});
+            reserved.get_future().wait();
+            bool busy=false;
+            try {peer.call("over-budget");} catch(const PublicError& error) {busy=error.code=="busy";}
+            release.set_value(); peer.close(); first.get();
+            require(busy,"publication waiters escaped the pending budget");
+        }
         auto [raw,carrier]=pipe();
         std::promise<void> reserved,release;
         auto released=release.get_future().share();
