@@ -82,3 +82,30 @@ class SerialTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(peer.status, "disconnected")
         finally:
             await peer.close()
+
+    async def test_waiting_publication_uses_the_pending_budget(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class PausedPeer(Peer):
+            async def _send(self, envelope, *args, **kwargs):
+                entered.set()
+                await release.wait()
+                await super()._send(envelope, *args, **kwargs)
+
+        conn = GatedConnection()
+        conn.release.set()
+        peer = PausedPeer(conn, options=Options(max_pending_requests=2))
+        first = asyncio.create_task(peer.call("first"))
+        await entered.wait()
+        second = asyncio.create_task(peer.call("second"))
+        await asyncio.sleep(0)
+        try:
+            with self.assertRaises(PublicError) as error:
+                await asyncio.wait_for(peer.call("over-budget"), 0.3)
+            self.assertEqual(error.exception.code, "busy")
+        finally:
+            release.set()
+            first.cancel()
+            second.cancel()
+            await asyncio.gather(first, second, return_exceptions=True)
+            await peer.close()

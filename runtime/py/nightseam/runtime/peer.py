@@ -133,6 +133,7 @@ class Peer:
         self._next = 0
         self._received_serial = 0
         self._request_publication = asyncio.Lock()
+        self._call_slots = 0
         self._pending, self._incoming, self._handlers = {}, {}, {}
         self._listeners = []
         self._outgoing = asyncio.Queue(self.options.queue_capacity)
@@ -314,6 +315,11 @@ class Peer:
         timeout_ms = self.options.request_timeout_ms if timeout_ms is None else timeout_ms
         if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:
             raise PublicError("invalid_options", "timeout_ms must be positive")
+        if self._closed.is_set():
+            raise PublicError("disconnected", "peer is disconnected")
+        if self._call_slots >= self.options.max_pending_requests:
+            raise PublicError("busy", "outstanding call limit reached")
+        self._call_slots += 1
         accepted = False
         request_id = None
 
@@ -333,8 +339,6 @@ class Peer:
                 async with self._request_publication:
                     if self._closed.is_set():
                         raise PublicError("disconnected", "peer is disconnected")
-                    if len(self._pending) >= self.options.max_pending_requests:
-                        raise PublicError("busy", "outstanding call limit reached")
                     if self._next == 9007199254740991:
                         await self._end(4011, "request identifier exhausted", True)
                         raise PublicError("identifier_exhausted", "create a new peer before further calls")
@@ -387,6 +391,8 @@ class Peer:
                 self._ended(request_id, pending, False, "error", getattr(error, "code", "invalid_message"))
                 future.cancel()
             raise
+        finally:
+            self._call_slots -= 1
 
     async def emit(self, event, data=ABSENT, *, context=None, meta=ABSENT):
         await self._emit(event, data, context=context, meta=meta)
