@@ -11,14 +11,26 @@
 // change lands", is the whole lifecycle; this is its first step.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = join(root, ".worktrees");
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
-const registered = path => git("worktree", "list", "--porcelain", "-z").split("\0").includes(`worktree ${path.replaceAll("\\", "/")}`);
+// One spelling for a path git and this script may write differently: the
+// filesystem's own (a Windows 8.3 short name such as RUNNER~1 becomes the
+// long one), forward slashes, and case-folded where the filesystem is.
+const canonical = path => {
+  let spelled = path;
+  try { spelled = realpathSync.native(path); } catch { /* not there: compare as given */ }
+  spelled = spelled.replaceAll("\\", "/");
+  return process.platform === "win32" ? spelled.toLowerCase() : spelled;
+};
+const registered = path =>
+  git("worktree", "list", "--porcelain", "-z").split("\0")
+    .filter(line => line.startsWith("worktree "))
+    .some(line => canonical(line.slice("worktree ".length)) === canonical(path));
 
 const [mode, branch] = process.argv.slice(2);
 const valid = /^[a-z0-9][a-z0-9._-]*$/;

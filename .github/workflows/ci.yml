@@ -26,11 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      # No pnpm cache here: the install below runs on Linux alone, and the
-      # post step of a cached setup fails on a runner with no store to save.
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
+          cache: pnpm
       # The scripts before the tiers that run them, on both platforms and in
       # the first minute: every one loads, the script tests hold — the
       # release gate and the round trip on fixture registries and matrices
@@ -45,19 +44,11 @@ jobs:
           for script in $(grep -ho 'scripts/[A-Za-z0-9_-]*\.mjs' .github/workflows/*.yml | sort -u); do
             test -f "$script" || { echo "::error::$script is named by a workflow and is not in the tree" >&2; exit 1; }
           done
-      # On Linux: four script tests do not hold on the Windows runner yet —
-      # the import smokes' tsc invocation and a temp directory the worktree
-      # test cannot remove (#624) — and the fast tier is what Windows is for.
       - run: pnpm install --frozen-lockfile
-        if: runner.os == 'Linux'
       - run: node --test 'scripts/*.test.mjs'
-        if: runner.os == 'Linux'
       - run: node scripts/matrix-table.mjs --check
-        if: runner.os == 'Linux'
       - run: node scripts/links.mjs
-        if: runner.os == 'Linux'
       - run: node scripts/docs.mjs
-        if: runner.os == 'Linux'
       # A name this tree would publish for the first time is said on the
       # pull request, where the lane that added it reads it, rather than
       # found by the release lane (RELEASING.md, *A name npm has not

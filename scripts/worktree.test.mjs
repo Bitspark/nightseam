@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -37,6 +37,32 @@ test("rm removes a registered worktree and its branch, and can be repeated", t =
   assert.equal(git("branch", "--list", branch), "");
   const repeated = remove(branch);
   assert.equal(repeated.code, 0, repeated.out);
+});
+
+test("rm recognizes a registered worktree through a differently spelled path, such as a Windows short name", t => {
+  // The GitHub Windows runner's temp is spelled C:\Users\RUNNER~1\…; git
+  // lists the worktree by its long name, and a script that compared
+  // spellings took a registered worktree for a leftover and failed on its
+  // contents (#624).
+  const { directory, repo, git } = fixture(t);
+  const branch = "issue-999-short";
+  const path = join(repo, ".worktrees", branch);
+  git("worktree", "add", "--quiet", "-b", branch, path);
+  // Another spelling of the same directory: on Windows, where the filesystem
+  // folds case as it folds 8.3 names to long ones, the path in upper case;
+  // elsewhere a symbolic link beside it. Either names the repository the
+  // script is copied into, and git names it its own way.
+  let spelled;
+  if (process.platform === "win32") spelled = repo.toUpperCase();
+  else {
+    spelled = join(directory, "spelled");
+    symlinkSync(repo, spelled);
+  }
+  const result = spawnSync(process.execPath, [join(spelled, "scripts/worktree.mjs"), "rm", branch], { cwd: repo, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /removed worktree/);
+  assert.equal(existsSync(path), false);
+  assert.equal(git("branch", "--list", branch), "");
 });
 
 test("rm clears an unregistered leftover without confusing a longer worktree path", t => {

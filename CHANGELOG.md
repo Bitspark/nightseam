@@ -33,6 +33,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The worktree script recognizes a registered worktree through any spelling of
+  its path — a Windows 8.3 short name such as the GitHub runner's
+  `RUNNER~1`, or another case — by comparing the filesystem's own, where
+  before it took such a worktree for an unregistered leftover and failed on
+  its contents; and the script tests run in CI's fast job on Windows too.
 - The release workflow refuses in its first two minutes what it can — the
   tag against the checkout, every spelling of the version and the matrix
   against the tag, which names are a first publish, whether provenance can
