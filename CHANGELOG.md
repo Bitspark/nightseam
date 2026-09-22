@@ -38,6 +38,18 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- The five conformance profiles carry a `description`, one sentence saying
+  what a language that holds the profile can do; `docs/languages/tiers.md`
+  carries each as the data spells it, held by `scripts/profiles.test.mjs`,
+  and a profile without one is refused by the schema. The generated
+  scenarios that convert callables declare `live` among their `needs` and
+  those that carry a Cell over a prepared channel declare `tunnel`, derived
+  by the runner from the generated operations and the carrier each row of
+  a `foreach` selects, so the reason a language without those runtimes
+  cannot hold `generator` is written where the runner reads it; the Go and
+  TypeScript generated testees answer `hello` with the runtimes they link.
+  No verdict changes: placement is by layer as before, and every tier and
+  disposition stays as it is.
 - The release workflow trusts a commit's green `full` check — one `ci.yml`
   made on that exact SHA — and runs the tiers itself only when it is absent,
   naming the run that proved them; the build, the packed smokes, the publish,

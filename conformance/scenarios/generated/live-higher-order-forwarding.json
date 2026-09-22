@@ -1,7 +1,7 @@
 {
   "name": "generated higher-order values are translated across two connection scopes",
   "layer": "generated",
-  "needs": ["generated"],
+  "needs": ["generated", "live"],
   "mirror": true,
   "description": "A and C are separate socket endpoints in one testee; B, in the other, imports A's generated Toolkit and exports its typed functions into C's connection. Callable requests and results are converted recursively. Go endpoints use the generated combinator binding plus a test-only retain handler that calls generated ImportToolkit. This proves generated callable conversion with a Go or TypeScript intermediary, not TypeScript server-binding generation or raw-byte recursive forwarding.",
   "steps": [

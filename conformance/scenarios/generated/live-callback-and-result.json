@@ -3,7 +3,8 @@
   "layer": "generated",
   "description": "#196's example, whole, through generated code in both languages: the client hands the server a ProgressSink it implemented, the server calls report on it, the server answers a Job whose cancel and rename the client then calls. Neither peer sees a reference; both write and receive ordinary functions.",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "steps": [
     {

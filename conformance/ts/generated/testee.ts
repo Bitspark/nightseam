@@ -122,7 +122,12 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   ...ownersOps,
   ...publicationOps,
   ...wireCellOps,
-  hello: () => ({ driver: 1, language: 'typescript', layers: ['generated'], features: ['listen'] }),
+  // The generated layer, and the runtimes the rendered packages and the
+  // Wire-construction fixture link: a generated scenario that converts
+  // callables needs live, one that carries a Cell over a prepared channel
+  // needs the tunnel, and the runner skips either for a generated testee
+  // that does not announce them.
+  hello: () => ({ driver: 1, language: 'typescript', layers: ['generated', 'tunnel', 'live'], features: ['listen'] }),
   reset: () => { reset(); return {}; },
   bye: () => { bye = true; reset(); return {}; },
   'gen.serve': async () => {

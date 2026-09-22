@@ -3,7 +3,8 @@
   "layer": "generated",
   "description": "Sinks is a map of records of callables and Outcome is a union one of whose arms carries them, so this drives the positions a live value is permitted in beyond a plain field. It also runs the other way: the server calls supervise on the client, handing it callables the client then calls.",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "steps": [
     {

@@ -2,7 +2,7 @@
   "name": "a callable takes a callable and answers a callable, and the answered one is invoked afterwards",
   "layer": "generated",
   "description": "The position a record of callables and a retained callback do not reach: a callable whose own request or result is another callable. Each of those goes through one conversion; this goes through a conversion nested inside a conversion, on the far side of a binding that was itself exported. Generated code compiled for this long before it worked, so it is driven here rather than only built. twice is higher order both ways, identity in the result alone, apply in the argument alone.",
-  "needs": ["generated"],
+  "needs": ["generated", "live"],
   "steps": [
     {"on": "a", "op": "gen.combinator_serve", "bind": {"handle": "srv", "url": "url"}},
     {"on": "b", "op": "gen.combinator_dial", "args": {"url": "$url"}, "bind": "cl"},

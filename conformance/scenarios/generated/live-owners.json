@@ -3,7 +3,8 @@
   "layer": "generated",
   "description": "Each side is bounded to four exports/imports for seven create/use/release cycles on one open connection. Page<Job> and Bundle<Count> use supplied and returned functions through generated operations. Handler revocation ends a returned function. A separate import-bound-two client proves failed record and alias-prefixed walks preserve retained bindings and repeated references borrow a single attachment.",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "steps": [

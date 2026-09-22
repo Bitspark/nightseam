@@ -2,7 +2,8 @@
   "name": "one generated model retains callable higher order and nested slots through local mounted and forwarded wires",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "steps": [

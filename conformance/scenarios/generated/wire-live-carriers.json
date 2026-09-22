@@ -2,7 +2,9 @@
   "name": "the same generated model transports live generic slots over sockets prepared channels selected mounts and forwards",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live",
+    "tunnel"
   ],
   "mirror": true,
   "steps": [

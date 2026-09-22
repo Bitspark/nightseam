@@ -62,7 +62,7 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 	if skip != "" {
 		return Outcome{Skipped: skip}
 	}
-	for side, needs := range SideNeeds(steps) {
+	for side, needs := range SideNeeds(withRow(steps, s.RowAs, s.Row)) {
 		t := a
 		if side == "b" {
 			t = b

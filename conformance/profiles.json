@@ -1,11 +1,31 @@
 {
-  "$comment": "What each language promises and how the suite holds it; docs/languages/tiers.md says what this means. A profile is a set of scenarios by layer, or by a feature a scenario needs; a tier is what a language guarantees and when. The runner reads this on every run and refuses a scenario no profile places.",
+  "$comment": "What each language promises and how the suite holds it; docs/languages/tiers.md says what this means. A profile is a set of scenarios by layer, or by a feature a scenario needs, and its description says what a language that holds it can do; a tier is what a language guarantees and when. The runner reads this on every run and refuses a scenario no profile places.",
   "profiles": {
-    "core": {"layers": ["seam", "peer"], "promise": "wire"},
-    "generator": {"layers": ["generated"], "promise": "generated"},
-    "tunnel": {"layers": ["tunnel"], "promise": "complete"},
-    "live": {"layers": ["live"], "promise": "complete"},
-    "observability": {"needs": ["observer", "propagator"], "promise": "complete"}
+    "core": {
+      "layers": ["seam", "peer"],
+      "promise": "wire",
+      "description": "A peer of this language speaks the wire with a peer of any other: it sends and receives frames, correlates calls with their answers, cancels, closes with a code, applies backpressure, and refuses what the wire validator refuses, held against the reference on both sides of a socket."
+    },
+    "generator": {
+      "layers": ["generated"],
+      "promise": "generated",
+      "description": "The generator renders this language: the packages it renders build against the language's runtime, hold the round trip and the generic-versus-bound diagram, and serve as well as call, including values carried over prepared channels and live callables, which is why holding it takes the tunnel and live runtimes too."
+    },
+    "tunnel": {
+      "layers": ["tunnel"],
+      "promise": "complete",
+      "description": "A peer of this language multiplexes channels over one connection, with per-channel credit and closure, and reports the tunnel's events to its observer."
+    },
+    "live": {
+      "layers": ["live"],
+      "promise": "complete",
+      "description": "A peer of this language passes callable values across a connection: a scope over the peer exports bindings, imports references, releases and forwards them, and refuses a wrong contract or a stale reference."
+    },
+    "observability": {
+      "needs": ["observer", "propagator"],
+      "promise": "complete",
+      "description": "A peer of this language reports what it did, at every layer, under the common event names and never with a payload, and mints and carries trace context across calls."
+    }
   },
   "tiers": {
     "1": {"requires": ["core", "generator", "tunnel", "live", "observability"], "lag": 0, "onFailure": "stop"},

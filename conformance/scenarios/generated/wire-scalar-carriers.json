@@ -2,7 +2,9 @@
   "name": "one generated scalar model crosses sockets and prepared channels without allocation during selection or use",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live",
+    "tunnel"
   ],
   "mirror": true,
   "steps": [

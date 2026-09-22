@@ -22,21 +22,27 @@ import { root } from "./packages.mjs";
 
 const page = join(root, "docs/languages/tiers.md");
 const read = () => readFileSync(page, "utf8");
-const declared = () => Object.keys(JSON.parse(readFileSync(join(root, "conformance/profiles.json"), "utf8")).profiles);
+const profiles = () => JSON.parse(readFileSync(join(root, "conformance/profiles.json"), "utf8")).profiles;
+const declared = () => Object.keys(profiles());
 
-/** The first cell of every row of the table whose first column is the profile, in the order the page lists them. */
-function tabled() {
+/** Every row of the table whose first column is the profile, in the order the page lists them: the cells, trimmed, with the profile's backticks removed. */
+function rows() {
   const lines = read().split(/\r?\n/);
   const header = lines.findIndex(line => /^\|\s*profile\s*\|/i.test(line));
   assert.notEqual(header, -1, `${page} has no table whose first column is "profile"`);
-  const rows = [];
+  const out = [];
   // The header, then the separator, then a row per profile until the table ends.
   for (const line of lines.slice(header + 2)) {
     if (!line.startsWith("|")) break;
-    rows.push(line.split("|")[1].trim().replace(/`/g, ""));
+    const cells = line.split("|").slice(1, -1).map(cell => cell.trim());
+    cells[0] = cells[0].replace(/`/g, "");
+    out.push(cells);
   }
-  return rows;
+  return out;
 }
+
+/** The first cell of every row: the profiles, in the page's order. */
+const tabled = () => rows().map(cells => cells[0]);
 
 test("the tiers page names exactly the profiles the declaration does, in its order", () => {
   assert.deepEqual(
@@ -44,6 +50,22 @@ test("the tiers page names exactly the profiles the declaration does, in its ord
     declared(),
     "docs/languages/tiers.md's profile table and conformance/profiles.json disagree; the page is what RELEASING.md sends a reader to for what a tier promises",
   );
+});
+
+test("the tiers page carries each profile's description as the data spells it", () => {
+  // The description is the one sentence a consumer reads for what holding a
+  // profile means, so the page carries the data's sentence and not a
+  // paraphrase of it: a paraphrase is a second copy, and a second copy is
+  // what rotted the profile list before this test existed.
+  const described = profiles();
+  for (const cells of rows()) {
+    const [profile, description] = cells;
+    assert.equal(
+      description,
+      described[profile]?.description,
+      `docs/languages/tiers.md's row for ${profile} does not carry the description conformance/profiles.json declares; render the data's sentence, do not paraphrase it`,
+    );
+  }
 });
 
 test("every profile a tier requires has a row on the page", () => {

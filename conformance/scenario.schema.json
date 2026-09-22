@@ -13,7 +13,7 @@
     "needs": {
       "type": "array", "uniqueItems": true,
       "items": {"enum": ["listen", "pipe", "observer", "propagator", "lazy", "seam", "peer", "tunnel", "live", "generated"]},
-      "description": "Layers and features the steps ask for, the union over both sides: what the steps of each side ask is derived from them and held against that side's testee alone, and the runner refuses a file whose needs differ from the union, so the declaration stays what places the scenario in a profile and nothing more."
+      "description": "Layers and features the steps ask for, the union over both sides — for a generated op, the runtimes it runs over as well: live where the rendered packages convert callables, tunnel where a Cell is carried by a prepared channel — what the steps of each side ask is derived from them and held against that side's testee alone, and the runner refuses a file whose needs differ from the union, so the declaration stays what places the scenario in a profile and nothing more."
     },
     "mirror": {
       "type": "boolean", "default": false,

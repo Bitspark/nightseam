@@ -167,6 +167,57 @@ func TestTablesAreWellFormed(t *testing.T) {
 	}
 }
 
+// TestGeneratedNeedsFollowTheRuntimesTheyRunOver: a generated scenario
+// declares the runtimes its ops run over — live where callables are
+// converted, the tunnel where a Cell is carried by a prepared channel — and
+// the loader refuses one that does not, reading the carrier off every row a
+// foreach binds, so a scenario over sockets alone does not claim the tunnel
+// and one with a channel row cannot omit it.
+func TestGeneratedNeedsFollowTheRuntimesTheyRunOver(t *testing.T) {
+	root, err := Root()
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := loadSchema(filepath.Join(root, "scenario.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(fixture, "tables"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	table := func(name, rows string) {
+		if err := os.WriteFile(filepath.Join(fixture, "tables", name), []byte(`{"description":"carriers","rows":[`+rows+`]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	table("sockets.json", `{"name":"over a socket","carrier":"socket"}`)
+	table("both.json", `{"name":"over a socket","carrier":"socket"},{"name":"over a channel","carrier":"channel"}`)
+	callables := `{"on":"a","op":"gen.live_serve","bind":{"handle":"s","url":"u"}}`
+	carried := `{"on":"a","op":"gen.wire_serve","args":{"slot":"string","carrier":"$row.carrier","presentation":"local"},"bind":{"handle":"server","url":"origin"}}`
+	both := `"foreach":{"table":"tables/both.json","as":"row"},`
+	sockets := `"foreach":{"table":"tables/sockets.json","as":"row"},`
+	for _, c := range []struct{ name, needs, foreach, step, want string }{
+		{"converting callables needs live", `["generated"]`, "", callables, "ask for [generated, live]"},
+		{"converting callables, declared", `["generated","live"]`, "", callables, ""},
+		{"a channel row needs the tunnel", `["generated","live"]`, both, carried, "ask for [generated, live, tunnel]"},
+		{"a channel row, declared", `["generated","live","tunnel"]`, both, carried, ""},
+		{"socket rows alone do not need the tunnel", `["generated","live","tunnel"]`, sockets, carried, "ask for [generated, live]"},
+		{"socket rows alone, declared", `["generated","live"]`, sockets, carried, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			data := `{"name":"fixture","layer":"generated","needs":` + c.needs + `,` + c.foreach + `"steps":[` + c.step + `]}`
+			_, err := parse(fixture, "scenarios/generated/fixture.json", []byte(data), schema)
+			switch {
+			case c.want == "" && err != nil:
+				t.Fatalf("refused: %v", err)
+			case c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)):
+				t.Fatalf("not refused for %q: %v", c.want, err)
+			}
+		})
+	}
+}
+
 func TestRecipesAreFound(t *testing.T) {
 	root, err := Root()
 	if err != nil {

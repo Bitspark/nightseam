@@ -2,7 +2,8 @@
   "name": "one generated scalar model retains state reverse calls and events through local selected and forwarded wires",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live"
   ],
   "mirror": true,
   "steps": [

@@ -2,7 +2,9 @@
   "name": "GEN-COMPOSE-CARRIERS unchanged Cell retains both generic forms across sockets and prepared channels",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live",
+    "tunnel"
   ],
   "mirror": true,
   "foreach": {

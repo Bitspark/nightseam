@@ -2,7 +2,9 @@
   "name": "generated recording preserves typed generic events through replay and live delivery across presentations",
   "layer": "generated",
   "needs": [
-    "generated"
+    "generated",
+    "live",
+    "tunnel"
   ],
   "mirror": true,
   "steps": [
