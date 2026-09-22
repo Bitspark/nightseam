@@ -3,6 +3,7 @@
 module Nightseam.Duplex.WebSocket
   (Listener, listen, listenerURL, accept, dial, closeListener) where
 
+import Control.Concurrent.MVar
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Exception
@@ -133,21 +134,36 @@ dial url limit protocols = N.withSocketsDo $ do
 wrap :: N.Socket -> W.Connection -> Text -> IO Connection
 wrap socket ws selected = do
   ended <- newEmptyTMVarIO
-  let mark e = atomically (void (tryPutTMVar ended e))
+  transportClosed <- newEmptyTMVarIO
+  reader <- newMVar ()
+  let closeTransport = do
+        fresh <- atomically (tryPutTMVar transportClosed ())
+        when fresh (N.close socket)
+      mark e = atomically (void (tryPutTMVar ended e))
       ensureOpen = atomically (tryReadTMVar ended) >>= maybe (pure ()) throwIO
       stop code reason = do
         fresh <- atomically (tryPutTMVar ended (CloseError code reason))
         when fresh $ do
-          (unless (code == 1006) (W.sendCloseCode ws (fromIntegral code) reason) `catch` \(_ :: W.ConnectionException) -> pure ()) `finally` N.close socket
+          -- A close frame starts a handshake, not TCP shutdown. Keep the
+          -- sole read owner until its acknowledgement arrives; when the
+          -- application reader has stopped, this closer drains the handshake.
+          -- An unresponsive peer cannot retain the carrier indefinitely.
+          let handshake = unless (code == 1006) $ do
+                W.sendCloseCode ws (fromIntegral code) reason
+                withMVar reader $ \_ -> do
+                  closed <- atomically (not <$> isEmptyTMVar transportClosed)
+                  unless closed (forever (void (W.receiveDataMessage ws)))
+          (void (timeout 1000000 handshake) `catch` \(_ :: W.ConnectionException) -> pure ())
+            `finally` closeTransport
       translate action = action `catch` \(err :: W.ConnectionException) -> do
         let e = case err of
               W.CloseRequest code reason -> CloseError (fromIntegral code) (TE.decodeUtf8With TE.lenientDecode (L.toStrict reason))
               W.ConnectionClosed -> CloseError 1006 ""
               _ -> CloseError 1009 "frame rejected"
         mark e
-        N.close socket
+        closeTransport
         throwIO e
-      readNext = do
+      readNext = withMVar reader $ \_ -> do
         ensureOpen
         translate $ do
           msg <- W.receiveDataMessage ws
@@ -162,6 +178,6 @@ wrap socket ws selected = do
   pure Connection
     { sendFrame = writeNext, receiveFrame = readNext
     , closeConnection = stop
-    , abortConnection = mark (CloseError 1006 "") >> N.close socket
+    , abortConnection = mark (CloseError 1006 "") >> closeTransport
     , connectionSubprotocol = selected
     }

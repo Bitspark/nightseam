@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- duplex/hs: wait for the peer to acknowledge WebSocket close before closing the carrier, with bounded shutdown and one reader.
+
 - All eight language ports use Bitwire wire types directly. Remove Nightseam
   aliases, re-exports and duplicate declarations; generated adapters import
   Bitwire, and native ports separate send access from endpoint attachment and
