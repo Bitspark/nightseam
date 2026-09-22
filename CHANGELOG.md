@@ -21,8 +21,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- A page of the domain Nightseam targets, modeled as a typed graph in
-  bitsystem's typed-wire vocabulary — the node types in three kinds, the
+- A page of the domain Nightseam targets, modeled as a typed graph over the
+  published laws — the node types in three kinds, the
   edges with their laws, the rewrite rules that close the instance graph,
   the five identities as graph elements, one table mapping each concept to
   what the tree realizes, and the choices filed for a verdict

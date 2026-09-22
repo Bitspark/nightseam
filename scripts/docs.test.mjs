@@ -171,6 +171,16 @@ test("a page crediting a name the documentation does not speak of is refused, on
   ]);
 });
 
+test("a page linking a repository the documentation does not speak of is refused, once whatever its case", () => {
+  const pages = new Map([
+    ["docs/decisions/a-kind.md", "[A design](https://github.com/Bitspark/fixture-alpha/blob/main/x.md), [again](https://github.com/bitspark/Fixture-Alpha).\n"],
+    ["docs/runtime/peer.md", "[Bitwire's contract](https://github.com/Bitspark/bitwire/blob/v0.2.0/x.md), [the floor](https://github.com/Bitspark/archon), ![badge](https://pkg.go.dev/badge/github.com/Bitspark/nightseam.svg).\n"],
+  ]);
+  assert.deepEqual(unattributable(pages, ["docs/runtime/peer.md", "docs/decisions/a-kind.md"]), [
+    { page: "docs/decisions/a-kind.md", reason: "links the repository fixture-alpha, which is not a name this documentation speaks of" },
+  ]);
+});
+
 test("a typographic apostrophe credits as an ASCII one does", () => {
   const pages = new Map([["docs/admission.md", "FixtureBeta’s example illustrates the rule.\n"]]);
   assert.deepEqual(unattributable(pages, ["docs/admission.md"]), [

@@ -32,9 +32,9 @@ interface at each stage and the page that documents it.
 ## The domain it targets, as a graph — `domain.md`
 
 Beside the figure: the domain Nightseam is for — typed access to models
-through wires, across languages and carriers — modeled as a typed graph in
-bitsystem's typed-wire vocabulary, with one table mapping each concept to
-what the tree realizes today and the choices that still need a verdict.
+through wires, across languages and carriers — modeled as a typed graph
+over the published laws, with one table mapping each concept to what the
+tree realizes today and the choices that still need a verdict.
 
 | page | what |
 | --- | --- |

@@ -52,7 +52,9 @@
 //     art, a tiers page deferring to a generator nobody can read. The list is
 //     of what may be credited and never of what may not: a denylist of
 //     unpublished names would be the leak itself, committed, grepped and kept
-//     forever.
+//     forever. A link to one of the organization's repositories credits it
+//     too, and says more — a path into a design nobody outside can open —
+//     so it is held to the same list.
 //
 // What it does not hold is prose: which sets exist, what an index row says
 // about a page and in what order the rows stand stays editorial. A page
@@ -139,9 +141,16 @@ const contractions = new Set(["He", "She", "It", "That", "Here", "There", "What"
  * A single capital is not a name and is skipped: the suite calls its peers A,
  * B and C, and `A's scope` credits nobody, since the letter names nothing
  * outside the scenario that binds it.
+ *
+ * A link to `github.com/Bitspark/<repository>` credits the repository as a
+ * possessive would, matched against the same names whatever its case, since
+ * an address is written in lower case where prose capitalizes: a page
+ * linking a repository the documentation does not speak of is refused once
+ * per repository, however often it links it.
  */
 export function unattributable(pages, paths) {
   const problems = [];
+  const repositories = new Set([...attributable].map(name => name.toLowerCase()));
   for (const path of handwritten(paths)) {
     const markdown = pages.get(path);
     if (markdown === undefined) continue;
@@ -151,6 +160,13 @@ export function unattributable(pages, paths) {
     }
     for (const name of [...credited].sort()) {
       problems.push({ page: path, reason: `credits ${name}, which is not a name this documentation speaks of` });
+    }
+    const linked = new Set();
+    for (const [, repository] of markdown.matchAll(/github\.com\/Bitspark\/([A-Za-z0-9_-]+)/gi)) {
+      if (!repositories.has(repository.toLowerCase())) linked.add(repository.toLowerCase());
+    }
+    for (const repository of [...linked].sort()) {
+      problems.push({ page: path, reason: `links the repository ${repository}, which is not a name this documentation speaks of` });
     }
   }
   return problems;

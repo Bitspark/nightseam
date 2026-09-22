@@ -2,11 +2,13 @@
 
 Nightseam is for typed access to models through wires, across languages
 and carriers. This page models that domain — not the repository — as a
-typed graph, in the vocabulary of bitsystem's
-[Typed space wires](https://github.com/Bitspark/bitsystem/blob/main/docs/design/typed-space-wires.md)
-and [Nightseam and bitsystem](https://github.com/Bitspark/bitsystem/blob/main/docs/design/nightseam-and-bitsystem.md):
-what kinds of thing there are, which relations hold between them, and
-which law governs each relation. Its counterpart is
+typed graph: what kinds of thing there are, which relations hold between
+them, and which law governs each relation. The laws are the published
+ones: Bitwire's [access contract](https://github.com/Bitspark/bitwire/blob/v0.2.0/docs/wire/contract.md) and
+[composition laws](https://github.com/Bitspark/bitwire/blob/0f30b515694cb3005403229be0f4e4158baf41b9/docs/composition.md), and this
+repository's own — [the diagram that commutes](declaration/generics.md#the-diagram-commutes)
+for generic adaptation, [declaration identity](declaration/declaration-identity.md)
+for what names a contract. Its counterpart is
 [architecture.md](architecture.md), which draws the tree that realizes the
 domain; one table below maps the one onto the other. It is a model
 proposed on 2026-09-22, not a decision: the choices that change it are at
@@ -44,7 +46,7 @@ joins them: `Adapter[C, wire]` binds a model type to the wire,
 | Participant | a process, in a language, that holds model instances, peers and entries; where policy lives and calls in from | address | the consumer's program |
 | ModelInstance | a value of a model type, with behavior, implementing one side; passable through a wire as an argument or a result | its binding, once exported | a `ServerModel` value; a function |
 | Wire | access to a destination by relative path, typed by a wire type and satisfying the wire contract: a connection at the empty path, a channel, a selection, a mount, a forward, a model instance presented | route from an origin, plus validity | `bitwire.Endpoint`: `peer.Wire()`, `at`, `mount`, `forward`, `ToWire` |
-| Space and entry | a node mapping keys to (wire type, wire); an entry whose wire is a space again, or an end reaching a model instance | key within its node | a mount and a dispatcher's registrations; the space tree with its placement rules is bitsystem's |
+| Space and entry | a node mapping keys to (wire type, wire); an entry whose wire is a space again, or an end reaching a model instance | key within its node | a mount and a dispatcher's registrations; placement — which tree a mount belongs to — is a consumer's |
 | Carrier and peer | what carries frames between two ends — a connection, or a channel over one; a peer is an end speaking the wire contract's invocation part: it mints correlation ids and serials, refuses, observes | connection instance + role | `duplex.Conn`, a tunnel channel; `runtime.Peer` |
 | Message and invocation | request, response, event, cancel, at a path; an invocation is one request's life from capture to done, with its return capability | correlation id, per peer and direction | the profile's frames; `invocation.*` events |
 | Reference | a model-valued position crossing a scope: a model instance exported as a binding in a scope on one side, imported as a model instance on the other, under an owner that supplies its lifetime; never a path string | binding identity with its nonce | `live.Over(peer)`: export, import, release; owners |
@@ -53,8 +55,8 @@ joins them: `Adapter[C, wire]` binds a model type to the wire,
 
 ## Edge types
 
-Every edge is governed by a law or rule the source documents already
-state; the graph adds none.
+Every edge is governed by a law or rule already stated — by Bitwire, by
+this repository's pages or by its decisions; the graph adds none.
 
 | edge | from → to | law or rule |
 | --- | --- | --- |
@@ -98,9 +100,10 @@ types above and yields nodes of those types and no others, which is what
 | `import(r)` | a reference → a model instance | it arrives as a model instance; transfer then adaptation agrees with adaptation then transfer |
 | `instantiate(B, A)` | a constructor and an argument → `B[A]` with its adapters | the adapters of `B[A]` are B's adapters supplied with A's |
 
-The laws are the commuting squares of the source document: the operation
+The laws are two commuting squares: the operation
 square (perform then adapt equals adapt then perform) and the construction
-square (instantiate then adapt equals adapt then instantiate). A
+square (instantiate then adapt equals adapt then instantiate), which
+[the generics page](declaration/generics.md#the-diagram-commutes) draws. A
 definition-level rule, instantiate, and the adapters, which are code, meet
 at the second square, which is why a generic slot needs both adapters — and
 why that square is a statement about two pieces of code agreeing, the
@@ -125,13 +128,14 @@ a value, immutable, retrievable — while a wire is access to something that
 can act; a fact may carry a hash and never a wire. And access is not
 authority: a *reaches* edge from a Wire to a ModelInstance implies no
 *grants* edge, so reaching a target proves reachability and remounting it
-manufactures nothing. bitsystem adds space id and content hash beside these
-five and computes no second contract identity.
+manufactures nothing. A consumer may keep identities of its own beside
+these five, such as a content hash; none of them is a second contract
+identity.
 
 ## Where Nightseam's implementation sits
 
-Nightseam realizes every node type but one, and the one it leaves out is
-deliberate.
+Nightseam realizes every node type; what it deliberately leaves out is
+below the table.
 
 | concept | Nightseam today |
 | --- | --- |
@@ -151,10 +155,10 @@ deliberate.
 | Observation | the observer, told at the write; the OpenTelemetry adapter ([the observer](runtime/observer.md)) |
 | the laws | the conformance suite: scenarios and tables hold every language to them ([admission](admission.md)) |
 
-What Nightseam does not realize is bitsystem's: the space tree with one
-root and one parent per space, and the realization contract — when an
-operation applies and what it establishes. The boundary between the two is
-the wire, and that is the finding of *Nightseam and bitsystem*.
+What Nightseam does not realize is placement and policy: which tree a
+mount belongs to, when an operation should run and what running it
+establishes. Those are a consumer's, composed above the wire and calling
+in from outside ([the boundary](goals/boundary.md)).
 
 ## Open choices
 
@@ -165,19 +169,19 @@ settles something becomes a [decision page](decisions/README.md).
 
 | choice | options | recommendation |
 | --- | --- | --- |
-| WireContract | one node holding access and invocation; or two, AccessContract and InvocationContract | one — the source model treats the pair as one invocation contract with a shared part (Bitwire) and a realization (the profile); the levels are an attribute |
+| WireContract | one node holding access and invocation; or two, AccessContract and InvocationContract | one — Bitwire states the access contract and names the profile that realizes it, so the pair is one contract with a shared part and a realization; the levels are an attribute |
 | ModelType and WireType | nodes; or attributes on the adapters and on *typed by* | nodes — the fifth identity lives on them, and the adapters are typed by them |
 | Adapter | a node of kind code; or an edge ModelType ↔ WireType | a node — rendered per language, with a direction, and what conformance exercises |
-| Space and entry | in this graph, or bitsystem's only | in the graph: Nightseam's mount is an instance without placement rules; the rules are bitsystem's edges, not a different node |
+| Space and entry | in this graph, or only in a consumer's model | in the graph: a mount is an instance without placement rules; placement is a consumer's edges, not a different node |
 | Grant | in this graph, or a separate graph joined at the effect boundary | in the graph, joined by one edge; the separation is the absence of any edge from Wire to Grant |
 | Invocation | a node, or an edge between messages | a node — it has a life from capture to done; control and the return capability attach to it |
 | Observation | a node, or an attribute stream on the peer | a node — questions are asked of it after the fact, in one order, from one place |
 
 ## Sources
 
-- [Typed space wires](https://github.com/Bitspark/bitsystem/blob/main/docs/design/typed-space-wires.md) — the model, its two views and its laws
-- [Nightseam and bitsystem](https://github.com/Bitspark/bitsystem/blob/main/docs/design/nightseam-and-bitsystem.md) — the boundary, the five identities, the assumptions
-- [Bitspark/bitwire](https://github.com/Bitspark/bitwire) — the access contract and its laws at v0.2.0
+- [Bitwire's contract](https://github.com/Bitspark/bitwire/blob/v0.2.0/docs/wire/contract.md) and [composition through Wire](https://github.com/Bitspark/bitwire/blob/0f30b515694cb3005403229be0f4e4158baf41b9/docs/composition.md) — the access contract adopted at v0.2.0, and its laws
+- [generics.md](declaration/generics.md) — the diagram that commutes: adaptation and instantiation
+- [declaration-identity.md](declaration/declaration-identity.md) — the canonical declaration, its digest and application identity
 - [the goals](goals/README.md) — the directions the domain is measured against
 - [admission.md](admission.md) — which concepts are primitives and which are compositions
 - [architecture.md](architecture.md) — the tree that realizes the domain
