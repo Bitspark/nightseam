@@ -4,29 +4,35 @@
 npm install @nightseam/duplex
 ```
 
-The common structured access surface is `Wire`: `send(path, message)`,
-`receive(path, receiver)` and `close(code, reason)`. Paths are arrays of
-Unicode strings; a message carries one of the four profile frame kinds and
-an optional local return capability, never another serialized envelope.
+The common structured access surface is the shared contract's pair: a
+`Wire` is `send(path, message)` and nothing else, and an `Endpoint` adds
+`receive(receiver)` — one owning attachment — and `close(code, reason)`.
+Paths are arrays of Unicode strings; a message carries one of the four
+profile frame kinds and an optional local return capability, never another
+serialized envelope.
 
-These types are re-exported from the public `@bitspark/bitwire@0.1.0`
-contract. The dependency installs with this package; routing views, codecs,
-recording and transports remain Nightseam implementations.
+These types are re-exported from the public `@bitspark/bitwire@0.2.0`
+contract, and nothing in Nightseam defines a second copy of them. The
+dependency installs with this package; path views, codecs, recording and
+transports remain Nightseam implementations.
 
 ```ts
 import { at, mount } from '@nightseam/duplex';
-import type { Wire } from '@nightseam/duplex';
+import type { Endpoint, Wire } from '@nightseam/duplex';
 
-const joined: Wire = mount(new Map([['work', workWire], ['chat', chatWire]]));
-const selected = at(joined, ['work']);
+const joined: Endpoint = mount(new Map([['work', workEndpoint], ['chat', chatEndpoint]]));
+const selected: Wire = at(joined, ['work']);
 ```
 
 Selection and mounting reuse existing roots, with no peer or channel allocated
-even on first use. Receivers match exact paths by default; `namespace: true`
-also matches descendants, with exact matches winning and otherwise the longest
-segment prefix. Closing a selected view closes its root; closing a mount
-detaches its registrations and leaves child roots open. The runtime supplies
-bounded asynchronous roots as `peer.wire()` and `wirePair()`.
+even on first use. `at` grants send access under a prefix and neither
+attachment nor closure; `mount` consumes one path segment, holds its one
+attachment across the children it borrows, and closing it detaches that
+attachment and leaves the children open. Routing above an endpoint — exact
+before longest segment prefix, a refusal for a duplicate path, receiving views
+that share the one owner — is `@nightseam/runtime`'s dispatcher, not a
+property of the Wire. The runtime supplies bounded asynchronous endpoints as
+`peer.wire()` and `wirePair()`.
 
 The raw transport seam remains `FrameConnection` — ordered
 frames, both ways, an explicit close with a code and a reason, and nothing

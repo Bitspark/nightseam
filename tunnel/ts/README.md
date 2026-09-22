@@ -5,9 +5,10 @@ npm install @nightseam/tunnel
 ```
 
 Channels multiplexed over one peer of `nightseam.duplex/1`. Each acquired
-`Channel` implements `Wire`: it has `send(path, message)`,
-`receive(path, receiver)` and `close(code, reason)`. A generated model can
-interpret that Wire, select a path or mount it with another root.
+`Channel` implements `Endpoint`: it has `send(path, message)`,
+`receive(receiver)` — one owning attachment — and `close(code, reason)`. A
+generated model can interpret that Wire, select a path under it or mount it
+beside another endpoint.
 
 ```ts
 import { DuplexPeer, forwardWire } from '@nightseam/runtime';

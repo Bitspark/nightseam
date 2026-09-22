@@ -1,6 +1,6 @@
 {
   "name": "@nightseam/live",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Callable values across one connection: a scope over a peer, exported bindings, imported references, release and forwarding.",
   "license": "Apache-2.0",
   "author": "Bitspark",
