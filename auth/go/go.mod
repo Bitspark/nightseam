@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/Bitspark/archon/core/go v0.7.0
 	github.com/Bitspark/archon/sdk/go v0.7.0
-	github.com/Bitspark/nightseam v0.5.0
+	github.com/Bitspark/nightseam v0.6.0
 )
 
 require (

@@ -10,10 +10,12 @@ over and why.
 
 The [repository-home decision](decisions/the-reusable-foundation-lives-in-nightseam.md)
 keeps runtime, generator, declaration/identity and optional rooted-grant authority
-implementation in Nightseam, while selecting Bitwire as the home of the shared
-Wire contract once ready. [#421](https://github.com/Bitspark/nightseam/issues/421)
-holds adoption in 0.6.0. The state pages describe today's implementation; public
-contracts, builds and examples remain usable without private repository access.
+implementation in Nightseam, with Bitwire as the home of the shared Wire
+contract, adopted at v0.2.0 in 0.6.0 under
+[#421](https://github.com/Bitspark/nightseam/issues/421) and
+[#439](https://github.com/Bitspark/nightseam/issues/439). The state pages
+describe today's implementation; public contracts, builds and examples remain
+usable without private repository access.
 
 ## Where it is going — `goals/`
 

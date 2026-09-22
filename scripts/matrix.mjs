@@ -89,22 +89,33 @@ export function table(matrix, profiles) {
 }
 
 /**
- * The languages `profiles.json` plans and no testee carries yet, by tier, as
- * one sentence — so the table says what is coming as well as what is held,
- * and a reader is not left to infer that an absent language is a refused one.
+ * The languages `profiles.json` plans for a tier they do not hold yet, by
+ * tier, as a sentence or two — so the table says what is coming as well as
+ * what is held, and a reader is not left to infer that an absent language is
+ * a refused one, or that a provisional one stays where it is. A planned
+ * language with a row in the table rises to its planned tier as it holds; one
+ * without a row has no testee yet.
  */
 export function planned(profiles) {
   const entries = Object.entries(profiles.planned ?? {});
   if (entries.length === 0) return "";
-  const byTier = new Map();
-  for (const [language, tier] of entries) {
-    if (!byTier.has(tier)) byTier.set(tier, []);
-    byTier.get(tier).push(language);
-  }
-  const parts = [...byTier.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([tier, languages]) => `${languages.sort().map(l => `\`${l}\``).join(", ")} at tier ${tier}`);
-  return `Planned, with no testee yet: ${parts.join("; ")}.`;
+  const byTier = list => {
+    const tiers = new Map();
+    for (const [language, tier] of list) {
+      if (!tiers.has(tier)) tiers.set(tier, []);
+      tiers.get(tier).push(language);
+    }
+    return [...tiers.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([tier, languages]) => `${languages.sort().map(l => `\`${l}\``).join(", ")} at tier ${tier}`)
+      .join("; ");
+  };
+  const held = entries.filter(([language]) => profiles.languages?.[language]);
+  const coming = entries.filter(([language]) => !profiles.languages?.[language]);
+  const sentences = [];
+  if (held.length) sentences.push(`Planned to rise as they hold: ${byTier(held)}.`);
+  if (coming.length) sentences.push(`Planned, with no testee yet: ${byTier(coming)}.`);
+  return sentences.join(" ");
 }
 
 /**

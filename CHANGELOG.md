@@ -6,62 +6,6 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
-### Fixed
-
-- A testee that will not build in a language whose tier ships provisional is
-  recorded absent — the testee named, with its build's exit status and last
-  output lines, in the matrix and the job summary — and the star continues
-  with the remaining pairings, where before any build failure ended the run.
-  Tier 1 and tier 2 and the nightly full matrix still fail on one.
-- The cancellation-budget test drains completion observations during admission
-  retries, so its own observer cannot stall the peer after a handler returns.
-- Conformance build commands own their process trees and stop descendants on
-  cancellation or parent exit, retaining failure output without an unbounded
-  wait for inherited output pipes.
-- The Java WebSocket transport finishes its bounded close handshake before
-  publishing closure, and the peer's terminal winner owns the transport action.
-- The Java peer preserves a transport's explicit close when its read or write
-  waiter resumes before the separate closure notification is published.
-- Give each language testee build its own bounded deadline.
-- The generated composition fixture waits for worker completion before
-  asserting finished cancellation, preserving the final callback race.
-- Both OpenTelemetry adapters retain connection closes observed from consumer
-  span-start callbacks and preserve a connection reopened by those callbacks.
-- The TypeScript OpenTelemetry adapter retains connection and event-only
-  telemetry with the Go reference's connection lifecycle, producer/consumer
-  spans and fallback routing, without copying connection events onto requests.
-- Go and TypeScript peer Wires retain canceled handlers in their concurrency
-  budget until their application bodies finish, including caller and receiver
-  deadlines. Caller cancellation still returns promptly and reaches the handler.
-
-### Clarified
-
-- The shared Wire contract will be adopted from Bitwire when ready, as required
-  0.6.0 work; Nightseam retains its runtime, generator, declaration/identity and
-  optional-auth implementation. The repository-home decision distinguishes the
-  readiness conditions from completed contract adoption.
-- The profile documentation names 4011 for a binary frame rejected by the
-  JSON peer, matching both reference runtimes. A shared core scenario holds
-  the close code at both ends and verifies the request is never dispatched.
-- Nightseam is the implementation home for its reusable typed-access
-  foundation and optional rooted-grant authentication, with public
-  self-contained contracts and consumer-owned application policy. The
-  decision distinguishes adopted scope from completed implementation.
-- Language onboarding includes the live runtime and generated boundary
-  conversion, with shared scenario evidence for every profile. It separates
-  declaration tiers, planned language assignments and achieved support, and
-  explains that live needs a peer rather than a tunnel.
-- The built-in family index lists `live` beside `duplex` and `tunnel`, the page
-  the spec target has rendered for it since the live tier landed. `RELEASING.md`
-  names `live/go/livetest` beside `duplex/go/duplextest` among the root module's
-  suites, and `@nightseam/otel`'s README counts `@nightseam/live` among the
-  packages it exists as a package of its own to keep free of every dependency.
-- The specification carries each composed language target's spelling, and the
-  generator pages say what disabling one withdraws.
-- The credit claim exempts ordinary contractions — `It's`, `That's`, `There's`
-  and their kin — which it had read as possessive proper nouns, and its
-  fixtures name nothing outside themselves.
-
 ### Added
 
 - The authority profile over a peer, in both languages: the built-in family
@@ -93,32 +37,6 @@ are one number. Entries are in the words of the commits that landed them.
   and 35 — and beyond them to fuzz targets that never panic, bounds refused
   before the work they would cost, and a check that no package reads a
   clock or touches the network.
-- Go and TypeScript access surfaces adopt public Bitwire v0.2.0 through exact
-  shared types — send-only `Wire`, receiving and closing `Endpoint`, and the
-  named types that go with them — held to its independent composition cases
-  locally and over WebSockets in both role directions, while Nightseam retains
-  runtime and scoped-reference behavior. There is no second definition of the
-  contract anywhere in the tree.
-- One reusable dispatcher owns an endpoint's single attachment and holds the
-  routing policy above it: exact before longest segment prefix, a refusal for a
-  duplicate path, and selected receiving views that share that one owner rather
-  than each claiming the root. Registration, precedence and overlap left the
-  primitive with it.
-- A public invocation lifecycle: an admitted request's return capability is the
-  invocation, presented as a Wire, and its `invocation.capture`, `.ready`,
-  `.release`, `.begin`, `.done` and `.control` operations are ordinary events of
-  the profile at that origin. A dispatcher captures each traversal through it,
-  an execution owner reports actual body completion through it, and an endpoint
-  written by anyone can take part in it with nothing but the Wire it was handed.
-  A request whose return capability carries no lifecycle is refused rather than
-  routed with weaker guarantees.
-- Request serials increase in publication order: within one connection instance
-  and one direction, each published request's serial is greater than every one
-  published before it, gaps allowed, only request admission advancing the
-  receiver's mark, and a serial that does not increase ending the connection as
-  a malformed frame does. Reservation and publication share the outgoing
-  queue's one ordering gate, a sender that would wrap refuses first, and every
-  carrier bridge mints its own serials and maps the replies back.
 - `@nightseam/auth`, the TypeScript verifier of the optional authority
   profile: `grant` — the canonical body, the Archon envelope in
   `nightseam-grant/1`, the chain held to a request and to nothing, issuance
@@ -172,6 +90,66 @@ are one number. Entries are in the words of the commits that landed them.
   and their refusals, issuance with inherit, the interface both verifiers
   export, and a table of 72 cases both are held to — specified before either
   verifier is written.
+
+## 0.6.0 - 2026-09-22
+
+### Clarified
+
+- The shared Wire contract's home is Bitwire, adopted from it once its handover
+  was ready — which this release does, at v0.2.0 — while Nightseam retains its
+  runtime, generator, declaration/identity and optional-auth implementation.
+  The repository-home decision distinguishes the readiness conditions from
+  completed contract adoption.
+- The profile documentation names 4011 for a binary frame rejected by the
+  JSON peer, matching both reference runtimes. A shared core scenario holds
+  the close code at both ends and verifies the request is never dispatched.
+- Nightseam is the implementation home for its reusable typed-access
+  foundation and optional rooted-grant authentication, with public
+  self-contained contracts and consumer-owned application policy. The
+  decision distinguishes adopted scope from completed implementation.
+- Language onboarding includes the live runtime and generated boundary
+  conversion, with shared scenario evidence for every profile. It separates
+  declaration tiers, planned language assignments and achieved support, and
+  explains that live needs a peer rather than a tunnel.
+- The built-in family index lists `live` beside `duplex` and `tunnel`, the page
+  the spec target has rendered for it since the live tier landed. `RELEASING.md`
+  names `live/go/livetest` beside `duplex/go/duplextest` among the root module's
+  suites, and `@nightseam/otel`'s README counts `@nightseam/live` among the
+  packages it exists as a package of its own to keep free of every dependency.
+- The specification carries each composed language target's spelling, and the
+  generator pages say what disabling one withdraws.
+- The credit claim exempts ordinary contractions — `It's`, `That's`, `There's`
+  and their kin — which it had read as possessive proper nouns, and its
+  fixtures name nothing outside themselves.
+
+### Added
+
+- Go and TypeScript access surfaces adopt public Bitwire v0.2.0 through exact
+  shared types — send-only `Wire`, receiving and closing `Endpoint`, and the
+  named types that go with them — held to its independent composition cases
+  locally and over WebSockets in both role directions, while Nightseam retains
+  runtime and scoped-reference behavior. There is no second definition of the
+  contract anywhere in the tree.
+- One reusable dispatcher owns an endpoint's single attachment and holds the
+  routing policy above it: exact before longest segment prefix, a refusal for a
+  duplicate path, and selected receiving views that share that one owner rather
+  than each claiming the root. Registration, precedence and overlap left the
+  primitive with it.
+- A public invocation lifecycle: an admitted request's return capability is the
+  invocation, presented as a Wire, and its `invocation.capture`, `.ready`,
+  `.release`, `.begin`, `.done` and `.control` operations are ordinary events of
+  the profile at that origin. A dispatcher captures each traversal through it,
+  an execution owner reports actual body completion through it, and an endpoint
+  written by anyone can take part in it with nothing but the Wire it was handed.
+  A request whose return capability carries no lifecycle is refused rather than
+  routed with weaker guarantees.
+- Request serials increase in publication order: within one connection instance
+  and one direction, each published request's serial is greater than every one
+  published before it, gaps allowed, only request admission advancing the
+  receiver's mark, and a serial that does not increase ending the connection as
+  a malformed frame does. Reservation and publication share the outgoing
+  queue's one ordering gate, a sender that would wrap refuses first, and every
+  carrier bridge mints its own serials and maps the replies back.
 - Combined Go and TypeScript acceptance exercises closed callable applications
   and two-provider family draws through one Cell model across local Wires,
   sockets, channels and two-connection forwarding. Independent specialization,
@@ -226,6 +204,12 @@ are one number. Entries are in the words of the commits that landed them.
 - Python provides bounded Wire recording and independent following over
   consumer-owned storage, with atomic replay heads, cancellation-safe follower
   ownership and unchanged opaque message capabilities.
+- The six ports — Python, Java, Swift, C++, Rust and Haskell — ship at tier 4's
+  promise, `core` held against the Go reference in both roles, and stand
+  provisional in the matrix until each emits and refuses the profile's
+  increasing request serials, the rule the Bitwire v0.2.0 adoption added to
+  the profile and the two `core` scenarios each still fails
+  ([#448](https://github.com/Bitspark/nightseam/issues/448)–[#453](https://github.com/Bitspark/nightseam/issues/453)).
 - Go and TypeScript ship a bounded Wire record/follow composition with
   consumer-owned storage, an atomic replay-to-live handoff and independent
   subscriber failure. Opaque messages retain their existing reference scope.
@@ -279,6 +263,45 @@ are one number. Entries are in the words of the commits that landed them.
   target renders every form the declaration language settled, so the refusal
   had no caller and the code was the one diagnostic the tree could name and not
   emit. `render.FormsUsed` stays, as the inventory the proof family is held to.
+
+### Fixed
+
+- A testee that will not build in a language whose tier ships provisional is
+  recorded absent — the testee named, with its build's exit status and last
+  output lines, in the matrix and the job summary — and the star continues
+  with the remaining pairings, where before any build failure ended the run.
+  Tier 1 and tier 2 and the nightly full matrix still fail on one.
+- The cancellation-budget test drains completion observations during admission
+  retries, so its own observer cannot stall the peer after a handler returns.
+- Conformance build commands own their process trees and stop descendants on
+  cancellation or parent exit, retaining failure output without an unbounded
+  wait for inherited output pipes.
+- The Java WebSocket transport finishes its bounded close handshake before
+  publishing closure, and the peer's terminal winner owns the transport action.
+- The Java peer preserves a transport's explicit close when its read or write
+  waiter resumes before the separate closure notification is published.
+- Give each language testee build its own bounded deadline.
+- The generated composition fixture waits for worker completion before
+  asserting finished cancellation, preserving the final callback race.
+- Both OpenTelemetry adapters retain connection closes observed from consumer
+  span-start callbacks and preserve a connection reopened by those callbacks.
+- The TypeScript OpenTelemetry adapter retains connection and event-only
+  telemetry with the Go reference's connection lifecycle, producer/consumer
+  spans and fallback routing, without copying connection events onto requests.
+- Go and TypeScript peer Wires retain canceled handlers in their concurrency
+  budget until their application bodies finish, including caller and receiver
+  deadlines. Caller cancellation still returns promptly and reaches the handler.
+- A callable a TypeScript side exports runs with the invoking connection's
+  context, as Go's does: live's `Invoke` derives the handler context of the
+  connection that carried the invocation in — the caller's for a local one —
+  and the speller derives the wrapper's context instead of spreading the
+  options, so what a peer or its propagator placed on the context reaches the
+  callable.
+- The Java seam suite holds receive-limit rejection to a real socket: an
+  oversized send may fail while the receiver, having rejected the frame length
+  from its header, has already closed with 1009, and the suite accepts that one
+  failure while still requiring both receive operations and the receiver's
+  completion to report 1009.
 
 ## 0.5.0 - 2026-09-21
 
