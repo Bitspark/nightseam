@@ -8,6 +8,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- The registry round trip waits for the abbreviated document an install
+  reads, which npm serves from an index that lags the full one for a name it
+  has never served; installs the outsider consumer with no credential and no
+  user configuration, where before it carried whatever token the runner held;
+  and reaches its nested-module consumers — the table it read before the
+  table's declaration is a function, the script's steps are importable, and
+  a script test exercises that step without a registry.
 - conformance: attribute missing pair capabilities to their participant and report nightly failures without assuming a cause.
 
 - All eight language ports use Bitwire wire types directly. Remove Nightseam

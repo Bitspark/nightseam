@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
-import { copyRegistryConsumer, examples, manifestsUnder, root } from "./packages.mjs";
+import { copyRegistryConsumer, examples, manifestsUnder, modules, root } from "./packages.mjs";
+import { consumer, module, nested, outsiderEnvironment } from "./smoke-registry.mjs";
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), "nightseam-registry-test-"));
@@ -54,6 +55,36 @@ test("registry setup preserves a consumer's existing workspace configuration", t
   const consumer = join(directory, "consumer");
   copyRegistryConsumer(join(directory, "example"), consumer);
   assert.equal(readFileSync(join(consumer, "pnpm-workspace.yaml"), "utf8"), workspace);
+});
+
+test("every nested module has a registry consumer, and the round trip's nested step runs without a registry", t => {
+  // The step nothing exercised before v0.6.0's tag read its consumer table
+  // before the table's declaration, and the tag's round trip died there
+  // (#611). Importing the script runs nothing; the step is a function.
+  const { directory } = fixture(t);
+  assert.ok(modules.length > 0);
+  for (const file of modules) assert.ok(consumer(dirname(file)), `${dirname(file)} has no registry consumer`);
+  const calls = [];
+  nested({ tag: "v0.4.0", scratch: directory, go: { GOWORK: "off" }, log: () => {}, run: (program, args, options) => calls.push({ program, args, cwd: options.cwd, env: options.env }) });
+  for (const file of modules) {
+    const name = dirname(file).replace("/", "-");
+    const manifest = readFileSync(join(directory, name, "go.mod"), "utf8");
+    assert.ok(manifest.startsWith(`module example.com/${name}\n\ngo `), manifest);
+    assert.match(readFileSync(join(directory, name, "main.go"), "utf8"), /^package main\n\n/);
+    const own = calls.filter(call => call.cwd === join(directory, name));
+    assert.deepEqual(own.map(call => [call.program, ...call.args]), [["go", "get", `${module}/${dirname(file)}@v0.4.0`], ["go", "build", "./..."]]);
+    assert.equal(own[0].env.GOWORK, "off");
+  }
+  assert.throws(() => nested({ tag: "v0.4.0", scratch: directory, go: {}, log: () => {}, run: () => {}, nestedModules: ["never/go/go.mod"] }), /no registry consumer for the nested module never\/go/);
+});
+
+test("the outsider installs with no credential and reads no user configuration", t => {
+  const { directory } = fixture(t);
+  const env = outsiderEnvironment(directory, { PATH: "kept", NODE_AUTH_TOKEN: "placeholder", NPM_TOKEN: "secret", NPM_CONFIG_USERCONFIG: "/elsewhere/.npmrc" });
+  assert.equal(env.PATH, "kept");
+  for (const name of ["NODE_AUTH_TOKEN", "NPM_TOKEN", "NPM_CONFIG_USERCONFIG"]) assert.equal(name in env, false, name);
+  assert.equal(dirname(env.npm_config_userconfig), directory);
+  assert.equal(readFileSync(env.npm_config_userconfig, "utf8"), "");
 });
 
 test("registry setup preserves every actual release manifest and Go requirement", t => {

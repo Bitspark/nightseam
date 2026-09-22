@@ -16,55 +16,90 @@
 // naming the tag. By then the tag exists and the packages are on npm, so
 // nothing can be taken back and nobody re-runs a red job on a tag: an
 // issue is what is left of the failure the next morning.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+//
+// The steps are functions and the script runs only when it is the program,
+// so that a test can exercise a step — the nested-module consumers, the
+// outsider's environment — without a registry: a step nothing exercises
+// before the tag is found out after it (v0.6.0, #611).
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { connect, createServer } from "node:net";
 import { setTimeout as after } from "node:timers/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { copyRegistryConsumer, examples, modules, root } from "./packages.mjs";
 import { waitForRegistries } from "./registry.mjs";
 import { holdProbeExchange } from "./probe-exchange.mjs";
 import { addPublishedDependencies, holdOutsiderImports } from "./smoke-imports.mjs";
 
-const tag = process.argv[2];
-if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
-  console.error("usage: node scripts/smoke-registry.mjs v<major.minor.patch> [--open-issue]");
-  process.exit(2);
-}
-const version = tag.slice(1);
-const module = "github.com/Bitspark/nightseam";
+export const module = "github.com/Bitspark/nightseam";
 const step = message => console.log("round trip:", message);
-const run = (program, args, options = {}) =>
-  execFileSync(program, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options, env: { ...process.env, ...options.env } });
-const quote = argument => (/[\s"]/.test(argument) ? `"${argument}"` : argument);
-const pnpm = (args, options = {}) => {
-  const common = { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options, env: { ...process.env, ...options.env } };
-  return process.platform === "win32" ? execSync(["pnpm.cmd", ...args.map(quote)].join(" "), common) : execFileSync("pnpm", args, common);
-};
 
-if (!tagged(tag)) {
-  console.log(`round trip: skipped — ${tag} is not a tag in this checkout, so there is nothing published to install; it runs after the tag is pushed`);
-  process.exit(0);
-}
-if (examples.length === 0) {
-  console.error("no example under examples/; the round trip installs the getting-started, the same consumer the packed smoke does");
-  process.exit(1);
-}
-
-const scratch = mkdtempSync(join(tmpdir(), "nightseam-roundtrip-"));
-let server;
-try {
-  await roundTrip();
-} catch (failure) {
-  report(failure);
-  throw failure;
-} finally {
-  if (server) stop(server);
-  rmSync(scratch, { recursive: true, force: true, maxRetries: 10 });
+/**
+ * The environment the outsider installs in: no credential and no user
+ * configuration, because the question is whether an installation with
+ * nothing laid for it resolves. setup-node exports a placeholder
+ * NODE_AUTH_TOKEN for the .npmrc it writes when none is given, a first
+ * publish sets a real one, and a maintainer's .npmrc may route a scope
+ * elsewhere; pnpm sends whatever it is handed, and each answers a different
+ * question from the consumer's.
+ */
+export function outsiderEnvironment(scratch, base = process.env) {
+  const env = { ...base };
+  for (const name of Object.keys(env)) {
+    if (/^(NODE_AUTH_TOKEN|NPM_TOKEN|NPM_CONFIG_USERCONFIG|npm_config_userconfig)$/i.test(name)) delete env[name];
+  }
+  const userconfig = join(scratch, "outsider.npmrc");
+  writeFileSync(userconfig, "");
+  env.npm_config_userconfig = userconfig;
+  return env;
 }
 
-async function roundTrip() {
+/** The commands, run in one environment; an option's `env` is laid over it. */
+export function commands(env) {
+  const run = (program, args, options = {}) =>
+    execFileSync(program, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options, env: { ...env, ...options.env } });
+  // On Windows pnpm is a .cmd, which Node refuses to spawn as a file and
+  // runs as a command line instead.
+  const quote = argument => (/[\s"]/.test(argument) ? `"${argument}"` : argument);
+  const pnpm = (args, options = {}) => {
+    const common = { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options, env: { ...env, ...options.env } };
+    return process.platform === "win32" ? execSync(["pnpm.cmd", ...args.map(quote)].join(" "), common) : execFileSync("pnpm", args, common);
+  };
+  return { run, pnpm };
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const tag = argv[0];
+  if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
+    console.error("usage: node scripts/smoke-registry.mjs v<major.minor.patch> [--open-issue]");
+    return 2;
+  }
+  if (!tagged(tag)) {
+    console.log(`round trip: skipped — ${tag} is not a tag in this checkout, so there is nothing published to install; it runs after the tag is pushed`);
+    return 0;
+  }
+  if (examples.length === 0) {
+    console.error("no example under examples/; the round trip installs the getting-started, the same consumer the packed smoke does");
+    return 1;
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "nightseam-roundtrip-"));
+  const held = {};
+  try {
+    await roundTrip({ tag, scratch, held, ...commands(outsiderEnvironment(scratch)) });
+    return 0;
+  } catch (failure) {
+    report(failure, tag, argv);
+    throw failure;
+  } finally {
+    if (held.server) stop(held.server);
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 10 });
+  }
+}
+
+export async function roundTrip({ tag, scratch, held, run, pnpm }) {
+  const version = tag.slice(1);
   // A successful publish precedes registry propagation. Wait for the exact
   // release everywhere, then install once; failures still reach report().
   await waitForRegistries(tag, { log: step });
@@ -78,7 +113,7 @@ async function roundTrip() {
   // Nothing is overridden and no proxy is laid: the manifest asks for the
   // version and the registry answers, or this is where the release is
   // found out.
-  step(`pnpm install — @nightseam/* at ${version}, from npm`);
+  step(`pnpm install — @nightseam/* at ${version}, from npm, as an outsider with no credential`);
   pnpm(["install", "--no-frozen-lockfile"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
   step("pnpm check");
   pnpm(["check"], { cwd: consumer, stdio: ["ignore", "inherit", "inherit"] });
@@ -93,11 +128,11 @@ async function roundTrip() {
   run("go", ["mod", "download", "all"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
   step("go tool nightseam check");
   run("go", ["tool", "nightseam", "check"], { cwd: consumer, env: go, stdio: ["ignore", "inherit", "inherit"] });
-  nested(go);
+  nested({ tag, scratch, go, run });
 
   const address = `127.0.0.1:${await free()}`;
   step(`go run ./server on ws://${address}/probe`);
-  server = spawn("go", ["run", "./server"], {
+  held.server = spawn("go", ["run", "./server"], {
     cwd: consumer,
     env: { ...process.env, ...go, PROBE_ADDRESS: address },
     stdio: ["ignore", "inherit", "inherit"],
@@ -105,7 +140,7 @@ async function roundTrip() {
   });
   const deadline = Date.now() + 180_000;
   while (!(await listening(address))) {
-    if (Date.now() > deadline || server.exitCode !== null) throw new Error(`the example's server never listened on ${address}`);
+    if (Date.now() > deadline || held.server.exitCode !== null) throw new Error(`the example's server never listened on ${address}`);
     await after(200);
   }
 
@@ -125,21 +160,23 @@ async function roundTrip() {
  * each consumer imports the module's root package and, where one is
  * exported, calls something of it.
  */
-const consumers = {
-  "otel/go": 'import otel "github.com/Bitspark/nightseam/otel/go"\n\nfunc main() { _ = otel.Propagator(nil) }\n',
-  "auth/go": 'import _ "github.com/Bitspark/nightseam/auth/go"\n\nfunc main() {}\n',
-};
+export function consumer(directory) {
+  return {
+    "otel/go": 'import otel "github.com/Bitspark/nightseam/otel/go"\n\nfunc main() { _ = otel.Propagator(nil) }\n',
+    "auth/go": 'import _ "github.com/Bitspark/nightseam/auth/go"\n\nfunc main() {}\n',
+  }[directory];
+}
 
-function nested(go) {
-  for (const file of modules) {
+export function nested({ tag, scratch, go, run, log = step, nestedModules = modules }) {
+  for (const file of nestedModules) {
     const directory = dirname(file);
-    const program = consumers[directory];
+    const program = consumer(directory);
     if (!program) throw new Error(`no registry consumer for the nested module ${directory}; add one beside the others`);
     const at = join(scratch, directory.replace("/", "-"));
     mkdirSync(at, { recursive: true });
     writeFileSync(join(at, "go.mod"), `module example.com/${directory.replace("/", "-")}\n\ngo ${directive()}\n`);
     writeFileSync(join(at, "main.go"), `package main\n\n${program}`);
-    step(`go get ${module}/${directory}@${tag}`);
+    log(`go get ${module}/${directory}@${tag}`);
     run("go", ["get", `${module}/${directory}@${tag}`], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
     run("go", ["build", "./..."], { cwd: at, env: go, stdio: ["ignore", "inherit", "inherit"] });
   }
@@ -163,8 +200,8 @@ function tagged(name) {
  * without them this says what it would have filed and lets the failure
  * stand on its own, which is what a run by hand wants.
  */
-function report(failure) {
-  if (!process.argv.includes("--open-issue")) return;
+function report(failure, tag, argv) {
+  if (!argv.includes("--open-issue")) return;
   const title = `release: ${tag} is published and the round trip against it failed`;
   const body = [
     `\`node scripts/smoke-registry.mjs ${tag}\` failed after ${tag} was published.`,
@@ -217,4 +254,8 @@ function stop(child) {
   } catch {
     // It had already gone, which is the other way this ends.
   }
+}
+
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  process.exitCode = await main();
 }

@@ -166,7 +166,10 @@ that names another commit.
    including packages and subpaths the example does not use.
    Before installing, it polls npm and the Go proxy with backoff for up to
    thirty minutes for every published package and Go module to propagate,
-   with retry backoff capped at thirty seconds.
+   with retry backoff capped at thirty seconds. It reads the abbreviated
+   document an install reads — npm serves it from an index that lags the full
+   one for a name it has never served — and installs as an outsider, with no
+   credential and no user configuration.
    The window includes cached Go proxy misses that can outlive publication
    by many minutes. It reports the wait and names anything still unavailable
    at the deadline.
