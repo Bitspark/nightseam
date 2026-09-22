@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Bitspark/nightseam/duplex/go"
 )
@@ -261,6 +262,7 @@ func TestWireHelperConcurrentObserverIdentitiesDoNotCollide(t *testing.T) {
 	active := map[string]bool{}
 	ids := map[string]bool{}
 	collision, unmatched := false, false
+	ended := make(chan struct{}, 4)
 	observer := localTestObserver(func(event ObserverEvent) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -276,6 +278,7 @@ func TestWireHelperConcurrentObserverIdentitiesDoNotCollide(t *testing.T) {
 				unmatched = true
 			}
 			delete(active, event.ID)
+			ended <- struct{}{}
 		}
 	})
 	started := make(chan struct{}, 2)
@@ -318,6 +321,16 @@ func TestWireHelperConcurrentObserverIdentitiesDoNotCollide(t *testing.T) {
 	close(first)
 	if err := <-one; err != nil {
 		t.Error(err)
+	}
+	// Returning the reply can wake CallWire before the incoming observation.
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for range 4 {
+		select {
+		case <-ended:
+		case <-deadline.C:
+			t.Fatal("missing request completion observation")
+		}
 	}
 	mu.Lock()
 	defer mu.Unlock()
