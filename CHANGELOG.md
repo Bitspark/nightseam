@@ -8,6 +8,8 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- conformance: attribute missing pair capabilities to their participant and report nightly failures without assuming a cause.
+
 - All eight language ports use Bitwire wire types directly. Remove Nightseam
   aliases, re-exports and duplicate declarations; generated adapters import
   Bitwire, and native ports separate send access from endpoint attachment and

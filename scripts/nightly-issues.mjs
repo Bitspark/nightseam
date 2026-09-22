@@ -1,9 +1,8 @@
 // Turns a nightly full-matrix run into issues: one per scenario that failed,
 // titled by the scenario, with every pairing it failed in named in the body.
-// The scenario is the unit and not the pairing because the reference decides
-// — two non-reference languages disagreeing about something Go tolerates is
-// the scenario being under-specified, and that is one piece of work however
-// many pairs tripped over it.
+// Group by scenario so its diagnostics can be compared across pairings.
+// The run alone does not establish whether a runtime, driver, or scenario
+// caused a failure, nor whether either participant passed against Go.
 //
 //	go test -json ./conformance/go -run TestMatrix > run.json   # NIGHTSEAM_MATRIX=1
 //	node scripts/nightly-issues.mjs run.json --repo owner/name --run-url https://…
@@ -69,7 +68,7 @@ export function body(failure, runUrl) {
     "",
     `The nightly full matrix — every language against every other — failed \`${failure.layer}/${failure.scenario}\` in ${failure.pairings.length} pairing${failure.pairings.length > 1 ? "s" : ""}.`,
     "",
-    "The star that CI runs holds every language against the Go reference, and it is green: what failed here is two languages disagreeing about something the reference tolerates. The reference decides, so this is an issue against the scenario — it does not say what a language must do in a case that both languages pass against Go.",
+    "These diagnostics need investigation in the runtime, driver, or scenario. This run does not establish how either participant behaved against the Go reference. CI may remain green with provisional language failures; compare the actual scenario results before assigning a cause.",
     "",
     "| pairing |",
     "| --- |",

@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -322,6 +323,51 @@ func TestProfilesAreHeldToThemselves(t *testing.T) {
 		_, err := LoadProfiles(broken)
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s was not refused for %q: %v", c.name, c.want, err)
+		}
+	}
+}
+
+// A missing optional capability belongs to its participant, on either side.
+// It must not turn the other participant's required profile red.
+func TestNightlyAttributesSkippedCapabilities(t *testing.T) {
+	t.Setenv("NIGHTSEAM_MATRIX", "1")
+	for _, missing := range []string{"go", "fourth"} {
+		for _, pair := range [][2]string{{"go", "fourth"}, {"fourth", "go"}} {
+			t.Run(strings.Join(pair[:], "-")+"/"+missing, func(t *testing.T) {
+				p := tiered()
+				sc := Scenario{Layer: "tunnel", Name: "fixture"}
+				s := &Suite{Profiles: p, Matrix: NewMatrix(p), Placed: map[string]string{sc.Key(): "tunnel"}}
+				r := &verdictReporter{}
+				s.reportOutcome(r, sc, pair[0], pair[1], pair[0], Outcome{Skipped: "missing tunnel", SkippedBy: missing})
+				if r.failed != (missing == "go") {
+					t.Fatalf("missing %s: failed=%v, output=%s", missing, r.failed, r.output)
+				}
+				if s.Matrix.rows[missing]["tunnel"].Skipped != 1 {
+					t.Fatal("missing participant lost its skip")
+				}
+				other := "go"
+				if missing == "go" {
+					other = "fourth"
+				}
+				if len(s.Matrix.rows[other]) != 0 {
+					t.Fatalf("uninvolved participant received a result: %v", s.Matrix.rows[other])
+				}
+			})
+		}
+	}
+}
+
+func TestRunNamesTheParticipantMissingACapability(t *testing.T) {
+	for _, side := range []string{"a", "b"} {
+		a := &Testee{Language: "first", Hello: Hello{Layers: []string{"peer"}}}
+		b := &Testee{Language: "second", Hello: Hello{Layers: []string{"peer"}}}
+		outcome := Run(context.Background(), a, b, Scenario{Steps: []Step{{On: side, Op: "tunnel.open"}}})
+		want := "first"
+		if side == "b" {
+			want = "second"
+		}
+		if outcome.SkippedBy != want || outcome.Skipped == "" {
+			t.Fatalf("side %s: %+v", side, outcome)
 		}
 	}
 }

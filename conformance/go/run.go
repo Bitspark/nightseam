@@ -13,7 +13,10 @@ import (
 // with the reason, or failed at a step with everything a reader needs.
 type Outcome struct {
 	Skipped string
-	Failed  *Failure
+	// SkippedBy names the participant missing a capability or operation.
+	// Empty means the reason concerns the pairing rather than one participant.
+	SkippedBy string
+	Failed    *Failure
 }
 
 // Failure is where a scenario parted from what happened.
@@ -66,7 +69,7 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 		}
 		for _, need := range needs {
 			if !t.Hello.Has(need) {
-				return Outcome{Skipped: fmt.Sprintf("the %s testee, on side %s, lacks %s", t.Language, side, need)}
+				return Outcome{Skipped: fmt.Sprintf("the %s testee, on side %s, lacks %s", t.Language, side, need), SkippedBy: t.Language}
 			}
 		}
 	}
@@ -119,7 +122,7 @@ func Run(ctx context.Context, a, b *Testee, s Scenario) Outcome {
 		rendered := renderAnswer(answer)
 		if answer.Error != nil {
 			if answer.Error.Code == "unsupported" {
-				return Outcome{Skipped: fmt.Sprintf("the %s testee does not support %s: %s", testee.Language, step.Op, answer.Error.Message)}
+				return Outcome{Skipped: fmt.Sprintf("the %s testee does not support %s: %s", testee.Language, step.Op, answer.Error.Message), SkippedBy: testee.Language}
 			}
 			if step.ExpectError == nil {
 				return fail(args, rendered, "the op failed: "+answer.Error.Error())
