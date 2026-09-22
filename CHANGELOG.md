@@ -46,6 +46,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- runtime/py: publish request serials in order, refuse non-increasing incoming serials, and close before identifier exhaustion.
+- runtime/rs: serialize request reservation with publication, reject reused incoming serials, and stop before exhaustion.
+- runtime/java: reserve and publish request serials under one fair gate, reject non-increasing incoming serials, and refuse exhaustion before wrap.
+- runtime/cpp: order request reservation and publication through a cancellable queue and reject non-increasing incoming serials.
+- runtime/hs: serialize physical request publication across calls and Wire bridges and retain the receiver serial high-water mark.
+- runtime/swift: retain request publication order across actor suspension, reject non-increasing incoming serials, and refuse counter exhaustion.
+- conformance: allow an oversized write to lose the race with remote refusal while requiring the receiver to reject the frame and stay closed.
+- runtime/go: wait for send and completion observations before asserting Wire ordering and observer identity lifetimes.
 - The worktree script recognizes a registered worktree through any spelling of
   its path — a Windows 8.3 short name such as the GitHub runner's
   `RUNNER~1`, or another case — by comparing the filesystem's own, where
