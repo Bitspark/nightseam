@@ -231,6 +231,16 @@ under fifty lines and points at this page; this page states rules, not
 incidents. What cannot be made a check and is not a rule is a `design`
 issue.
 
+A workflow run that fails after its first five minutes is such a lesson,
+and it files itself: `.github/workflows/slow-failure.yml` opens an issue
+naming the workflow, the job and step, and the minute it failed at, with
+the last lines of the step and one question — which check would have
+refused this in under five minutes? The lane that answers it lands that
+check and closes the issue; a run that fails within five minutes files
+nothing, and a repeat of the same failure comments on the open issue rather
+than filing another. Waiting twenty minutes for a run that was going to
+fail is what it exists to stop.
+
 ## Releases
 
 Versions move in lockstep across the published TypeScript packages, the

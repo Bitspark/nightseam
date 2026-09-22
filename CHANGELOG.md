@@ -8,6 +8,14 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- A workflow that files an issue for every workflow run that fails after its
+  first five minutes — the run, the job and step, the minute it failed at,
+  the last lines of the step, and the question which check would have
+  refused it in under five — on the next release's milestone under the
+  `slow-failure` label; a run that fails within five minutes files nothing,
+  and a repeat of the same failure comments on the open issue. The decision
+  is a function of the run's JSON, held by a script test on runs no workflow
+  has produced.
 - A figure of the projection stages and their interfaces — the declaration,
   its rendering, the generated packages, the native model, the adapter
   boundary, the wire and the dispatcher, the layers over the peer, the peer
