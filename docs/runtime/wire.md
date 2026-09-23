@@ -24,6 +24,9 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | take a receiving view of that owner | `Dispatcher.Select(path)` | `dispatcher.select(path)` |
 | select an origin, send only | `duplex.At(wire, path)` | `at(wire, path)` |
 | mount children by one segment | `duplex.Mount(map[string]bitwire.Endpoint)` | `mount(ReadonlyMap<string, Endpoint>)` |
+| construct a declaration with own behavior and child policy | `duplex.ComposeDeclared(value, children)` | `Declared.compose(value, children)` |
+| retain complete raw construction parts | `declared.Decompose()` | `declared.decompose()` |
+| bind declared send access | `declared.Bind()` | `declared.bind()` |
 | create a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
@@ -87,6 +90,68 @@ replacing the first, detach is idempotent and permits a later attachment, and
 there is no implicit broadcast. Handler registration, exact and prefix
 matching, overlap precedence and duplicate-path refusal are not the endpoint's:
 they belong to one reusable dispatcher composed above it.
+
+## Declared composition
+
+Go and TypeScript implement Bitwire's
+[declared admission composition](https://github.com/Bitspark/bitwire/blob/671b61d4513c0ba31e8d2f1c813a0552ab0f816a/docs/decisions/0005-declared-composition-and-subtree-policy.md).
+Each immutable declaration retains an own origin, a policy and its complete
+named children. The own origin handles only the empty relative path; missing
+children refuse instead of falling back to it. `RefusingOrigin{}` /
+`refusingOrigin` supplies an explicit grouping origin, and `PermitAdmission{}` /
+`permitAdmission` is an explicit identity policy.
+
+```ts
+const child = Declared.compose({ own: childOrigin, policy: permitAdmission }, []);
+const root = Declared.compose({ own: rootOrigin, policy: sharedAdmission }, [['child', child]]);
+const selected = at(root.bind(), ['child']); // retains sharedAdmission
+const { value, children } = root.decompose();
+const rebuilt = Declared.compose(value, children); // same origins and policy state
+const extended = rebuilt.attach(['child'], 'next', anotherDeclaration);
+```
+
+Go uses `DeclaredValue{Own: origin, Policy: admission}` and a slice of
+`DeclaredChild{Key: name, Node: child}`. Both constructors copy the child
+containers and refuse duplicate keys, invalid scalar strings and missing
+required parts. `Attach(parent, key, child)` / `attach(parent, key, child)`
+requires an existing parent and an unused key, and retains every old own value
+and untouched subtree. It constructs a new tree; previous bound views and
+admitted invocations keep their old targets. Empty keys and childless nodes
+remain meaningful.
+
+Go declarations are value handles to private immutable records. Replacing an
+assembler's handle cannot retarget a previously composed child or bound view.
+
+`AdmissionPolicy.Admit` / `admit` runs once for each occurrence from root to
+destination, before child lookup or own dispatch. It sees the remaining path
+and original message and permits or refuses one unchanged delegation. Checks
+must be synchronous, bounded and nonblocking; messages must not be mutated.
+Mutable Go policies synchronize their own shared state. There is no implicit
+rollback if a later policy or destination refuses: a quota counts attempts,
+not successfully completed effects. Application handlers still run through the
+destination endpoint's asynchronous dispatch. Installing the same policy at
+two depths intentionally performs two checks.
+
+Construction descriptions belong to the assembler. `Decompose` returns raw
+children and original capability/policy instances; `Declared.At` / `at`
+resolves those raw descriptions. A caller who should retain guards receives
+only `Bind` / `bind` followed by ordinary Wire selection. Reconstructing from
+selected views would repeat their ancestor checks; revealing raw descriptions
+through selected access would bypass those checks. Bound facades expose only
+Send, with no parts, receiver, closure or unwrapping operation. They borrow
+all capabilities and never close them.
+
+This entry admits requests and events only. Responses and cancellation use the
+captured invocation's public facilities; reconstruction or exhausted quotas
+do not introduce another admission check on those paths. Retries, rewriting,
+fanout, completion permits and transport fault transparency require their own
+contracts. The [independent acceptance suite](../../conformance/declared/README.md)
+records actual production coverage and remaining limits.
+
+The structural interpretation implements Bitwire ADR0005 without an additional
+package dependency or a tree codec. Production API adoption is currently Go and
+TypeScript; other language implementations remain pending. Existing pure mounts
+and the native Bitwire interface are unchanged.
 
 ## The dispatcher
 

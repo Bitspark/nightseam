@@ -26,6 +26,12 @@ matrix shows and no tier needs to name.
 
 ## Profiles
 
+The optional [declared Wire composition](../runtime/wire.md#declared-composition)
+facility is implemented in Go and TypeScript. Its
+[independent acceptance](../../conformance/declared/README.md) exercises both
+production APIs. Other ports have no declared-construction API yet; this does
+not change their existing pure mount or Wire contract adoption claims.
+
 A profile is a named set of scenarios, and a scenario belongs to exactly
 one. The profiles follow the components, because that is how a language is
 built and how a consumer adopts it. What holding a profile means to a

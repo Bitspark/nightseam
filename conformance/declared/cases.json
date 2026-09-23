@@ -1,0 +1,1584 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "root",
+      "own": "root",
+      "policy": "outer",
+      "children": [
+        [
+          "a",
+          "branch"
+        ],
+        [
+          "alias",
+          "leaf"
+        ],
+        [
+          "",
+          "blank"
+        ],
+        [
+          "a/b",
+          "slash"
+        ],
+        [
+          "é",
+          "acute"
+        ],
+        [
+          "é",
+          "combining"
+        ],
+        [
+          "empty",
+          "empty"
+        ]
+      ]
+    },
+    {
+      "id": "branch",
+      "own": "branch",
+      "policy": "inner",
+      "children": [
+        [
+          "b",
+          "leaf"
+        ]
+      ]
+    },
+    {
+      "id": "leaf",
+      "own": "leaf",
+      "children": []
+    },
+    {
+      "id": "blank",
+      "own": "blank",
+      "children": []
+    },
+    {
+      "id": "slash",
+      "own": "slash",
+      "children": []
+    },
+    {
+      "id": "acute",
+      "own": "acute",
+      "children": []
+    },
+    {
+      "id": "combining",
+      "own": "combining",
+      "children": []
+    },
+    {
+      "id": "empty",
+      "own": null,
+      "children": []
+    }
+  ],
+  "cases": [
+    {
+      "id": "own-and-descendant",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": []
+        },
+        {
+          "op": "send",
+          "path": [
+            "a"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            []
+          ],
+          [
+            "outer",
+            [
+              "a"
+            ]
+          ],
+          [
+            "inner",
+            []
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "root",
+            1
+          ],
+          [
+            "branch",
+            1
+          ],
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "nested-selected",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [],
+          "selections": [
+            [],
+            [
+              "a"
+            ],
+            [],
+            [
+              "b"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "root-cut-retains-quota",
+      "limits": {
+        "outer": 1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "rebuild",
+          "cut": "root"
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "complete-cut-retains-alias",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "rebuild",
+          "cut": "all"
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        },
+        {
+          "op": "rebuild",
+          "cut": "all"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ],
+          [
+            "leaf",
+            3
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "shared-sibling-budget",
+      "limits": {
+        "outer": 2,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "denied-selected",
+      "limits": {
+        "outer": 0,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [],
+          "selections": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-raw-child-bypasses",
+      "limits": {
+        "outer": 0,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [],
+          "raw": "leaf"
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted"
+        ],
+        "checks": [],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-bound-child-doubles",
+      "limits": {
+        "outer": 1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "boundChild"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-reset-policy",
+      "limits": {
+        "outer": 1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        },
+        {
+          "op": "resetPolicy"
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "same-policy-two-occurrences",
+      "limits": {
+        "outer": 2,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "sharePolicy"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": []
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            []
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "opaque-empty-and-origin-refusal",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            ""
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "a/b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "é"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "é"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "empty"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "admitted",
+          "admitted",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              ""
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a/b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "é"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "é"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "empty"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "blank",
+            1
+          ],
+          [
+            "slash",
+            1
+          ],
+          [
+            "acute",
+            1
+          ],
+          [
+            "combining",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "missing-never-falls-back",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "missing"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "missing"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "empty",
+            "x"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused",
+          "refused",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "missing"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "missing"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "missing"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "empty",
+              "x"
+            ]
+          ]
+        ],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-lost-own",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "dropOwn"
+        },
+        {
+          "op": "send",
+          "path": []
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            []
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-omitted-child",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "omit"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-renamed-child",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "rename"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "renamed",
+            "b"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "renamed",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "negative-extra-child",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "extra"
+        },
+        {
+          "op": "send",
+          "path": [
+            "extra"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "extra"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "equivalent-substitution",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "substitute"
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ],
+          [
+            "leaf",
+            3
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "forwarded-reconstruction",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "rebuild",
+          "cut": "all"
+        },
+        {
+          "op": "send",
+          "path": [],
+          "selections": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      },
+      "relay": true
+    },
+    {
+      "id": "inner-refusal-consumes-outer",
+      "limits": {
+        "outer": 1,
+        "inner": 0
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused",
+          "refused"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "invalid-path-before-policy",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "invalidPath"
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused"
+        ],
+        "checks": [],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "conflicting-children",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [],
+      "expected": {
+        "construction": "refused"
+      },
+      "fault": "duplicate"
+    },
+    {
+      "id": "invalid-key-bytes",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [],
+      "expected": {
+        "construction": "refused"
+      },
+      "fault": "invalidKey"
+    },
+    {
+      "id": "pending-across-rebuild",
+      "kind": "pending",
+      "limits": {
+        "outer": 1,
+        "inner": -1
+      },
+      "steps": [],
+      "expected": {
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "newCallRefused": true,
+        "lateReply": "old",
+        "cancelled": [
+          "old"
+        ],
+        "returnPreserved": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "selection-retains-original-binding",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "captureView",
+          "selections": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ]
+        },
+        {
+          "op": "rebind"
+        },
+        {
+          "op": "send",
+          "path": [],
+          "useView": true
+        },
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "send",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "alias"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "replacement",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "mounted-reconstruction-and-teardown",
+      "mount": true,
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "send",
+          "path": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "op": "rebuild",
+          "cut": "all"
+        },
+        {
+          "op": "send",
+          "selections": [
+            [
+              "a"
+            ],
+            [
+              "b"
+            ]
+          ],
+          "path": []
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "admitted",
+          "admitted"
+        ],
+        "checks": [
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ],
+          [
+            "outer",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "inner",
+            [
+              "b"
+            ]
+          ]
+        ],
+        "deliveries": [
+          [
+            "leaf",
+            1
+          ],
+          [
+            "leaf",
+            2
+          ]
+        ],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "controls-are-not-new-admission",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [
+        {
+          "op": "control",
+          "kind": "cancel",
+          "path": [
+            "alias"
+          ]
+        },
+        {
+          "op": "control",
+          "kind": "response",
+          "path": [
+            "alias"
+          ]
+        }
+      ],
+      "expected": {
+        "outcomes": [
+          "refused",
+          "refused"
+        ],
+        "checks": [],
+        "deliveries": [],
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true,
+        "partsRetained": true
+      }
+    },
+    {
+      "id": "cyclic-declaration",
+      "fault": "cycle",
+      "limits": {
+        "outer": -1,
+        "inner": -1
+      },
+      "steps": [],
+      "expected": {
+        "construction": "refused"
+      }
+    }
+  ]
+}
