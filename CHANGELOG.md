@@ -62,6 +62,7 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Changed
 
+- Update `golang.org/x/sys` to v0.48.0 and synchronize the nested Go module manifests.
 - The five conformance profiles carry a `description`, one sentence saying
   what a language that holds the profile can do; `docs/languages/tiers.md`
   carries each as the data spells it, held by `scripts/profiles.test.mjs`,
