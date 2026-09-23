@@ -3,10 +3,7 @@ package duplex_test
 import (
 	"errors"
 	"reflect"
-	"runtime"
-	"sync"
 	"testing"
-	"time"
 
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -23,30 +20,13 @@ func (o *declaredOrigin) Send(path []string, message bitwire.Message) error {
 	return nil
 }
 
-type declaredPolicy struct {
-	mu        sync.Mutex
-	remaining int
-	paths     [][]string
-}
+type declaredSend func([]string, bitwire.Message) error
 
-var errDeclaredQuota = errors.New("quota exhausted")
+func (f declaredSend) Send(p []string, m bitwire.Message) error { return f(p, m) }
 
-func (p *declaredPolicy) Admit(path []string, _ bitwire.Message) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.paths = append(p.paths, append([]string{}, path...))
-	if p.remaining == 0 {
-		return errDeclaredQuota
-	}
-	if p.remaining > 0 {
-		p.remaining--
-	}
-	return nil
-}
-
-func declaredNode(t *testing.T, own bitwire.Wire, policy duplex.AdmissionPolicy, children ...duplex.DeclaredChild) duplex.Declared {
+func declaredNode(t *testing.T, origin bitwire.Wire, children ...duplex.DeclaredChild) duplex.Declared {
 	t.Helper()
-	n, err := duplex.ComposeDeclared(duplex.DeclaredValue{Own: own, Policy: policy}, children)
+	n, err := duplex.ComposeDeclared(origin, children)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,277 +37,195 @@ func declaredEvent() bitwire.Message {
 	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileEvent}}
 }
 
-func TestDeclaredOwnOriginAndChildrenRemainIndependent(t *testing.T) {
-	parent, child := &declaredOrigin{}, &declaredOrigin{}
-	root := declaredNode(t, parent, duplex.PermitAdmission{})
-	leaf := declaredNode(t, child, duplex.PermitAdmission{})
-	grown, err := root.Attach(nil, "", leaf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	message := declaredEvent()
-	message.Return = &bitwire.ReturnAddress{Wire: parent}
-	for _, path := range [][]string{{}, {""}} {
-		if err := grown.Bind().Send(path, message); err != nil {
-			t.Fatal(err)
+func TestDeclaredDelegatesEveryFrameUnchangedToOriginAndCompleteChild(t *testing.T) {
+	origin, child := &declaredOrigin{}, &declaredOrigin{}
+	root := declaredNode(t, origin, duplex.DeclaredChild{Key: "a", Wire: child})
+	access := root.Bind()
+	capability := &bitwire.ReturnAddress{Wire: origin}
+	for _, kind := range []bitwire.ProfileKind{bitwire.ProfileRequest, bitwire.ProfileEvent, bitwire.ProfileResponse, bitwire.ProfileCancel} {
+		m := bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: kind, ID: "same", Data: []byte(`{"kept":true}`)}, Return: capability}
+		for _, path := range [][]string{{}, {"a", "opaque", "suffix"}} {
+			if err := access.Send(path, m); err != nil {
+				t.Fatalf("%s: %v", kind, err)
+			}
+		}
+		for _, got := range []bitwire.Message{origin.messages[len(origin.messages)-1], child.messages[len(child.messages)-1]} {
+			if !reflect.DeepEqual(got, m) || got.Return != capability || &got.Frame.Data[0] != &m.Frame.Data[0] {
+				t.Fatalf("%s: message or capability changed", kind)
+			}
 		}
 	}
-	if len(parent.messages) != 1 || len(child.messages) != 1 || parent.messages[0].Return != message.Return || child.messages[0].Return != message.Return {
-		t.Fatal("own access, child access or original return identity was lost")
+	if !reflect.DeepEqual(origin.paths, [][]string{{}, {}, {}, {}}) || !reflect.DeepEqual(child.paths, [][]string{{"opaque", "suffix"}, {"opaque", "suffix"}, {"opaque", "suffix"}, {"opaque", "suffix"}}) {
+		t.Fatalf("wrong destinations: origin=%v child=%v", origin.paths, child.paths)
 	}
-	if !reflect.DeepEqual(parent.paths, [][]string{{}}) || !reflect.DeepEqual(child.paths, [][]string{{}}) {
-		t.Fatal("an origin received a nonempty suffix")
+	if err := access.Send([]string{"missing"}, declaredEvent()); !errors.Is(err, duplex.ErrNoRoute) {
+		t.Fatal(err)
 	}
-	if err := grown.Bind().Send([]string{"missing"}, message); !errors.Is(err, duplex.ErrNoRoute) {
-		t.Fatalf("missing child: %v", err)
-	}
-	if len(parent.messages) != 1 {
-		t.Fatal("missing child fell back to own access")
-	}
-	if _, ok := root.At([]string{""}); ok {
-		t.Fatal("attachment mutated the previous declaration")
-	}
-	value, _ := grown.Decompose()
-	if value.Own != parent {
-		t.Fatal("attachment replaced the parent's own value")
-	}
-	if _, err := grown.Attach(nil, "", leaf); !errors.Is(err, duplex.ErrDeclaredChildExists) {
-		t.Fatalf("occupied key: %v", err)
-	}
-	if _, err := root.Attach([]string{"absent"}, "x", leaf); !errors.Is(err, duplex.ErrNoRoute) {
-		t.Fatalf("missing parent: %v", err)
+	if len(origin.messages) != 4 || len(child.messages) != 4 {
+		t.Fatal("missing child fell back to origin")
 	}
 }
 
-func TestDeclaredPartsRetainRawChildrenAndSharedPolicies(t *testing.T) {
-	origin := &declaredOrigin{}
-	gate := &declaredPolicy{remaining: 2}
-	leaf := declaredNode(t, origin, duplex.PermitAdmission{})
-	entries := []duplex.DeclaredChild{{Key: "x", Node: leaf}, {Key: "y", Node: leaf}}
-	root := declaredNode(t, duplex.RefusingOrigin{}, gate, entries...)
-	entries[0].Node = duplex.Declared{}
-	value, children := root.Decompose()
-	if value.Policy != gate || len(children) != 2 || children[0].Node != leaf || children[1].Node != leaf {
-		t.Fatal("parts changed identity or aliases")
-	}
-	rebuilt, err := duplex.ComposeDeclared(value, children)
-	if err != nil {
-		t.Fatal(err)
-	}
-	children[0].Node = duplex.Declared{}
-	if err := duplex.At(root.Bind(), []string{"x"}).Send(nil, declaredEvent()); err != nil {
-		t.Fatal(err)
-	}
-	if err := duplex.At(rebuilt.Bind(), []string{"y"}).Send(nil, declaredEvent()); err != nil {
-		t.Fatal(err)
-	}
-	if err := rebuilt.Bind().Send([]string{"x"}, declaredEvent()); !errors.Is(err, errDeclaredQuota) {
-		t.Fatalf("reconstruction reset or bypassed quota: %v", err)
-	}
-	if !reflect.DeepEqual(gate.paths, [][]string{{"x"}, {"y"}, {"x"}}) || len(origin.messages) != 2 {
-		t.Fatal("ancestor checks were repeated, bypassed or rebased incorrectly")
-	}
-	if _, ok := root.Bind().(bitwire.Endpoint); ok {
-		t.Fatal("bound access grants endpoint ownership")
-	}
-}
-
-func TestDeclaredPolicyOccurrencesAndRefusedDestinations(t *testing.T) {
-	gate := &declaredPolicy{remaining: -1}
-	origin := &declaredOrigin{}
-	leaf := declaredNode(t, origin, gate)
-	root := declaredNode(t, duplex.RefusingOrigin{}, gate, duplex.DeclaredChild{Key: "x", Node: leaf})
-	if err := root.Bind().Send([]string{"x"}, declaredEvent()); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(gate.paths, [][]string{{"x"}, {}}) {
-		t.Fatal("shared policy was deduplicated instead of checked once per occurrence")
-	}
-	if err := root.Bind().Send([]string{"absent"}, declaredEvent()); !errors.Is(err, duplex.ErrNoRoute) {
-		t.Fatal(err)
-	}
-	if len(gate.paths) != 3 {
-		t.Fatal("policy did not precede child lookup")
-	}
-	for _, kind := range []bitwire.ProfileKind{bitwire.ProfileResponse, bitwire.ProfileCancel} {
-		message := declaredEvent()
-		message.Frame.Kind = kind
-		if err := root.Bind().Send([]string{"x"}, message); !errors.Is(err, duplex.ErrDeclaredFrame) {
-			t.Fatalf("control entered admission: %v", err)
-		}
-	}
-	if len(gate.paths) != 3 {
-		t.Fatal("a control consumed admission state")
-	}
-}
-
-func TestDeclaredConstructionAndNavigationRefuseInvalidParts(t *testing.T) {
-	origin := &declaredOrigin{}
-	leaf := declaredNode(t, origin, duplex.PermitAdmission{})
-	value := duplex.DeclaredValue{Own: origin, Policy: duplex.PermitAdmission{}}
-	for _, children := range [][]duplex.DeclaredChild{
-		{{Key: "x", Node: leaf}, {Key: "x", Node: leaf}},
-		{{Key: "x", Node: duplex.Declared{}}},
-		{{Key: string([]byte{0xff}), Node: leaf}},
-	} {
-		if _, err := duplex.ComposeDeclared(value, children); err == nil {
-			t.Fatal("invalid declaration accepted")
-		}
-	}
-	for _, value := range []duplex.DeclaredValue{{Policy: duplex.PermitAdmission{}}, {Own: origin}} {
-		if _, err := duplex.ComposeDeclared(value, nil); err == nil {
-			t.Fatal("missing own access or explicit policy accepted")
-		}
-	}
-	root := declaredNode(t, origin, duplex.PermitAdmission{},
-		duplex.DeclaredChild{Key: "a/b", Node: leaf}, duplex.DeclaredChild{Key: "é", Node: leaf}, duplex.DeclaredChild{Key: "e\u0301", Node: leaf})
-	if _, ok := root.At([]string{"a", "b"}); ok {
-		t.Fatal("navigation split an opaque segment")
-	}
-	for _, key := range []string{"a/b", "é", "e\u0301"} {
-		if _, ok := root.At([]string{key}); !ok {
-			t.Fatalf("lost key %q", key)
-		}
-	}
-	if err := root.Bind().Send([]string{string([]byte{0xff})}, declaredEvent()); !errors.Is(err, duplex.ErrPath) {
-		t.Fatal(err)
-	}
-}
-
-func TestDeclaredRebuiltViewsShareConcurrentAdmissionState(t *testing.T) {
-	gate := &declaredPolicy{remaining: 100}
-	root := declaredNode(t, duplex.RefusingOrigin{}, gate)
-	value, children := root.Decompose()
-	rebuilt, err := duplex.ComposeDeclared(value, children)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var workers sync.WaitGroup
-	for i := 0; i < 200; i++ {
-		workers.Go(func() { _ = rebuilt.Bind().Send(nil, declaredEvent()) })
-	}
-	workers.Wait()
-	if gate.remaining != 0 || len(gate.paths) != 200 {
-		t.Fatal("reconstructed views did not share the synchronized policy")
-	}
-}
-
-func TestDeclaredReplacingAssemblerHandlesCannotRetargetBoundAccess(t *testing.T) {
-	origin, replacement := &declaredOrigin{}, &declaredOrigin{}
-	leaf := declaredNode(t, origin, duplex.PermitAdmission{})
-	root := declaredNode(t, origin, duplex.PermitAdmission{}, duplex.DeclaredChild{Key: "child", Node: leaf})
-	bound := root.Bind()
-	selected := duplex.At(bound, []string{"child"})
-	leaf = declaredNode(t, replacement, duplex.PermitAdmission{})
-	root = leaf
-	if err := bound.Send(nil, declaredEvent()); err != nil {
-		t.Fatal(err)
-	}
-	if err := selected.Send(nil, declaredEvent()); err != nil {
-		t.Fatal(err)
-	}
-	if len(origin.messages) != 2 || len(replacement.messages) != 0 {
-		t.Fatal("replacing assembler handles retargeted previously bound access")
-	}
-}
-
-func declaredRequest(id string) bitwire.Message {
-	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: id, Params: []byte("null")}, Return: &bitwire.ReturnAddress{Wire: duplex.RefusingOrigin{}}}
-}
-
-func declaredCancel(request bitwire.Message) bitwire.Message {
-	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: request.Frame.ID}, Return: request.Return}
-}
-
-func TestDeclaredCancelReachesTheDestinationItsRequestWasAdmittedTo(t *testing.T) {
-	gate := &declaredPolicy{remaining: -1}
-	first, second := &declaredOrigin{}, &declaredOrigin{}
-	branch := declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{}, duplex.DeclaredChild{Key: "b", Node: declaredNode(t, first, duplex.PermitAdmission{})})
-	root := declaredNode(t, duplex.RefusingOrigin{}, gate, duplex.DeclaredChild{Key: "a", Node: branch})
-	bound := root.Bind()
-	selected := duplex.At(bound, []string{"a"})
-	direct, viewed := declaredRequest("c:1"), declaredRequest("c:1")
-	if err := bound.Send([]string{"a", "b"}, direct); err != nil {
-		t.Fatal(err)
-	}
-	if err := selected.Send([]string{"b"}, viewed); err != nil {
-		t.Fatal(err)
-	}
-	checks := len(gate.paths)
-
-	// Rebuild every node from its parts, then rebind a/b to another destination.
-	value, _ := root.Decompose()
-	branchValue, _ := branch.Decompose()
-	rebound := declaredNode(t, value.Own, value.Policy, duplex.DeclaredChild{Key: "a", Node: declaredNode(t, branchValue.Own, branchValue.Policy,
-		duplex.DeclaredChild{Key: "b", Node: declaredNode(t, second, duplex.PermitAdmission{})})})
-	if err := rebound.Bind().Send([]string{"a", "b"}, declaredCancel(direct)); !errors.Is(err, duplex.ErrDeclaredFrame) {
-		t.Fatalf("new access cancelled a request it never admitted: %v", err)
-	}
-	if err := bound.Send([]string{"a", "b"}, declaredCancel(direct)); err != nil {
-		t.Fatalf("cancel through the admitting access: %v", err)
-	}
-	if err := selected.Send([]string{"b"}, declaredCancel(viewed)); err != nil {
-		t.Fatalf("cancel through the admitting view: %v", err)
-	}
-	if len(gate.paths) != checks {
-		t.Fatal("a cancel entered admission again")
-	}
-	if len(second.messages) != 0 || len(first.messages) != 4 {
-		t.Fatalf("cancels were retargeted: first %d, second %d", len(first.messages), len(second.messages))
-	}
-	for i, want := range []bitwire.Message{direct, viewed, declaredCancel(direct), declaredCancel(viewed)} {
-		got := first.messages[i]
-		if got.Frame.Kind != want.Frame.Kind || got.Frame.ID != want.Frame.ID || got.Return != want.Return || len(first.paths[i]) != 0 {
-			t.Fatalf("delivery %d = %+v at %v, want %v at []", i, got.Frame, first.paths[i], want.Frame.Kind)
-		}
-	}
-	if err := bound.Send([]string{"a", "b"}, declaredCancel(direct)); !errors.Is(err, duplex.ErrDeclaredFrame) {
-		t.Fatalf("a second cancel for one request was delivered: %v", err)
-	}
-}
-
-func TestDeclaredRefusedRequestsLeaveNothingToCancel(t *testing.T) {
+func TestDeclaredRetainsOpaqueGuardAliasesAndStateAcrossReconstruction(t *testing.T) {
 	target := &declaredOrigin{}
-	root := declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{},
-		duplex.DeclaredChild{Key: "guarded", Node: declaredNode(t, target, &declaredPolicy{})},
-		duplex.DeclaredChild{Key: "gone", Node: declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{})})
-	bound := root.Bind()
-	for _, path := range [][]string{{"guarded"}, {"gone"}, {"missing"}} {
-		request := declaredRequest("c:1")
-		if err := bound.Send(path, request); err == nil {
-			t.Fatalf("%v admitted", path)
+	remaining, checks := 2, 0
+	refused := errors.New("guard exhausted")
+	guard := &struct{ bitwire.Wire }{declaredSend(func(p []string, m bitwire.Message) error {
+		checks++
+		if remaining == 0 {
+			return refused
 		}
-		if err := bound.Send(path, declaredCancel(request)); !errors.Is(err, duplex.ErrDeclaredFrame) {
-			t.Fatalf("%v: a refused request left a cancel to route: %v", path, err)
-		}
+		remaining--
+		return target.Send(p, m)
+	})}
+	root := declaredNode(t, duplex.RefusingOrigin{}, duplex.DeclaredChild{Key: "a", Wire: guard}, duplex.DeclaredChild{Key: "alias", Wire: guard})
+	origin, children := root.Decompose()
+	if children[0].Wire != guard || children[1].Wire != guard {
+		t.Fatal("child identity lost")
 	}
-	if len(target.messages) != 0 {
-		t.Fatal("a refused request or its cancel reached the destination")
-	}
-}
-
-func TestDeclaredAdmissionIsHeldNoLongerThanItsReturnCapability(t *testing.T) {
-	root := declaredNode(t, declaredSink{}, duplex.PermitAdmission{})
-	bound := root.Bind()
-	func() {
-		if err := bound.Send(nil, declaredRequest("c:1")); err != nil {
+	rebuilt := declaredNode(t, origin, children...)
+	for _, access := range []bitwire.Wire{duplex.At(root.Bind(), []string{"a"}), duplex.At(rebuilt.Bind(), []string{"alias"})} {
+		if err := access.Send([]string{"tail"}, declaredEvent()); err != nil {
 			t.Fatal(err)
 		}
-	}()
-	if held := duplex.DeclaredAdmissions(bound); held != 1 {
-		t.Fatalf("admissions held = %d, want 1", held)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for duplex.DeclaredAdmissions(bound) != 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("an admission outlived its return capability")
-		}
-		runtime.GC()
-		time.Sleep(time.Millisecond)
+	if err := rebuilt.Bind().Send([]string{"a"}, declaredEvent()); err != refused {
+		t.Fatalf("lost refusal: %v", err)
+	}
+	if checks != 3 || len(target.messages) != 2 {
+		t.Fatalf("guard reset, skipped or repeated: checks=%d deliveries=%d", checks, len(target.messages))
 	}
 }
 
-// declaredSink admits without retaining the message or its return capability.
-type declaredSink struct{}
+func TestDeclaredCopiesPartsAndRetainsExactKeys(t *testing.T) {
+	origin, child := &declaredOrigin{}, &declaredOrigin{}
+	keys := []string{"\U00010000", "\ue000", "é", "e\u0301", "a/b", "", "\ufeff"}
+	input := []duplex.DeclaredChild{}
+	for _, key := range keys {
+		input = append(input, duplex.DeclaredChild{Key: key, Wire: child})
+	}
+	root := declaredNode(t, origin, input...)
+	input[0] = duplex.DeclaredChild{Key: "replaced", Wire: origin}
+	gotOrigin, parts := root.Decompose()
+	wantKeys := []string{"", "a/b", "e\u0301", "é", "\ue000", "\ufeff", "\U00010000"}
+	if gotOrigin != origin || len(parts) != len(wantKeys) {
+		t.Fatal("parts changed")
+	}
+	for i, part := range parts {
+		if part.Key != wantKeys[i] || part.Wire != child {
+			t.Fatalf("part %d = %#v", i, part)
+		}
+		if err := root.Bind().Send([]string{part.Key, "tail"}, declaredEvent()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parts[0] = duplex.DeclaredChild{Key: "mutated", Wire: origin}
+	_, again := root.Decompose()
+	if again[0].Key != "" || again[0].Wire != child {
+		t.Fatal("decomposition leaked a mutable container")
+	}
+	for _, p := range child.paths {
+		if !reflect.DeepEqual(p, []string{"tail"}) {
+			t.Fatal(p)
+		}
+	}
+	if err := root.Bind().Send([]string{"a", "b"}, declaredEvent()); !errors.Is(err, duplex.ErrNoRoute) {
+		t.Fatal(err)
+	}
+}
 
-func (declaredSink) Send([]string, bitwire.Message) error { return nil }
+func TestDeclaredCapturedAccessSurvivesAssemblerRebind(t *testing.T) {
+	old, replacement := &declaredOrigin{}, &declaredOrigin{}
+	branch := declaredNode(t, duplex.RefusingOrigin{}, duplex.DeclaredChild{Key: "run", Wire: duplex.At(old, []string{"original"})})
+	root := declaredNode(t, duplex.RefusingOrigin{}, duplex.DeclaredChild{Key: "svc", Wire: branch.Bind()})
+	captured := duplex.At(duplex.At(root.Bind(), []string{"svc"}), []string{"run"})
+	origin, children := root.Decompose()
+	rebuilt := declaredNode(t, origin, children...)
+	root = declaredNode(t, replacement)
+	for _, access := range []bitwire.Wire{captured, duplex.At(rebuilt.Bind(), []string{"svc", "run"})} {
+		if err := access.Send([]string{"tail"}, declaredEvent()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := root.Bind().Send(nil, declaredEvent()); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(old.paths, [][]string{{"original", "tail"}, {"original", "tail"}}) || len(replacement.messages) != 1 {
+		t.Fatal("old access was rebound")
+	}
+}
+
+func TestDeclaredValidationAndPrivateDelegationPath(t *testing.T) {
+	valid := &declaredOrigin{}
+	var missingPointer *declaredOrigin
+	var missingFunction declaredSend
+	for _, missing := range []bitwire.Wire{nil, missingPointer, missingFunction} {
+		if _, err := duplex.ComposeDeclared(missing, nil); !errors.Is(err, duplex.ErrDeclaredValue) {
+			t.Fatalf("missing origin: %v", err)
+		}
+		if _, err := duplex.ComposeDeclared(valid, []duplex.DeclaredChild{{Key: "hole", Wire: missing}}); !errors.Is(err, duplex.ErrDeclaredValue) {
+			t.Fatalf("missing child: %v", err)
+		}
+	}
+	if _, err := duplex.ComposeDeclared(valid, []duplex.DeclaredChild{{Key: "x", Wire: valid}, {Key: "x", Wire: valid}}); !errors.Is(err, duplex.ErrDeclaredChildExists) {
+		t.Fatal(err)
+	}
+	invalid := string([]byte{0xff})
+	if _, err := duplex.ComposeDeclared(valid, []duplex.DeclaredChild{{Key: invalid, Wire: valid}}); !errors.Is(err, duplex.ErrPath) {
+		t.Fatal(err)
+	}
+	mutator := declaredSend(func(p []string, _ bitwire.Message) error { p[0] = "changed"; return nil })
+	root := declaredNode(t, valid, duplex.DeclaredChild{Key: "x", Wire: mutator})
+	path := []string{"x", "tail"}
+	if err := root.Bind().Send(path, declaredEvent()); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(path, []string{"x", "tail"}) {
+		t.Fatal("child changed caller path")
+	}
+	if err := root.Bind().Send([]string{"x", invalid}, declaredEvent()); !errors.Is(err, duplex.ErrPath) {
+		t.Fatal(err)
+	}
+	var zero duplex.Declared
+	if err := zero.Bind().Send(nil, declaredEvent()); !errors.Is(err, duplex.ErrDeclaredValue) {
+		t.Fatal(err)
+	}
+}
+
+type declaredEndpoint struct {
+	declaredOrigin
+	received, closed bool
+}
+
+func (e *declaredEndpoint) Receive(bitwire.Receiver) (func(), error) {
+	e.received = true
+	return func() {}, nil
+}
+func (e *declaredEndpoint) Close(bitwire.Code, string) error { e.closed = true; return nil }
+
+func TestDeclaredAccessDoesNotGrantPartsOrBorrowLifecycle(t *testing.T) {
+	endpoint := &declaredEndpoint{}
+	root := declaredNode(t, endpoint, duplex.DeclaredChild{Key: "child", Wire: endpoint})
+	access := root.Bind()
+	if _, ok := access.(bitwire.Endpoint); ok {
+		t.Fatal("access grants lifecycle")
+	}
+	if _, ok := access.(interface {
+		Decompose() (bitwire.Wire, []duplex.DeclaredChild)
+	}); ok {
+		t.Fatal("access grants parts")
+	}
+	if _, ok := any(root).(bitwire.Wire); ok {
+		t.Fatal("description is access")
+	}
+	origin, parts := root.Decompose()
+	rebuilt := declaredNode(t, origin, parts...)
+	for _, wire := range []bitwire.Wire{access, rebuilt.Bind(), endpoint} {
+		if err := wire.Send(nil, declaredEvent()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if endpoint.received || endpoint.closed {
+		t.Fatal("composition acquired endpoint ownership")
+	}
+}

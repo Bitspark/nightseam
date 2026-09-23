@@ -30,16 +30,17 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
-- Go and TypeScript declared Wire composition retains own-origin behavior,
-  shared admission policy and complete raw child descriptions. Construction,
-  reconstruction, selected access and fresh-child attachment are exercised by
-  native tests and Bitwire's independent cases on local pairs and WebSockets.
-- A caller cancels a request it sent through declared access by presenting
-  the cancel where it sent the request, as the profile says. Bound access
-  delivers the cancel once, with no check, to the origin that admitted that
-  request. The route is held no longer than the request's return capability,
-  and a rebuild or rebind cannot retarget it. Every other cancel and every
-  response still refuses.
+- Go and TypeScript declared Wire composition follows Bitwire ADR0006: an
+  origin and complete child access, including opaque endpoints, selected views,
+  forwarders and guards. Copied construction parts retain capability identities
+  and state; separate send-only access delegates all four message kinds unchanged.
+  This replaces the unreleased policy-bearing value, deep structural helpers and
+  composition-owned cancellation table. Native tests and 39 independent Bitwire
+  cases cover reconstruction over local pairs and WebSockets in both directions.
+- A caller's cancellation through bound, selected or reconstructed declared
+  access reaches the original runtime invocation after assembler rebinding.
+  Optional consumer guards own their checks and preserve admitted controls;
+  composition borrows capabilities without acquiring lifecycle authority.
 
 - A theory reference for compositional contracts and their representations,
   with a TypeScript metalanguage, checked navigation and substitution laws,

@@ -2,113 +2,85 @@ package duplex
 
 import (
 	"errors"
-	"runtime"
+	"reflect"
 	"slices"
-	"sync"
-	"weak"
 
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 )
 
 var (
-	ErrDeclaredValue       = errors.New("declared composition requires own access, policy and valid children")
+	ErrDeclaredValue       = errors.New("declared composition requires an origin and complete child access")
 	ErrDeclaredChildExists = errors.New("declared child key already exists")
-	ErrDeclaredFrame       = errors.New("declared admission accepts only requests and events")
 )
 
-// AdmissionPolicy checks one occurrence before origin dispatch or child lookup.
-// It must be bounded, synchronous and nonblocking, and must not mutate the message.
-// Mutable policies synchronize their own state, including state shared by different
-// declarations. Refusal ends traversal; an earlier admission is not rolled back.
-// This is an admission check, not an application handler or completion permit.
-type AdmissionPolicy interface {
-	Admit(path []string, message bitwire.Message) error
-}
-
-// AdmissionFunc adapts a synchronous admission check. Captured state is retained
-// across reconstruction; a concurrently used check must synchronize that state.
-type AdmissionFunc func([]string, bitwire.Message) error
-
-func (f AdmissionFunc) Admit(path []string, message bitwire.Message) error {
-	if f == nil {
-		return ErrDeclaredValue
-	}
-	return f(path, message)
-}
-
-// PermitAdmission is the explicit identity policy.
-type PermitAdmission struct{}
-
-func (PermitAdmission) Admit([]string, bitwire.Message) error { return nil }
-
-// RefusingOrigin is an explicit own value for a node which only groups children.
+// RefusingOrigin is explicit origin behavior for a node which only groups children.
 type RefusingOrigin struct{}
 
 func (RefusingOrigin) Send([]string, bitwire.Message) error { return ErrNoRoute }
 
-// DeclaredValue is the own value of Bitwire ADR0005's structural interpretation.
-// Own receives only the empty relative path; it is never a missing-child fallback.
-// Policy guards this node and every descendant reached through this occurrence.
-// Both are borrowed and retained unchanged. Neither may be a nil interface.
-type DeclaredValue struct {
-	Own    bitwire.Wire
-	Policy AdmissionPolicy
-}
-
-// DeclaredChild retains a whole raw construction description, not a selected view.
+// DeclaredChild retains complete send access: an endpoint, selected view, forwarder,
+// guard or another bound composite. Its internal structure need not be declared.
 type DeclaredChild struct {
 	Key  string
-	Node Declared
+	Wire bitwire.Wire
 }
 
-// Declared is an immutable, finite construction description owned by an assembler.
-// Its own values may retain live state. Sharing a child or policy shares that state.
-// It is not itself Wire access: Bind returns a separate send-only facade.
-// Descriptions expose raw parts and therefore must not be given to callers who
-// should receive only guarded access. The zero value is not an admitted declaration.
-// Copying or replacing a value handle cannot alter a retained declaration.
-type Declared struct {
-	node *declaredNode
-}
+// Declared is an immutable construction description owned by an assembler.
+// Origin and child capabilities are borrowed, retaining their state and identities.
+// Bind returns separate send-only access; callers cannot recover these parts from it.
+// Keep descriptions separately to reconstruct a recursively declared tree. The zero
+// value is not an admitted description.
+type Declared struct{ node *declaredNode }
 
 type declaredNode struct {
-	value    DeclaredValue
-	children map[string]Declared
+	origin   bitwire.Wire
+	children map[string]bitwire.Wire
 }
 
-// ComposeDeclared retains the own value and copies a complete child map. A sequence
-// of entries is accepted so duplicate keys are refused before a native map can
-// overwrite them. Keys must be Unicode scalar strings; empty keys are allowed.
-// There are no receiver attachments, peers, queues or lifecycle acquisitions.
-func ComposeDeclared(value DeclaredValue, children []DeclaredChild) (Declared, error) {
-	if value.Own == nil || value.Policy == nil {
+// ComposeDeclared copies a complete sequence of child entries, refusing duplicates
+// before a native map can overwrite them. Keys are exact Unicode scalar strings;
+// empty keys are allowed. Origin handles only [], never missing-child fallback.
+// Nil origins or children (including typed nils) are refused. Construction acquires
+// no receiver attachments, queues, peers, invocation state or lifecycle authority.
+func ComposeDeclared(origin bitwire.Wire, children []DeclaredChild) (Declared, error) {
+	if missingDeclaredWire(origin) {
 		return Declared{}, ErrDeclaredValue
 	}
-	routes := make(map[string]Declared, len(children))
+	routes := make(map[string]bitwire.Wire, len(children))
 	for _, child := range children {
 		if _, err := EncodePath([]string{child.Key}); err != nil {
 			return Declared{}, err
 		}
-		if !child.Node.valid() {
+		if missingDeclaredWire(child.Wire) {
 			return Declared{}, ErrDeclaredValue
 		}
 		if _, found := routes[child.Key]; found {
 			return Declared{}, ErrDeclaredChildExists
 		}
-		routes[child.Key] = child.Node
+		routes[child.Key] = child.Wire
 	}
-	return Declared{node: &declaredNode{value: value, children: routes}}, nil
+	return Declared{node: &declaredNode{origin: origin, children: routes}}, nil
 }
 
-func (d Declared) valid() bool { return d.node != nil }
+func missingDeclaredWire(w bitwire.Wire) bool {
+	if w == nil {
+		return true
+	}
+	v := reflect.ValueOf(w)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
 
-// Decompose returns the own value and all raw children. Capability, policy and child
-// identities are retained; changing the returned slice cannot change the declaration.
-// The slice is ordered by exact UTF-8 key bytes. Only the construction owner has parts;
-// selected Wire access neither exposes them nor drops its inherited admission checks.
-func (d Declared) Decompose() (DeclaredValue, []DeclaredChild) {
-	if !d.valid() {
-		return DeclaredValue{}, nil
+// Decompose returns the original origin and complete child access, ordered by exact
+// UTF-8 key bytes. Only the containers are copied; modifying the returned slice
+// cannot change the description. Opaque children are never inspected or unwrapped.
+func (d Declared) Decompose() (bitwire.Wire, []DeclaredChild) {
+	if d.node == nil {
+		return nil, nil
 	}
 	keys := make([]string, 0, len(d.node.children))
 	for key := range d.node.children {
@@ -119,179 +91,32 @@ func (d Declared) Decompose() (DeclaredValue, []DeclaredChild) {
 	for _, key := range keys {
 		children = append(children, DeclaredChild{key, d.node.children[key]})
 	}
-	return d.node.value, children
+	return d.node.origin, children
 }
 
-// At resolves raw construction parts for the assembler. It is not a guarded Wire
-// selection. Use At(d.Bind(), path) to give a caller access with ancestor policies.
-func (d Declared) At(path []string) (Declared, bool) {
-	if !d.valid() {
-		return Declared{}, false
-	}
-	if _, err := EncodePath(path); err != nil {
-		return Declared{}, false
-	}
-	current := d
-	for _, key := range path {
-		current = current.node.children[key]
-		if !current.valid() {
-			return Declared{}, false
-		}
-	}
-	return current, true
-}
+// Bind grants only send access to this immutable description. Each send delegates
+// the unchanged message once, to the origin at [] or to the named child with one
+// segment removed. Every frame kind follows the same rule. Validation, admission,
+// asynchronous dispatch and invocation lifetime belong to the destination/profile;
+// guards are ordinary Wire wrappers. Existing access stays bound after an assembler
+// rebuilds or replaces its description. There is nothing to attach or close here.
+func (d Declared) Bind() bitwire.Wire { return &declaredWire{node: d.node} }
 
-// Attach constructs an exact fresh-child extension. The parent must exist, the
-// key must be unused, and child must be valid. Every old own value, policy and
-// untouched child is retained. Existing views keep the old structure and work.
-// No application effect or provider edit is executed by structural attachment.
-func (d Declared) Attach(parent []string, key string, child Declared) (Declared, error) {
-	if _, err := EncodePath(append(append([]string{}, parent...), key)); err != nil {
-		return Declared{}, err
-	}
-	if !child.valid() {
-		return Declared{}, ErrDeclaredValue
-	}
-	target, found := d.At(parent)
-	if !found {
-		return Declared{}, ErrNoRoute
-	}
-	if _, occupied := target.node.children[key]; occupied {
-		return Declared{}, ErrDeclaredChildExists
-	}
-	return d.attach(parent, key, child), nil
-}
-
-func (d Declared) attach(parent []string, key string, child Declared) Declared {
-	value, children := d.Decompose()
-	if len(parent) == 0 {
-		children = append(children, DeclaredChild{key, child})
-	} else {
-		for i := range children {
-			if children[i].Key == parent[0] {
-				children[i].Node = children[i].Node.attach(parent[1:], key, child)
-				break
-			}
-		}
-	}
-	// The public entry validated the path, all nodes and freshness.
-	result, _ := ComposeDeclared(value, children)
-	return result
-}
-
-// Bind returns only send access and grants no construction, Receive or Close
-// authority. Selection through At keeps this declaration and ancestor policies.
-// Rebuilding from selected children is not decomposition: it repeats their guards.
-// Destination endpoints remain responsible for asynchronous application dispatch,
-// admission validation and invocation lifetime.
-//
-// A cancel is not a new admission. Bound access delivers it, once and without a
-// check or lookup, to the origin that admitted the request it names by return
-// capability and identifier; that route lives no longer than the capability, and
-// a rebuild or rebind cannot retarget it. Every other cancel and every response
-// is refused: replies go to the request's own return capability.
-func (d Declared) Bind() bitwire.Wire { return &declaredWire{root: d} }
-
-type declaredWire struct {
-	root     Declared
-	mu       sync.Mutex
-	admitted map[weak.Pointer[bitwire.ReturnAddress]]map[string]*declaredRoute
-}
-
-// declaredRoute is one admitted request's destination. Its identity, not the
-// destination's, tells a refused delegation apart from a newer admission.
-type declaredRoute struct{ own bitwire.Wire }
+type declaredWire struct{ node *declaredNode }
 
 func (w *declaredWire) Send(path []string, message bitwire.Message) error {
+	if w.node == nil {
+		return ErrDeclaredValue
+	}
 	if _, err := EncodePath(path); err != nil {
 		return err
 	}
-	if message.Frame.Kind == bitwire.ProfileCancel {
-		destination := w.release(message.Return, message.Frame.ID)
-		if destination == nil {
-			return ErrDeclaredFrame
-		}
-		return destination.Send([]string{}, message)
+	if len(path) == 0 {
+		return w.node.origin.Send([]string{}, message)
 	}
-	if message.Frame.Kind != bitwire.ProfileRequest && message.Frame.Kind != bitwire.ProfileEvent {
-		return ErrDeclaredFrame
+	child, found := w.node.children[path[0]]
+	if !found {
+		return ErrNoRoute
 	}
-	if !w.root.valid() {
-		return ErrDeclaredValue
-	}
-	current := w.root
-	for i := 0; ; i++ {
-		// A check sees a private path slice; it cannot retarget later traversal.
-		if err := current.node.value.Policy.Admit(append([]string{}, path[i:]...), message); err != nil {
-			return err
-		}
-		if i == len(path) {
-			return w.deliver(current.node.value.Own, message)
-		}
-		current = current.node.children[path[i]]
-		if !current.valid() {
-			return ErrNoRoute
-		}
-	}
-}
-
-// deliver records a request's route before delegating it, so a cancel that
-// races the destination's admission still finds it, and forgets it on refusal.
-func (w *declaredWire) deliver(own bitwire.Wire, message bitwire.Message) error {
-	if message.Frame.Kind != bitwire.ProfileRequest || message.Return == nil {
-		return own.Send([]string{}, message)
-	}
-	route := w.admit(message.Return, message.Frame.ID, own)
-	if err := own.Send([]string{}, message); err != nil {
-		w.forget(message.Return, message.Frame.ID, route)
-		return err
-	}
-	return nil
-}
-
-func (w *declaredWire) admit(capability *bitwire.ReturnAddress, id string, own bitwire.Wire) *declaredRoute {
-	key := weak.Make(capability)
-	route := &declaredRoute{own}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.admitted == nil {
-		w.admitted = map[weak.Pointer[bitwire.ReturnAddress]]map[string]*declaredRoute{}
-	}
-	requests := w.admitted[key]
-	if requests == nil {
-		requests = map[string]*declaredRoute{}
-		w.admitted[key] = requests
-		runtime.AddCleanup(capability, w.drop, key)
-	}
-	requests[id] = route
-	return route
-}
-
-func (w *declaredWire) drop(key weak.Pointer[bitwire.ReturnAddress]) {
-	w.mu.Lock()
-	delete(w.admitted, key)
-	w.mu.Unlock()
-}
-
-func (w *declaredWire) forget(capability *bitwire.ReturnAddress, id string, route *declaredRoute) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if requests := w.admitted[weak.Make(capability)]; requests[id] == route {
-		delete(requests, id)
-	}
-}
-
-func (w *declaredWire) release(capability *bitwire.ReturnAddress, id string) bitwire.Wire {
-	if capability == nil {
-		return nil
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	requests := w.admitted[weak.Make(capability)]
-	route := requests[id]
-	if route == nil {
-		return nil
-	}
-	delete(requests, id)
-	return route.own
+	return child.Send(append([]string{}, path[1:]...), message)
 }
