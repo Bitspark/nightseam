@@ -3,6 +3,7 @@ package golang
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Bitspark/nightseam/internal/model"
 	"github.com/Bitspark/nightseam/internal/render"
@@ -103,8 +104,49 @@ func (f *file) emitWireAdapter(side, opposite string) {
 		f.linef("if err := bind%s%s(dispatcher,func() %s%s%s { return implementation },environment%s); err != nil { return nil, err }", side, args, proto, side, args, f.slotArguments())
 		f.line("complete = true; return access, nil")
 	})
+	f.emitWireDeclared(side)
 	f.emitWireIdentity(side, opposite)
 	f.emitRecordedEvents(side, opposite)
+}
+
+// deliveredNames is the path of every operation a side receives, a method and
+// an event of one name sharing it: what the side registers, and all it does.
+func deliveredNames(methods []render.Method, events []render.Event) []string {
+	byName := map[string]bool{}
+	for _, m := range methods {
+		byName[m.Name] = true
+	}
+	for _, e := range events {
+		byName[e.Name] = true
+	}
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// A declared composition admits only a completely declared structure. The
+// declaration knows the domain a send-only Wire cannot enumerate, so each side
+// describes access to its model from exactly what it registers.
+func (f *file) emitWireDeclared(side string) {
+	seam := f.seam()
+	names := []string{f.runtime() + ".IdentityMethod"}
+	for _, name := range deliveredNames(f.sideOperations(side)) {
+		names = append(names, fmt.Sprintf("%q", name))
+	}
+	f.line("// Declared describes access to this side's model as a declared composition of")
+	f.line("// its complete operation domain: every operation it receives, and the identity")
+	f.line("// check, is a child that selects that path on access. The origin refuses. An")
+	f.line("// assembler composes guards around the children it rebuilds from the parts.")
+	f.w.Block(fmt.Sprintf("func %s(access %s.Wire) (%s.Declared, error) {", identDeclared, f.bitwire(), seam), "}", func() {
+		f.linef("children := make([]%s.DeclaredChild, 0, %d)", seam, len(names))
+		f.w.Block(fmt.Sprintf("for _, name := range []string{%s} {", strings.Join(names, ", ")), "}", func() {
+			f.linef("children = append(children, %s.DeclaredChild{Key: name, Wire: %s.At(access, []string{name})})", seam, seam)
+		})
+		f.linef("return %s.ComposeDeclared(%s.RefusingOrigin{}, children)", seam, seam)
+	})
 }
 
 // Declaration identity failures retain their public refusal through validation.
@@ -214,19 +256,7 @@ func (f *file) wireRegistration(side string, methods []render.Method, events []r
 	f.w.Block(fmt.Sprintf("func bind%s%s(wire %s.HandlerRegistry, lookup func() %s%s%s, environment %s%s) error {", side, decl, f.runtime(), f.proto(), side, args, f.adapterContext(), f.slotParameters()), "}", func() {
 		f.line("var detach []func(); complete := false")
 		f.line("defer func(){if !complete{for _,off:=range detach{off()}}}()")
-		byName := map[string]bool{}
-		for _, m := range methods {
-			byName[m.Name] = true
-		}
-		for _, e := range events {
-			byName[e.Name] = true
-		}
-		names := make([]string, 0, len(byName))
-		for name := range byName {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range deliveredNames(methods, events) {
 			f.w.Block("{", "}", func() {
 				f.linef("handlers := %s.WireHandlers{Observer:environment.Options.Observer,Family:%q}", rt, f.family.Name)
 				for _, m := range methods {

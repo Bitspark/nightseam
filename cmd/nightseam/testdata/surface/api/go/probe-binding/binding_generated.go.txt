@@ -6,6 +6,7 @@ func (*serverEvents) Noticed(ctx context.Context, data protocol.Seen) error
 func (*serverMethods) Echo(ctx context.Context, params protocol.Payload) (protocol.Payload, error)
 func (*serverMethods) NoArgs(ctx context.Context) (string, error)
 func (*serverMethods) Seen(ctx context.Context, params protocol.Seen) (protocol.Payloads, error)
+func Declared(access bitwire.Wire) (duplex.Declared, error)
 func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
 func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (complete func(context.Context) (protocol.ServerModel, error), cleanup func(), err error)
 func Record(ctx context.Context, target bitwire.Endpoint, log duplex.WireLog, options duplex.RecordOptions, environment runtime.AdapterContext) (*Recorder, error)

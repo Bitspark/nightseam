@@ -41,6 +41,12 @@ are one number. Entries are in the words of the commits that landed them.
   access reaches the original runtime invocation after assembler rebinding.
   Optional consumer guards own their checks and preserve admitted controls;
   composition borrows capabilities without acquiring lifecycle authority.
+- Every generated side describes access to its model as a declared
+  composition of its complete operation domain, `Declared(access)` /
+  `declared(access)`. `duplex.Through` / `through` presents declared send
+  access as an endpoint receiving on its origin. The familytest's `Declared`
+  / `declared` presentation runs every family's smoke through it over pipes,
+  sockets and tunnel channels.
 
 - A theory reference for compositional contracts and their representations,
   with a TypeScript metalanguage, checked navigation and substitution laws,

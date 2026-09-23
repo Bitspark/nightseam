@@ -41,6 +41,7 @@ const (
 	identToWire                = "ToWire"
 	identFromWire              = "FromWire"
 	identPrepareFromWire       = "PrepareFromWire"
+	identDeclared              = "Declared"
 	identExport                = "Export"
 	identImport                = "Import"
 	identContract              = "Contract"
@@ -79,7 +80,7 @@ func Reserved() []string {
 		identValidateRaw, identValidateExpressionRaw, identValidateValue, identMustTypeExpression, identWireSchema, identWireDigest, identWireDeclaration, identErrors, identIsError,
 		identServer, identClient, identServerMethods, identClientMethods,
 		identServerEvents, identClientEvents, identServerModel, identClientModel,
-		identToWire, identFromWire, identPrepareFromWire,
+		identToWire, identFromWire, identPrepareFromWire, identDeclared,
 		"Record", "Recorder", "RecordedEvent",
 	}
 }
@@ -231,7 +232,7 @@ func (p *plan) plan() {
 	// the tag an entry point takes for each.
 	generated := map[string]string{}
 	entries := emit.NewNamespace("entry-point packages")
-	entries.Fix("generated declaration", identToWire, identFromWire, identPrepareFromWire)
+	entries.Fix("generated declaration", identToWire, identFromWire, identPrepareFromWire, identDeclared)
 	for _, use := range f.Uses {
 		p.typeParams[use] = parameterName(use)
 		at := diag.Location{}

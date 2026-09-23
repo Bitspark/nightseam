@@ -163,6 +163,7 @@ The server adapter exports:
 func ToWire(model protocol.ServerModel, environment runtime.AdapterContext) (bitwire.Endpoint, error)
 func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ServerModel, error)
 func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ServerModel, error), func(), error)
+func Declared(access bitwire.Wire) (duplex.Declared, error)
 ```
 
 These take an `Endpoint` because they attach: the binding owns the dispatcher
@@ -184,6 +185,18 @@ that round trip locally, or pass a socket peer's Wire, a prepared tunnel
 channel, a selected view or a mount through the same adapter. The declaration's
 operation name is one relative path segment; dotted names are not split.
 
+`Declared(access)` / `declared(access)` describes access to this side's model
+as a [declared composition](../runtime/wire.md#declared-composition) of its
+complete operation domain. Each operation the side receives, and the identity
+check, is a child that selects that path on `access`, and the origin refuses.
+A send-only Wire cannot enumerate that domain, but the declaration can, and
+this is exactly what the side registers. An assembler binds the description
+under nodes of its own. To guard single operations, it rebuilds the description
+from its parts with guards composed around those children.
+`FromWire` / `fromWire` attaches, so it takes the declared bound access through
+`duplex.Through(origin, access)` / `through(origin, access)`: an endpoint that
+sends through the bound access and receives on the origin.
+
 ### The client package
 
 The client adapter is the mirror:
@@ -192,6 +205,7 @@ The client adapter is the mirror:
 func ToWire(model protocol.ClientModel, environment runtime.AdapterContext) (bitwire.Endpoint, error)
 func FromWire(ctx context.Context, wire bitwire.Endpoint, environment runtime.AdapterContext) (protocol.ClientModel, error)
 func PrepareFromWire(wire bitwire.Endpoint, environment runtime.AdapterContext) (func(context.Context) (protocol.ClientModel, error), func(), error)
+func Declared(access bitwire.Wire) (duplex.Declared, error)
 ```
 
 Both packages share the protocol's side and model types. Neither has
@@ -255,6 +269,7 @@ export function prepareFromWire(wire: Wire, context: AdapterContext): {
   complete(options?: WireCallOptions): Promise<ServerModel>;
   close(): void;
 };
+export function declared(access: Wire): Declared;
 ```
 
 ### The client package
@@ -266,6 +281,7 @@ export function prepareFromWire(wire: Wire, context: AdapterContext): {
   complete(options?: WireCallOptions): Promise<ClientModel>;
   close(): void;
 };
+export function declared(access: Wire): Declared;
 ```
 
 `toWire` invokes one model factory synchronously and returns its access Wire.
@@ -670,8 +686,10 @@ independently. Passing this smoke check is evidence for its chosen examples,
 not a proof for all possible inputs or consumer policy.
 
 The default presentation carries serialized frames over `duplex.Pipe` /
-`pipe`. `Local` / `local`, `Mounted` / `mounted` and `Forwarded` / `forwarded`
-are built-in alternatives. `Options.Presentation` / `options.presentation`
+`pipe`. `Local` / `local`, `Mounted` / `mounted`, `Forwarded` / `forwarded`
+and `Declared` / `declared` are built-in alternatives. `Declared` sends through
+the family's declared description, selected below a grouping root, so every
+call and event crosses the complete declared domain. `Options.Presentation` / `options.presentation`
 is the same typed host hook for a socket, prepared tunnel channel, or a
 composition of carrier and view: it receives the model Wire and returns the
 presented Wire with its cleanup. In Go its signature is
@@ -681,7 +699,7 @@ accepts a synchronous or asynchronous `{ wire, close }`. A host installs
 owns cleanup of any resources it acquired before reporting failure. The
 consumer fixture in
 [`transparency_test.go`](../../cmd/nightseam/transparency_test.go) exercises
-the same helper over the pipe/socket/channel by direct/mounted/forwarded
+the same helper over the pipe/socket/channel by direct/mounted/forwarded/declared
 matrix in both languages.
 
 `Context` / `context` configures `toWire`; `RemoteContext` / `remoteContext`

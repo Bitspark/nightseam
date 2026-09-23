@@ -1,4 +1,4 @@
-export { at, mount, encodePath, decodePath, WireError } from './wire.ts';
+export { at, mount, through, encodePath, decodePath, WireError } from './wire.ts';
 export { Declared, DeclaredError, refusingOrigin } from './declared.ts';
 export type { DeclaredChild, DeclaredParts } from './declared.ts';
 export { record, MemoryWireLog, RecordError } from './record.ts';

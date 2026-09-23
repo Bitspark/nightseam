@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { at, mount, encodePath, decodePath, WireError } from './wire.ts';
+import { at, mount, through, encodePath, decodePath, WireError } from './wire.ts';
 import type { Wire, Endpoint, Message, Receiver, Path, ProfileFrame } from '@bitspark/bitwire';
 
 test('path encoding is canonical, injective and composes by concatenation', () => {
@@ -493,4 +493,69 @@ test('empty paths and keys remain distinct, and an empty mount can own an attach
   empty.close();
   empty.close();
   assert.equal(closed, 1);
+});
+
+function borrowed() {
+  const receivers: Receiver[] = [];
+  let sends = 0,
+    closes = 0;
+  const endpoint: Endpoint = {
+    send: () => void sends++,
+    receive(receiver) {
+      receivers.push(receiver);
+      return () => {
+        const index = receivers.indexOf(receiver);
+        if (index >= 0) receivers.splice(index, 1);
+      };
+    },
+    close: () => void closes++,
+  };
+  return { endpoint, receivers, counts: () => ({ sends, closes }) };
+}
+const noticed = (): Message => ({ frame: { version: 1, kind: 'event', data: null } });
+
+test('through sends through its access and receives from its origin, one attachment at a time', () => {
+  const origin = borrowed();
+  const sent: Path[] = [];
+  const endpoint = through(origin.endpoint, { send: (path) => void sent.push(path) });
+  endpoint.send(['x'], noticed());
+  assert.deepEqual(sent, [['x']]);
+  assert.equal(origin.counts().sends, 0);
+  const delivered: Path[] = [];
+  const detach = endpoint.receive({ message: (path) => void delivered.push(path) });
+  assert.throws(() => endpoint.receive({}), { code: 'receiver_exists' });
+  assert.equal(origin.receivers.length, 1);
+  origin.receivers[0]!.message?.(['y'], noticed());
+  assert.deepEqual(delivered, [['y']]);
+  detach();
+  detach();
+  assert.equal(origin.receivers.length, 0);
+  endpoint.receive({});
+});
+
+test('through closure releases only its own attachment, and an ending origin ends it', () => {
+  const origin = borrowed();
+  const access = { sent: 0, send: () => void access.sent++ } as Wire & { sent: number };
+  const endpoint = through(origin.endpoint, access);
+  const closed: string[] = [];
+  endpoint.receive({ closed: (_code, reason) => void closed.push(reason) });
+  endpoint.close(1000, 'done');
+  endpoint.close(1000, 'again');
+  assert.deepEqual(closed, ['done']);
+  assert.equal(origin.receivers.length, 0);
+  assert.equal(origin.counts().closes, 0);
+  assert.throws(() => endpoint.send([], noticed()), { code: 'closed' });
+  assert.throws(() => endpoint.receive({}), { code: 'closed' });
+  access.send([], noticed());
+  origin.endpoint.receive({});
+
+  const ending = borrowed();
+  const other = through(ending.endpoint, access);
+  const codes: number[] = [];
+  other.receive({ closed: (code) => void codes.push(code) });
+  ending.receivers[0]!.closed?.(1001, 'gone');
+  assert.deepEqual(codes, [1001]);
+  assert.throws(() => other.send([], noticed()), { code: 'closed' });
+  other.close(1000, 'late');
+  assert.deepEqual(codes, [1001]);
 });

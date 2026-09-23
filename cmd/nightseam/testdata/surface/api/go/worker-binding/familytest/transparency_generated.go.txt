@@ -1,5 +1,6 @@
 func (observingMethods) Describe(ctx context.Context, params protocol.Ticket) (string, error)
 func (observingMethods) Start(ctx context.Context, params protocol.Start) (protocol.Job, error)
+func Declared(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Example[T any](name string) (T, error)
 func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)

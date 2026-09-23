@@ -57,6 +57,21 @@ func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func
 	return left, once(func() { detach(); _ = left.Close(1000, "") }), nil
 }
 
+// Declared sends through a declared composition of the model's complete
+// operation domain, selected below a grouping root, and receives from the model.
+func Declared(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
+	family, err := adapter.Declared(wire)
+	if err != nil {
+		return nil, nil, err
+	}
+	root, err := duplex.ComposeDeclared(duplex.RefusingOrigin{}, []duplex.DeclaredChild{{Key: "family", Wire: family.Bind()}})
+	if err != nil {
+		return nil, nil, err
+	}
+	view := duplex.Through(wire, duplex.At(root.Bind(), []string{"family"}))
+	return view, once(func() { _ = view.Close(1000, "") }), nil
+}
+
 // Pipe carries real serialized frames between two prepared peers.
 func Pipe(ctx context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error) {
 	left, right := duplex.Pipe(1 << 20)

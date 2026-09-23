@@ -4,6 +4,7 @@ func (observingMethods[SEnvelope, SHandle, Item]) Echo(ctx context.Context, para
 func (observingMethods[SEnvelope, SHandle, Item]) NoArgs(ctx context.Context) (string, error)
 func (observingMethods[SEnvelope, SHandle, Item]) Parts(ctx context.Context, params protocol.PartsRequest) (protocol.Result[protocol.Parts, string], error)
 func (observingMethods[SEnvelope, SHandle, Item]) Relay(ctx context.Context, params protocol.Carried[SEnvelope, SHandle, Item]) (protocol.Option[protocol.Envelope], error)
+func Declared(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Example[T any](name string) (T, error)
 func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)

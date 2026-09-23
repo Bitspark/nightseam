@@ -27,6 +27,7 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | compose an origin and complete child access | `duplex.ComposeDeclared(origin, children)` | `Declared.compose(origin, children)` |
 | retain the origin and complete child access | `declared.Decompose()` | `declared.decompose()` |
 | bind declared send access | `declared.Bind()` | `declared.bind()` |
+| receive on an origin, send through composed access | `duplex.Through(origin, access)` | `through(origin, access)` |
 | create a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
 | forward both directions | `runtime.ForwardWire(left, right)` | `forwardWire(left, right)` |
@@ -139,6 +140,16 @@ selected view through a guarded root includes that guard, so using such views
 as children of another guarded root may repeat it. Use the assembler's
 retained parts for exact reconstruction. A guard must respect the profile's
 invocation lifecycle, including controls owed to an admitted request.
+
+A generated model's origin is a namespace of one-segment operation paths,
+which a send-only Wire cannot enumerate. Each generated side therefore emits
+`Declared(access)` / `declared(access)`: a
+[description of access to that model](../declaration/generated.md#the-binding-package)
+with one child for each operation it receives and for the identity check.
+Because a generated interpretation attaches, `Through(origin, access)` /
+`through(origin, access)` gives it an endpoint that sends through the bound
+access and receives on the origin. Closing that endpoint releases only its own
+attachment.
 
 Plain composition delegates requests, events, responses and cancels unchanged;
 the destination and profile decide whether a message is valid. It retains the
