@@ -21,8 +21,8 @@ func emitTransparency(f *file, side string) {
 		protocol = "'./types.ts'"
 	}
 	f.linef("import { DuplexPeer, DuplexError, wirePair, forwardWire, createDispatcher, type AdapterContext, type WireModelContext, type ValueAdapter, type ValueContext } from %s;", quote(f.config.Runtime))
-	f.line("import { mount, pipe as framePipe } from '@nightseam/duplex';\nimport type { Endpoint } from '@bitspark/bitwire';")
-	f.line("import { toWire, prepareFromWire } from './index.ts';")
+	f.line("import { at, mount, through, Declared, refusingOrigin, pipe as framePipe } from '@nightseam/duplex';\nimport type { Endpoint } from '@bitspark/bitwire';")
+	f.line("import { toWire, prepareFromWire, declared as declaredAccess } from './index.ts';")
 	f.linef("import type * as Protocol from %s;", protocol)
 	f.linef("import type { AnyFamily, FamilyBinding } from %s;", protocol)
 	f.imports(false)
@@ -172,6 +172,11 @@ export const forwarded: Presentation = wire => {
  const [left,right]=wirePair();
  try { const detach=forwardWire(right,wire); return {wire:left,close:once(()=>{detach();left.close(1000,'');})}; }
  catch(error){left.close(1000,'');throw error;}
+};
+export const declared: Presentation = wire => {
+ const root=Declared.compose(refusingOrigin,[['family',declaredAccess(wire).bind()]]);
+ const view=through(wire,at(root.bind(),['family']));
+ return {wire:view,close:once(()=>view.close(1000,''))};
 };
 export const pipe: Presentation = async wire => {
  const [left,right]=framePipe(); let detach=()=>{};

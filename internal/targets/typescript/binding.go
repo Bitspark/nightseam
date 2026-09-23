@@ -56,7 +56,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 	}
 	live := fam.Live || familyValueSlots(fam)
 	f.linef("import { DuplexError, callWire, emitWire, registerWire, wirePair, createDispatcher, declarationDigest, familyTypeAdapter, validateDrawnType, jsonAdapter, identityHandler, IDENTITY_METHOD, prepareIdentity, type HandlerRegistry, type WireModelContext, type WireCallOptions } from %s;", quote(f.config.Runtime))
-	f.line("import { encodePath } from '@nightseam/duplex';\nimport type { Wire, Endpoint } from '@bitspark/bitwire';")
+	f.line("import { encodePath, at, Declared, refusingOrigin } from '@nightseam/duplex';\nimport type { Wire, Endpoint } from '@bitspark/bitwire';")
 	f.linef("import type { AdapterContext, ValueAdapter, ValueContext } from %s;", quote(f.config.Runtime))
 	if fam.Live {
 		f.linef("import type { LiveOwner } from %s;", quote(f.config.Live))
@@ -118,6 +118,7 @@ func emitWireAdapter(f *file, side, protocol string) {
 		}
 		f.line("return { options, identity, proxyServer, proxyClient, validateServer, validateClient, bindServer, bindClient };")
 	})
+	emitWireDeclared(f, side)
 	emitWireIdentity(f, side, opposite, decl, args, binding, passing)
 	emitRecordedEvents(f, side, opposite, decl, args)
 	if len(fam.Errors) > 0 {
@@ -181,16 +182,12 @@ func (f *file) emitWireProxy(side, args string) {
 func (f *file) emitWireRegistration(side, args string) {
 	methods, events := f.wireSide(side)
 	slots := f.wireSlots()
-	var names []string
+	names := deliveredNames(methods, events)
 	byMethod, byEvent := map[string]render.Method{}, map[string]render.Event{}
 	for _, m := range methods {
-		names = append(names, m.Name)
 		byMethod[m.Name] = m
 	}
 	for _, e := range events {
-		if _, ok := byMethod[e.Name]; !ok {
-			names = append(names, e.Name)
-		}
 		byEvent[e.Name] = e
 	}
 	f.w.Block(fmt.Sprintf("function validate%s(implementation: Protocol.%s%s): void {", side, side, args), "}", func() {
@@ -261,4 +258,39 @@ func (f *file) wireOwner(incoming bool, parts ...model.TypeExpr) string {
 		return "const owner = " + condition + " ? environment!.child(undefined) : undefined; const ownedContext = Object.create(context) as " + typ + "; if (owner !== undefined) Object.defineProperty(ownedContext, 'valueContext', { value: owner, enumerable: true });"
 	}
 	return "const owner = " + condition + " ? environment!.select((context as {valueContext?: unknown} | undefined)?.valueContext) : undefined;"
+}
+
+// deliveredNames is the path of every operation a side receives, a method and
+// an event of one name sharing it: what the side registers, and all it does.
+func deliveredNames(methods []render.Method, events []render.Event) []string {
+	var names []string
+	named := map[string]bool{}
+	for _, m := range methods {
+		names, named[m.Name] = append(names, m.Name), true
+	}
+	for _, e := range events {
+		if !named[e.Name] {
+			names, named[e.Name] = append(names, e.Name), true
+		}
+	}
+	return names
+}
+
+// A declared composition admits only a completely declared structure. The
+// declaration knows the domain a send-only Wire cannot enumerate, so each side
+// describes access to its model from exactly what it registers.
+func emitWireDeclared(f *file, side string) {
+	names := []string{"IDENTITY_METHOD"}
+	for _, name := range deliveredNames(f.wireSide(side)) {
+		names = append(names, quote(name))
+	}
+	f.line("/**")
+	f.line(" * Access to this side's model as a declared composition of its complete")
+	f.line(" * operation domain: every operation it receives, and the identity check, is a")
+	f.line(" * child that selects that path on access. The origin refuses. An assembler")
+	f.line(" * composes guards around the children it rebuilds from the parts.")
+	f.line(" */")
+	f.w.Block("export function declared(access: Wire): Declared {", "}", func() {
+		f.linef("return Declared.compose(refusingOrigin, [%s].map((name) => [name, at(access, [name])] as const));", strings.Join(names, ", "))
+	})
 }

@@ -149,3 +149,60 @@ export function mount(children: ReadonlyMap<string, Endpoint>): Endpoint {
     },
   };
 }
+
+type ThroughAttachment = { receiver: Receiver; detach?: () => void };
+
+/**
+ * An endpoint that receives on a borrowed origin and sends through separately
+ * composed access, such as declared bound access over that origin. Its one
+ * receive attachment borrows one from origin. Closing it detaches that and
+ * leaves origin and access usable; an ending origin ends it too.
+ */
+export function through(origin: Endpoint, access: Wire): Endpoint {
+  let closed = false;
+  let held: ThroughAttachment | undefined;
+  const end = (code: number, reason: string, from?: ThroughAttachment): void => {
+    if (closed) return;
+    closed = true;
+    const current = held;
+    held = undefined;
+    current?.detach?.();
+    if (current && (!from || from === current)) current.receiver.closed?.(code, reason);
+  };
+  return {
+    send(path, message) {
+      if (closed) throw new WireError('closed');
+      access.send(path, message);
+    },
+    receive(receiver) {
+      if (closed) throw new WireError('closed');
+      if (held) throw new WireError('receiver_exists');
+      const attachment: ThroughAttachment = { receiver };
+      held = attachment;
+      let detach: () => void;
+      try {
+        detach = origin.receive({
+          message: (path, message) => receiver.message?.(path, message),
+          closed: (code, reason) => end(code, reason, attachment),
+        });
+      } catch (error) {
+        if (held === attachment) held = undefined;
+        throw error;
+      }
+      // The origin may end this endpoint while receiving; its disposer is still ours.
+      if (held !== attachment) {
+        detach();
+        throw new WireError('closed');
+      }
+      attachment.detach = detach;
+      return () => {
+        if (held !== attachment) return;
+        held = undefined;
+        detach();
+      };
+    },
+    close(code = 1000, reason = '') {
+      end(code, reason);
+    },
+  };
+}

@@ -101,7 +101,7 @@ func TestHelpers(t *testing.T){
  if err:=test.Smoke(ctx,nil,opposite(),test.Options{});err==nil{t.Fatal("nil model accepted")}
  if err:=test.Smoke(ctx,func(protocol.Client)(protocol.Server,error){return protocol.Server{},nil},opposite(),test.Options{});err==nil{t.Fatal("missing methods accepted")}
  if _,err:=datatest.Example[int64]("Count");err!=nil{t.Fatal(err)}
- for _,presentation:=range []test.Presentation{nil,test.Local,test.Pipe,test.Mounted,test.Forwarded}{if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:presentation});err!=nil{t.Fatal(err)}}
+ for _,presentation:=range []test.Presentation{nil,test.Local,test.Pipe,test.Mounted,test.Forwarded,test.Declared}{if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:presentation});err!=nil{t.Fatal(err)}}
  v,err:=test.Example[protocol.Input]("Input");if err!=nil||v.Value<1{t.Fatalf("example %v %v",v,err)}
  if _,err:=test.Example[protocol.Never]("Never");err==nil||!strings.Contains(err.Error(),"unavailable"){t.Fatal("recursive example must report unavailable",err)}
  if _,err:=functiontest.Example[any]("Unary");err==nil||!strings.Contains(err.Error(),"native"){t.Fatal("callable illustration became native",err)}
@@ -181,7 +181,7 @@ const opposite=():Client=>({methods:{reverse:input=>input},events:{changed(){}}}
 check(Number.isSafeInteger(dataTest.example('Count',adapterCount())),'data-only example');
 const model:ServerModel=remote=>({methods:{echo:(input,context)=>remote.methods.reverse(input,context),constant:()=>7,decline:()=>{throw new DuplexError('denied','declined');},ping:()=>9},events:{noted(){}}});
 await rejects(()=>test.smoke((()=>({methods:{},events:{}})) as unknown as ServerModel,opposite(),{}),'required');
-for(const presentation of [undefined,test.local,test.pipe,test.mounted,test.forwarded])await test.smoke(model,opposite(),{presentation});
+for(const presentation of [undefined,test.local,test.pipe,test.mounted,test.forwarded,test.declared])await test.smoke(model,opposite(),{presentation});
 check(test.example('Input',adapterInput()).value>=1,'synthesized constrained value');
 await rejects(()=>test.example('Never',jsonAdapter({type:'json',validate:validateWire})),'unavailable');
 await rejects(()=>functionTest.example('Unary',jsonAdapter({type:'json',validate:validateWire})),'native');
@@ -252,7 +252,7 @@ func channel(ctx context.Context,wire bitwire.Endpoint)(bitwire.Endpoint,func(),
 func TestPresentations(t *testing.T){
  ctx,cancel:=context.WithTimeout(context.Background(),20*time.Second);defer cancel()
  for carrierName,carrier:=range map[string]test.Presentation{"pipe":test.Pipe,"socket":socket,"channel":channel}{
-  for viewName,view:=range map[string]test.Presentation{"direct":test.Local,"mounted":test.Mounted,"forwarded":test.Forwarded}{
+  for viewName,view:=range map[string]test.Presentation{"direct":test.Local,"mounted":test.Mounted,"forwarded":test.Forwarded,"declared":test.Declared}{
    t.Run(carrierName+"/"+viewName,func(t *testing.T){
     presentation:=func(ctx context.Context,wire bitwire.Endpoint)(bitwire.Endpoint,func(),error){host,close,err:=carrier(ctx,wire);if err!=nil{return nil,nil,err};selected,detach,err:=view(ctx,host);if err!=nil{close();return nil,nil,err};return selected,func(){detach();close()},nil}
     if err:=test.Smoke(ctx,model,opposite(),test.Options{Presentation:presentation});err!=nil{t.Fatal(err)}
@@ -299,7 +299,7 @@ const channel:test.Presentation=async wire=>{
   const opened=await ct.open('meter',wireDigest,{});await waiting;return {wire:opened,close};
  }catch(error){close();throw error;}
 };
-for(const carrier of [test.pipe,socket,channel])for(const view of [test.local,test.mounted,test.forwarded]){
+for(const carrier of [test.pipe,socket,channel])for(const view of [test.local,test.mounted,test.forwarded,test.declared]){
  const presentation:test.Presentation=async wire=>{const host=await carrier(wire);try{const selected=await view(host.wire);return {wire:selected.wire,close(){selected.close();host.close();}};}catch(error){host.close();throw error;}};
  await test.smoke(model,opposite(),{presentation,callContext:{signal:AbortSignal.timeout(5000)}});
 }

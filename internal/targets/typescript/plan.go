@@ -32,9 +32,9 @@ const (
 // imported are the names the generated module imports from its runtimes;
 // globals are the ones of the language it uses. A type of
 // either name would shadow them.
-var imported = []string{"DuplexError", "Wire", "Endpoint", "HandlerRegistry", "createDispatcher", "WireModelContext", "WireCallOptions", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "withDeclaration", "jsonAdapter", "familyTypeAdapter", "validateDrawnType", "callableIdentity", "DeclarationIdentity", "declarationDigest", "identityHandler", "IDENTITY_METHOD", "prepareIdentity", "TypeExpression", "WireFamily"}
+var imported = []string{"DuplexError", "Wire", "Endpoint", "HandlerRegistry", "createDispatcher", "at", "Declared", "refusingOrigin", "WireModelContext", "WireCallOptions", "AdapterContext", "LiveOwner", "ValueAdapter", "ValueContext", "ValueOptions", "callWire", "emitWire", "registerWire", "wirePair", "encodePath", "conversion", "createValidator", "withDeclaration", "jsonAdapter", "familyTypeAdapter", "validateDrawnType", "callableIdentity", "DeclarationIdentity", "declarationDigest", "identityHandler", "IDENTITY_METHOD", "prepareIdentity", "TypeExpression", "WireFamily"}
 var globals = []string{"Array", "Record", "Promise", "Set", "Error", "String", "Object"}
-var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "prepareFromWire", "makeAdapter", "RecordedEvent", "Recorder", "record", "recordWire", "WireLog", "RecordOptions", "RecordedWire", "checkIdentity"}
+var modelNames = []string{"Server", "Client", "ServerMethods", "ClientMethods", "ServerEvents", "ClientEvents", "ServerModel", "ClientModel", "toWire", "fromWire", "prepareFromWire", "declared", "makeAdapter", "RecordedEvent", "Recorder", "record", "recordWire", "WireLog", "RecordOptions", "RecordedWire", "checkIdentity"}
 
 // Inherited Object members must not satisfy a declared event accidentally.
 // A consumer supplies each event deliberately, including ignored no-ops.
