@@ -48,27 +48,27 @@ func (g *policy) Admit(p []string, _ wire.Message) error { return g.check(p) }
 type entry = duplex.DeclaredChild
 type declaration = duplex.Declared
 
-func compose(own wire.Wire, gate *policy, entries []entry) (*declaration, error) {
+func compose(own wire.Wire, gate *policy, entries []entry) (declaration, error) {
 	var admission duplex.AdmissionPolicy = duplex.PermitAdmission{}
 	if gate != nil {
 		admission = gate
 	}
 	return duplex.ComposeDeclared(duplex.DeclaredValue{Own: own, Policy: admission}, entries)
 }
-func mustBuild(own wire.Wire, gate *policy, entries []entry) *declaration {
+func mustBuild(own wire.Wire, gate *policy, entries []entry) declaration {
 	d, err := compose(own, gate, entries)
 	check(err)
 	return d
 }
-func parts(d *declaration) (wire.Wire, *policy, []entry) {
+func parts(d declaration) (wire.Wire, *policy, []entry) {
 	value, children := d.Decompose()
 	gate, _ := value.Policy.(*policy)
 	return value.Own, gate, children
 }
-func ownOf(d *declaration) wire.Wire { value, _ := d.Decompose(); return value.Own }
-func gateOf(d *declaration) *policy  { _, gate, _ := parts(d); return gate }
-func rebuild(d *declaration, deep bool, memo map[*declaration]*declaration) *declaration {
-	if found := memo[d]; found != nil {
+func ownOf(d declaration) wire.Wire { value, _ := d.Decompose(); return value.Own }
+func gateOf(d declaration) *policy  { _, gate, _ := parts(d); return gate }
+func rebuild(d declaration, deep bool, memo map[declaration]declaration) declaration {
+	if found, ok := memo[d]; ok {
 		return found
 	}
 	own, gate, children := parts(d)
@@ -81,7 +81,7 @@ func rebuild(d *declaration, deep bool, memo map[*declaration]*declaration) *dec
 	memo[d] = next
 	return next
 }
-func retained(d *declaration) bool {
+func retained(d declaration) bool {
 	value, children := d.Decompose()
 	other, err := duplex.ComposeDeclared(value, children)
 	check(err)
@@ -95,12 +95,12 @@ func retained(d *declaration) bool {
 		}
 	}
 	if len(children) > 0 {
-		children[0].Node = nil
+		children[0].Node = declaration{}
 	}
 	_, original := d.Decompose()
 	return reflect.DeepEqual(original, entries)
 }
-func bind(d *declaration) wire.Wire { return d.Bind() }
+func bind(d declaration) wire.Wire { return d.Bind() }
 
 var refuse wire.Wire = &access{func([]string, wire.Message) error { return duplex.ErrNoRoute }}
 
@@ -130,11 +130,11 @@ type input struct {
 	Cases []testCase
 }
 
-func create(specs []nodeSpec, t testCase, own func(string) wire.Wire, checks *[][2]any) (*declaration, map[string]*declaration, error) {
+func create(specs []nodeSpec, t testCase, own func(string) wire.Wire, checks *[][2]any) (declaration, map[string]declaration, error) {
 	definitions := map[string]nodeSpec{}
 	for _, s := range specs {
 		if _, found := definitions[s.ID]; found {
-			return nil, nil, fmt.Errorf("duplicate node")
+			return declaration{}, nil, fmt.Errorf("duplicate node")
 		}
 		definitions[s.ID] = s
 	}
@@ -147,26 +147,26 @@ func create(specs []nodeSpec, t testCase, own func(string) wire.Wire, checks *[]
 	for id, limit := range t.Limits {
 		gates[id] = &policy{id, limit, checks}
 	}
-	nodes := map[string]*declaration{}
+	nodes := map[string]declaration{}
 	visiting := map[string]bool{}
-	var build func(string) (*declaration, error)
-	build = func(id string) (*declaration, error) {
+	var build func(string) (declaration, error)
+	build = func(id string) (declaration, error) {
 		if visiting[id] {
-			return nil, fmt.Errorf("cyclic declaration")
+			return declaration{}, fmt.Errorf("cyclic declaration")
 		}
-		if n := nodes[id]; n != nil {
+		if n, ok := nodes[id]; ok {
 			return n, nil
 		}
 		s, ok := definitions[id]
 		if !ok {
-			return nil, fmt.Errorf("missing declaration")
+			return declaration{}, fmt.Errorf("missing declaration")
 		}
 		visiting[id] = true
 		entries := []entry{}
 		for _, e := range s.Children {
 			child, err := build(e[1])
 			if err != nil {
-				return nil, err
+				return declaration{}, err
 			}
 			entries = append(entries, entry{Key: e[0], Node: child})
 		}
@@ -181,11 +181,11 @@ func create(specs []nodeSpec, t testCase, own func(string) wire.Wire, checks *[]
 			origin = own(*s.Own)
 		}
 		if s.Policy != "" && gates[s.Policy] == nil {
-			return nil, fmt.Errorf("missing policy")
+			return declaration{}, fmt.Errorf("missing policy")
 		}
 		n, err := compose(origin, gates[s.Policy], entries)
 		if err != nil {
-			return nil, err
+			return declaration{}, err
 		}
 		delete(visiting, id)
 		nodes[id] = n
@@ -328,13 +328,13 @@ func observe(specs []nodeSpec, t testCase) any {
 			}
 			root = mustBuild(origin, gate, children)
 		case "rebuild":
-			root = rebuild(root, action.Cut == "all", map[*declaration]*declaration{})
+			root = rebuild(root, action.Cut == "all", map[declaration]declaration{})
 			partsRetained = partsRetained && retained(root)
 		case "substitute":
 			origin, gate, children := parts(root)
 			for j, e := range children {
 				if e.Key == "a" {
-					children[j].Node = rebuild(e.Node, true, map[*declaration]*declaration{})
+					children[j].Node = rebuild(e.Node, true, map[declaration]declaration{})
 				}
 			}
 			root = mustBuild(origin, gate, children)
@@ -416,7 +416,7 @@ func observe(specs []nodeSpec, t testCase) any {
 		}
 	}
 	_, endpoint := bind(root).(wire.Endpoint)
-	root = nil
+	root = declaration{}
 	if mounted != nil {
 		check(mounted.Close(duplex.CodeNormal, "released"))
 	}
@@ -470,7 +470,7 @@ func pending(specs []nodeSpec, t testCase) any {
 	check(err)
 	check(duplex.At(duplex.At(bind(root), []string{"a"}), []string{"b"}).Send(nil, wire.Message{Frame: wire.ProfileFrame{Version: 1, Kind: wire.ProfileRequest, ID: "c:1", Params: json.RawMessage("null")}, Return: original}))
 	old := wait(captured)
-	root = rebuild(root, true, map[*declaration]*declaration{})
+	root = rebuild(root, true, map[declaration]declaration{})
 	// Replace the tree's aliases after admission; the captured invocation stays old.
 	own, gate, _ := parts(root)
 	replacement := mustBuild(duplex.At(sender, []string{"new"}), nil, nil)

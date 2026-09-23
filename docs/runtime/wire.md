@@ -119,6 +119,9 @@ and untouched subtree. It constructs a new tree; previous bound views and
 admitted invocations keep their old targets. Empty keys and childless nodes
 remain meaningful.
 
+Go declarations are value handles to private immutable records. Replacing an
+assembler's handle cannot retarget a previously composed child or bound view.
+
 `AdmissionPolicy.Admit` / `admit` runs once for each occurrence from root to
 destination, before child lookup or own dispatch. It sees the remaining path
 and original message and permits or refuses one unchanged delegation. Checks

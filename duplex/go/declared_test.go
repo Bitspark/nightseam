@@ -42,7 +42,7 @@ func (p *declaredPolicy) Admit(path []string, _ bitwire.Message) error {
 	return nil
 }
 
-func declaredNode(t *testing.T, own bitwire.Wire, policy duplex.AdmissionPolicy, children ...duplex.DeclaredChild) *duplex.Declared {
+func declaredNode(t *testing.T, own bitwire.Wire, policy duplex.AdmissionPolicy, children ...duplex.DeclaredChild) duplex.Declared {
 	t.Helper()
 	n, err := duplex.ComposeDeclared(duplex.DeclaredValue{Own: own, Policy: policy}, children)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestDeclaredPartsRetainRawChildrenAndSharedPolicies(t *testing.T) {
 	leaf := declaredNode(t, origin, duplex.PermitAdmission{})
 	entries := []duplex.DeclaredChild{{Key: "x", Node: leaf}, {Key: "y", Node: leaf}}
 	root := declaredNode(t, duplex.RefusingOrigin{}, gate, entries...)
-	entries[0].Node = nil
+	entries[0].Node = duplex.Declared{}
 	value, children := root.Decompose()
 	if value.Policy != gate || len(children) != 2 || children[0].Node != leaf || children[1].Node != leaf {
 		t.Fatal("parts changed identity or aliases")
@@ -112,7 +112,7 @@ func TestDeclaredPartsRetainRawChildrenAndSharedPolicies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	children[0].Node = nil
+	children[0].Node = duplex.Declared{}
 	if err := duplex.At(root.Bind(), []string{"x"}).Send(nil, declaredEvent()); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestDeclaredConstructionAndNavigationRefuseInvalidParts(t *testing.T) {
 	value := duplex.DeclaredValue{Own: origin, Policy: duplex.PermitAdmission{}}
 	for _, children := range [][]duplex.DeclaredChild{
 		{{Key: "x", Node: leaf}, {Key: "x", Node: leaf}},
-		{{Key: "x", Node: nil}},
+		{{Key: "x", Node: duplex.Declared{}}},
 		{{Key: string([]byte{0xff}), Node: leaf}},
 	} {
 		if _, err := duplex.ComposeDeclared(value, children); err == nil {
@@ -207,5 +207,24 @@ func TestDeclaredRebuiltViewsShareConcurrentAdmissionState(t *testing.T) {
 	workers.Wait()
 	if gate.remaining != 0 || len(gate.paths) != 200 {
 		t.Fatal("reconstructed views did not share the synchronized policy")
+	}
+}
+
+func TestDeclaredReplacingAssemblerHandlesCannotRetargetBoundAccess(t *testing.T) {
+	origin, replacement := &declaredOrigin{}, &declaredOrigin{}
+	leaf := declaredNode(t, origin, duplex.PermitAdmission{})
+	root := declaredNode(t, origin, duplex.PermitAdmission{}, duplex.DeclaredChild{Key: "child", Node: leaf})
+	bound := root.Bind()
+	selected := duplex.At(bound, []string{"child"})
+	leaf = declaredNode(t, replacement, duplex.PermitAdmission{})
+	root = leaf
+	if err := bound.Send(nil, declaredEvent()); err != nil {
+		t.Fatal(err)
+	}
+	if err := selected.Send(nil, declaredEvent()); err != nil {
+		t.Fatal(err)
+	}
+	if len(origin.messages) != 2 || len(replacement.messages) != 0 {
+		t.Fatal("replacing assembler handles retargeted previously bound access")
 	}
 }

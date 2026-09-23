@@ -55,7 +55,7 @@ type DeclaredValue struct {
 // DeclaredChild retains a whole raw construction description, not a selected view.
 type DeclaredChild struct {
 	Key  string
-	Node *Declared
+	Node Declared
 }
 
 // Declared is an immutable, finite construction description owned by an assembler.
@@ -63,68 +63,76 @@ type DeclaredChild struct {
 // It is not itself Wire access: Bind returns a separate send-only facade.
 // Descriptions expose raw parts and therefore must not be given to callers who
 // should receive only guarded access. The zero value is not an admitted declaration.
+// Copying or replacing a value handle cannot alter a retained declaration.
 type Declared struct {
+	node *declaredNode
+}
+
+type declaredNode struct {
 	value    DeclaredValue
-	children map[string]*Declared
+	children map[string]Declared
 }
 
 // ComposeDeclared retains the own value and copies a complete child map. A sequence
 // of entries is accepted so duplicate keys are refused before a native map can
 // overwrite them. Keys must be Unicode scalar strings; empty keys are allowed.
 // There are no receiver attachments, peers, queues or lifecycle acquisitions.
-func ComposeDeclared(value DeclaredValue, children []DeclaredChild) (*Declared, error) {
+func ComposeDeclared(value DeclaredValue, children []DeclaredChild) (Declared, error) {
 	if value.Own == nil || value.Policy == nil {
-		return nil, ErrDeclaredValue
+		return Declared{}, ErrDeclaredValue
 	}
-	routes := make(map[string]*Declared, len(children))
+	routes := make(map[string]Declared, len(children))
 	for _, child := range children {
 		if _, err := EncodePath([]string{child.Key}); err != nil {
-			return nil, err
+			return Declared{}, err
 		}
 		if !child.Node.valid() {
-			return nil, ErrDeclaredValue
+			return Declared{}, ErrDeclaredValue
 		}
 		if _, found := routes[child.Key]; found {
-			return nil, ErrDeclaredChildExists
+			return Declared{}, ErrDeclaredChildExists
 		}
 		routes[child.Key] = child.Node
 	}
-	return &Declared{value: value, children: routes}, nil
+	return Declared{node: &declaredNode{value: value, children: routes}}, nil
 }
 
-func (d *Declared) valid() bool { return d != nil && d.value.Own != nil && d.value.Policy != nil }
+func (d Declared) valid() bool { return d.node != nil }
 
 // Decompose returns the own value and all raw children. Capability, policy and child
 // identities are retained; changing the returned slice cannot change the declaration.
 // The slice is ordered by exact UTF-8 key bytes. Only the construction owner has parts;
 // selected Wire access neither exposes them nor drops its inherited admission checks.
-func (d *Declared) Decompose() (DeclaredValue, []DeclaredChild) {
-	keys := make([]string, 0, len(d.children))
-	for key := range d.children {
+func (d Declared) Decompose() (DeclaredValue, []DeclaredChild) {
+	if !d.valid() {
+		return DeclaredValue{}, nil
+	}
+	keys := make([]string, 0, len(d.node.children))
+	for key := range d.node.children {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
 	children := make([]DeclaredChild, 0, len(keys))
 	for _, key := range keys {
-		children = append(children, DeclaredChild{key, d.children[key]})
+		children = append(children, DeclaredChild{key, d.node.children[key]})
 	}
-	return d.value, children
+	return d.node.value, children
 }
 
 // At resolves raw construction parts for the assembler. It is not a guarded Wire
 // selection. Use At(d.Bind(), path) to give a caller access with ancestor policies.
-func (d *Declared) At(path []string) (*Declared, bool) {
+func (d Declared) At(path []string) (Declared, bool) {
 	if !d.valid() {
-		return nil, false
+		return Declared{}, false
 	}
 	if _, err := EncodePath(path); err != nil {
-		return nil, false
+		return Declared{}, false
 	}
 	current := d
 	for _, key := range path {
-		current = current.children[key]
-		if current == nil {
-			return nil, false
+		current = current.node.children[key]
+		if !current.valid() {
+			return Declared{}, false
 		}
 	}
 	return current, true
@@ -134,24 +142,24 @@ func (d *Declared) At(path []string) (*Declared, bool) {
 // key must be unused, and child must be valid. Every old own value, policy and
 // untouched child is retained. Existing views keep the old structure and work.
 // No application effect or provider edit is executed by structural attachment.
-func (d *Declared) Attach(parent []string, key string, child *Declared) (*Declared, error) {
+func (d Declared) Attach(parent []string, key string, child Declared) (Declared, error) {
 	if _, err := EncodePath(append(append([]string{}, parent...), key)); err != nil {
-		return nil, err
+		return Declared{}, err
 	}
 	if !child.valid() {
-		return nil, ErrDeclaredValue
+		return Declared{}, ErrDeclaredValue
 	}
 	target, found := d.At(parent)
 	if !found {
-		return nil, ErrNoRoute
+		return Declared{}, ErrNoRoute
 	}
-	if _, occupied := target.children[key]; occupied {
-		return nil, ErrDeclaredChildExists
+	if _, occupied := target.node.children[key]; occupied {
+		return Declared{}, ErrDeclaredChildExists
 	}
 	return d.attach(parent, key, child), nil
 }
 
-func (d *Declared) attach(parent []string, key string, child *Declared) *Declared {
+func (d Declared) attach(parent []string, key string, child Declared) Declared {
 	value, children := d.Decompose()
 	if len(parent) == 0 {
 		children = append(children, DeclaredChild{key, child})
@@ -174,9 +182,9 @@ func (d *Declared) attach(parent []string, key string, child *Declared) *Declare
 // Responses and cancellation use the captured invocation's facilities, not this
 // new-admission entry. Destination endpoints remain responsible for asynchronous
 // application dispatch, admission validation and invocation lifetime.
-func (d *Declared) Bind() bitwire.Wire { return &declaredWire{root: d} }
+func (d Declared) Bind() bitwire.Wire { return &declaredWire{root: d} }
 
-type declaredWire struct{ root *Declared }
+type declaredWire struct{ root Declared }
 
 func (w *declaredWire) Send(path []string, message bitwire.Message) error {
 	if _, err := EncodePath(path); err != nil {
@@ -191,14 +199,14 @@ func (w *declaredWire) Send(path []string, message bitwire.Message) error {
 	current := w.root
 	for i := 0; ; i++ {
 		// A check sees a private path slice; it cannot retarget later traversal.
-		if err := current.value.Policy.Admit(append([]string{}, path[i:]...), message); err != nil {
+		if err := current.node.value.Policy.Admit(append([]string{}, path[i:]...), message); err != nil {
 			return err
 		}
 		if i == len(path) {
-			return current.value.Own.Send([]string{}, message)
+			return current.node.value.Own.Send([]string{}, message)
 		}
-		current = current.children[path[i]]
-		if current == nil {
+		current = current.node.children[path[i]]
+		if !current.valid() {
 			return ErrNoRoute
 		}
 	}
