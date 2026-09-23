@@ -1,9 +1,10 @@
 /**
- * A metamodel, expressed entirely as types. S and the meanings of the axes
- * are supplied by its users; there are no built-in languages or generator roles.
+ * A metamodel, expressed entirely as types. X and the meanings of the axes
+ * are supplied by an interpretation. The coordinate core assigns no role names;
+ * the semantic layer distinguishes contracts, realizations and implementations.
  *
- * Representation<S, K> means a representation OF S, not merely one tagged S.
- * Preserving S (including any chosen behavioral laws) is a semantic obligation.
+ * Representation<X, K> means a representation OF X, not merely one tagged X.
+ * Preserving X (including any chosen behavioral laws) is a semantic obligation.
  * TypeScript checks the indices and adjacency, not the meaning of an artifact.
  */
 
@@ -24,16 +25,16 @@ export type AxisElementEquality = (left: CoordinateValue, right: CoordinateValue
 // A missing key is distinct from a present key whose value is explicitly null.
 export type CoordinateEquality = (left: Coordinates, right: Coordinates) => boolean;
 
-export interface Representation<S, K extends Coordinates> {
-  readonly subject: S;
+export interface Representation<X, K extends Coordinates> {
+  readonly subject: X;
   readonly coordinates: K;
   readonly artifact: unknown;
 }
 
 // An unrestricted map can interpret a path that changes zero or several axes.
-export type RepresentationMap<S, From extends Coordinates, To extends Coordinates> = (
-  input: Representation<S, From>,
-) => Representation<S, To>;
+export type RepresentationMap<X, From extends Coordinates, To extends Coordinates> = (
+  input: Representation<X, From>,
+) => Representation<X, To>;
 
 type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type IsUnion<T, Whole = T> = T extends Whole ? ([Whole] extends [T] ? false : true) : never;
@@ -93,123 +94,123 @@ export type ChangedAxis<From extends Coordinates, To extends Coordinates> =
     : never;
 
 /**
- * One elementary function, with the same S at both ends and exactly one axis
+ * One elementary function, with the same X at both ends and exactly one axis
  * changed. This type is empty (`never`) when the endpoints are not adjacent.
- * Every inhabitant is required to preserve S; the signature alone is no proof
+ * Every inhabitant is required to preserve X; the signature alone is no proof
  * of shape isomorphism or behavioral preservation.
  */
-export type Transformation<S, From extends Coordinates, To extends Coordinates> = [ChangedAxis<From, To>] extends [
+export type Transformation<X, From extends Coordinates, To extends Coordinates> = [ChangedAxis<From, To>] extends [
   never,
 ]
   ? never
-  : RepresentationMap<S, From, To>;
+  : RepresentationMap<X, From, To>;
 
-// The first-class signature: for fixed S, its identity is the ordered endpoint
+// The first-class signature: for fixed X, its identity is the ordered endpoint
 // tuple. It determines the transformation TYPE, without selecting an inhabitant.
-export type TransformationSignature<S, From extends Coordinates, To extends Coordinates> = [
+export type TransformationSignature<X, From extends Coordinates, To extends Coordinates> = [
   ChangedAxis<From, To>,
 ] extends [never]
   ? never
   : {
-      readonly subject: S;
+      readonly subject: X;
       readonly endpoints: readonly [from: From, to: To];
     };
 
 // Several named functions may inhabit the same signature. `apply` is the
 // function itself; its id is independent of the signature's endpoint identity.
-export interface TransformationInstance<S, From extends Coordinates, To extends Coordinates> {
+export interface TransformationInstance<X, From extends Coordinates, To extends Coordinates> {
   readonly id: string;
-  readonly signature: TransformationSignature<S, From, To>;
-  readonly apply: Transformation<S, From, To>;
+  readonly signature: TransformationSignature<X, From, To>;
+  readonly apply: Transformation<X, From, To>;
 }
 
 // A path lists all visited coordinates. One stop and zero steps is identity.
 export type Stops = readonly [Coordinates, ...Coordinates[]];
 
-export type PathSteps<S, Route extends Stops> = Route extends readonly [
+export type PathSteps<X, Route extends Stops> = Route extends readonly [
   infer From extends Coordinates,
   infer To extends Coordinates,
   ...infer Rest extends Coordinates[],
 ]
-  ? readonly [Transformation<S, From, To>, ...PathSteps<S, readonly [To, ...Rest]>]
+  ? readonly [Transformation<X, From, To>, ...PathSteps<X, readonly [To, ...Rest]>]
   : readonly [];
 
-export interface Path<S, Route extends Stops> {
-  readonly subject: S;
+export interface Path<X, Route extends Stops> {
+  readonly subject: X;
   // A finite tuple makes every link checkable. An unbounded array loses that evidence.
   readonly coordinates: number extends Route['length'] ? never : Route;
-  readonly steps: PathSteps<S, Route>;
+  readonly steps: PathSteps<X, Route>;
 }
 
 type Last<Route extends Stops> = Route extends readonly [...Coordinates[], infer K extends Coordinates] ? K : never;
 
 // Interpreting a path composes its steps; it need not be an elementary step.
-export type PathMeaning<S, Route extends Stops> = RepresentationMap<S, Route[0], Last<Route>>;
+export type PathMeaning<X, Route extends Stops> = RepresentationMap<X, Route[0], Last<Route>>;
 
-// Contract structure specializes the previously opaque subject S. Contract keys
+// Shape structure specializes the previously opaque subject X. Shape keys
 // are independent of coordinate-axis IDs, even though both use opaque strings.
-export type ContractKey = string;
-export type ContractPath = readonly ContractKey[];
+export type ShapeKey = string;
+export type ShapePath = readonly ShapeKey[];
 
 export type GenericId = string;
 
-/** A hole stands for an ENTIRE contract; it has no local value or children. */
+/** A hole stands for an ENTIRE shape; it has no local value or children. */
 export type Generic<G extends GenericId> = [G] extends [never] ? never : { readonly kind: 'generic'; readonly id: G };
 
 /** An immutable, finite, acyclic node. Children have unique keys; order is immaterial. */
-export interface ContractNode<O, G extends GenericId = never> {
+export interface ShapeNode<O, G extends GenericId = never> {
   readonly kind: 'node';
   readonly value?: O;
-  readonly children: ReadonlyMap<ContractKey, Contract<O, G>>;
+  readonly children: ReadonlyMap<ShapeKey, Shape<O, G>>;
 }
 
-/** G is the allowed free-hole context. G = never recovers closed contracts. */
-export type Contract<O = unknown, G extends GenericId = never> = ContractNode<O, G> | Generic<G>;
+/** G is the allowed free-hole context. G = never recovers closed shapes. */
+export type Shape<O = unknown, G extends GenericId = never> = ShapeNode<O, G> | Generic<G>;
 
 // An existing node without a value or children is still Found, not Missing.
 export type Selection<T> = { readonly kind: 'found'; readonly value: T } | { readonly kind: 'missing' };
 
-/** Required laws: at(C, []) = C; at(C, p ++ q) = bind(at(C, p), at(_, q)). */
-export type ContractNavigation<O, G extends GenericId = never> = (
-  contract: Contract<O, G>,
-  path: ContractPath,
-) => Selection<Contract<O, G>>;
+/** Required laws: at(S, []) = S; at(S, p ++ q) = bind(at(S, p), at(_, q)). */
+export type ShapeNavigation<O, G extends GenericId = never> = (
+  shape: Shape<O, G>,
+  path: ShapePath,
+) => Selection<Shape<O, G>>;
 
 /**
  * A location witnesses that selected = at(root, path). Construction must establish
  * this equation. TypeScript relates the subject types but cannot prove the lookup.
  */
-export interface ContractLocation<
+export interface ShapeLocation<
   O,
-  Root extends Contract<O, G>,
+  Root extends Shape<O, G>,
   G extends GenericId = never,
-  Selected extends Contract<O, G> = Contract<O, G>,
+  Selected extends Shape<O, G> = Shape<O, G>,
 > {
   readonly root: Root;
-  readonly path: ContractPath;
+  readonly path: ShapePath;
   readonly selected: Selected;
 }
 
 /**
  * Given a valid location, select the corresponding representation at the SAME
  * coordinate K. Navigation may retain the context needed to interpret a fragment.
- * Its result's subject is the selected sub-contract, not the original root.
+ * Its result's subject is the selected sub-shape, not the original root.
  */
 export interface RepresentationNavigation<O, K extends Coordinates, G extends GenericId = never> {
-  <Root extends Contract<O, G>, Selected extends Contract<O, G>>(
+  <Root extends Shape<O, G>, Selected extends Shape<O, G>>(
     input: Representation<Root, K>,
-    location: ContractLocation<O, Root, G, Selected>,
+    location: ShapeLocation<O, Root, G, Selected>,
   ): Representation<Selected, K>;
 }
 
-/** The observable contract surface at ONE node. Child order is not semantic. */
-export interface ContractNodeSurface<O> {
+/** The observable shape surface at ONE node. Child order is not semantic. */
+export interface ShapeNodeSurface<O> {
   readonly kind: 'node';
   readonly value?: O;
-  readonly keys: ReadonlySet<ContractKey>;
+  readonly keys: ReadonlySet<ShapeKey>;
 }
 
-export type ContractSurface<O, G extends GenericId = never> = ContractNodeSurface<O> | Generic<G>;
+export type ShapeSurface<O, G extends GenericId = never> = ShapeNodeSurface<O> | Generic<G>;
 
 /**
  * Observe the represented artifact, not just its subject field. Required law:
@@ -217,30 +218,30 @@ export type ContractSurface<O, G extends GenericId = never> = ContractNodeSurfac
  * Equality of opaque values is supplied by the model's user.
  */
 export interface RepresentationObservation<O, K extends Coordinates, G extends GenericId = never> {
-  <C extends Contract<O, G>>(input: Representation<C, K>): ContractSurface<O, G>;
+  <S extends Shape<O, G>>(input: Representation<S, K>): ShapeSurface<O, G>;
 }
 
 /** An equivalence relation, respected by navigation and admitted transformations. */
 export interface RepresentationEquivalence<K extends Coordinates> {
-  <S>(left: Representation<S, K>, right: Representation<S, K>): boolean;
+  <X>(left: Representation<X, K>, right: Representation<X, K>): boolean;
 }
 
-// A polymorphic map supplies a component for EVERY contract in the chosen domain.
-// The domain here is finite Contract<O, G> trees, and is closed under navigation.
-export interface ContractRepresentationMap<
+// A polymorphic map supplies a component for EVERY shape in the chosen domain.
+// The domain here is finite Shape<O, G> trees, and is closed under navigation.
+export interface ShapeRepresentationMap<
   O,
   From extends Coordinates,
   To extends Coordinates,
   G extends GenericId = never,
 > {
-  <C extends Contract<O, G>>(input: Representation<C, From>): Representation<C, To>;
+  <S extends Shape<O, G>>(input: Representation<S, From>): Representation<S, To>;
 }
 
 export type TransformationFamily<O, From extends Coordinates, To extends Coordinates, G extends GenericId = never> = [
   ChangedAxis<From, To>,
 ] extends [never]
   ? never
-  : ContractRepresentationMap<O, From, To, G>;
+  : ShapeRepresentationMap<O, From, To, G>;
 
 export type FamilyPathSteps<O, Route extends Stops, G extends GenericId = never> = Route extends readonly [
   infer From extends Coordinates,
@@ -255,7 +256,7 @@ export interface FamilyPath<O, Route extends Stops, G extends GenericId = never>
   readonly steps: FamilyPathSteps<O, Route, G>;
 }
 
-export type FamilyPathMeaning<O, Route extends Stops, G extends GenericId = never> = ContractRepresentationMap<
+export type FamilyPathMeaning<O, Route extends Stops, G extends GenericId = never> = ShapeRepresentationMap<
   O,
   Route[0],
   Last<Route>,
@@ -277,18 +278,18 @@ export interface NavigationTransparency<
   To extends Coordinates,
   G extends GenericId = never,
 > {
-  readonly transform: ContractRepresentationMap<O, From, To, G>;
+  readonly transform: ShapeRepresentationMap<O, From, To, G>;
   readonly sourceAt: RepresentationNavigation<O, From, G>;
   readonly targetAt: RepresentationNavigation<O, To, G>;
   readonly equivalent: RepresentationEquivalence<To>;
 }
 
-/** A total, simultaneous assignment of source holes to contracts over target holes. */
-export type Substitution<O, G extends GenericId, H extends GenericId> = (id: G) => Contract<O, H>;
+/** A total, simultaneous assignment of source holes to shapes over target holes. */
+export type Substitution<O, G extends GenericId, H extends GenericId> = (id: G) => Shape<O, H>;
 
 /** Substitute once: a replacement is returned as-is, not traversed under the same assignment. */
-export interface ContractSubstitution<O> {
-  <G extends GenericId, H extends GenericId>(template: Contract<O, G>, bindings: Substitution<O, G, H>): Contract<O, H>;
+export interface ShapeSubstitution<O> {
+  <G extends GenericId, H extends GenericId>(template: Shape<O, G>, bindings: Substitution<O, G, H>): Shape<O, H>;
 }
 
 /** A semantic witness: result = template[bindings], preserving the particular result subject. */
@@ -296,10 +297,10 @@ export interface SubstitutionApplication<
   O,
   G extends GenericId,
   H extends GenericId,
-  C extends Contract<O, G>,
-  D extends Contract<O, H>,
+  S extends Shape<O, G>,
+  D extends Shape<O, H>,
 > {
-  readonly template: C;
+  readonly template: S;
   readonly bindings: Substitution<O, G, H>;
   readonly result: D;
 }
@@ -307,31 +308,175 @@ export interface SubstitutionApplication<
 /** For each g, argument(g) must lawfully represent the SAME subject as semantic(g). */
 export interface RepresentedSubstitution<O, G extends GenericId, H extends GenericId, K extends Coordinates> {
   readonly semantic: Substitution<O, G, H>;
-  readonly argument: (id: G) => Representation<Contract<O, H>, K>;
+  readonly argument: (id: G) => Representation<Shape<O, H>, K>;
 }
 
 /**
- * Substitution keeps K, but changes the subject from C to its instantiated D.
+ * Substitution keeps K, but changes the subject from S to its instantiated D.
  * This is not a subject-preserving, one-axis Transformation.
  * The application witness must match the input and the bindings.
  */
 export interface RepresentationSubstitution<O, K extends Coordinates> {
-  <G extends GenericId, H extends GenericId, C extends Contract<O, G>, D extends Contract<O, H>>(
-    input: Representation<C, K>,
+  <G extends GenericId, H extends GenericId, S extends Shape<O, G>, D extends Shape<O, H>>(
+    input: Representation<S, K>,
     bindings: RepresentedSubstitution<O, G, H, K>,
-    application: SubstitutionApplication<O, G, H, C, D>,
+    application: SubstitutionApplication<O, G, H, S, D>,
   ): Representation<D, K>;
 }
 
 /**
- * A family over both open and closed contracts, commuting with substitution:
+ * A family over both open and closed shapes, commuting with substitution:
  * F(substitute_K(r, args)) ≈ substitute_L(F(r), g => F(args(g))).
  * Identity/associativity of substitution and congruence are also required.
  * As with NavigationTransparency, storing this record does not prove its laws.
  */
 export interface SubstitutionTransparency<O, From extends Coordinates, To extends Coordinates> {
-  readonly transform: ContractRepresentationMap<O, From, To, GenericId>;
+  readonly transform: ShapeRepresentationMap<O, From, To, GenericId>;
   readonly sourceSubstitute: RepresentationSubstitution<O, From>;
   readonly targetSubstitute: RepresentationSubstitution<O, To>;
   readonly equivalent: RepresentationEquivalence<To>;
 }
+
+// Implementation semantics. S is now SHAPE; X above is an arbitrary subject.
+// The tree Shape<O, G> is one choice of S, not a mandatory encoding of every
+// native type. A behavior domain fixes environments, effects and observations.
+
+/** A reified mathematical proposition, not a Boolean test or evidence of truth. */
+export interface Proposition {
+  readonly statement: string;
+  readonly parameters: Readonly<Record<string, unknown>>;
+}
+
+/** `equivalent` specifies an equivalence relation on behaviors at shape S. */
+export interface BehaviorDomain<S, Beh> {
+  readonly shape: S;
+  readonly equivalent: (left: Beh, right: Beh) => Proposition;
+}
+
+/** B : Behavior[S] -> Prop. No decision procedure is required in general. */
+export type BehaviorSpecification<Beh> = (behavior: Beh) => Proposition;
+
+/**
+ * C = (S, B), relative to a selected behavior domain. S = domain.shape.
+ * Required law: B respects domain.equivalent. A shape-only contract uses B = true.
+ */
+export interface Contract<S, Beh> {
+  readonly domain: BehaviorDomain<S, Beh>;
+  readonly specification: BehaviorSpecification<Beh>;
+}
+
+/**
+ * A selected native realization T in L, including its interpretation of values.
+ * behaviorOf includes the correspondence to S, environment and initial/current
+ * state as needed; it is not an algorithm inferred from a native type signature.
+ * Values of T are structural candidates, not automatically lawful under B.
+ */
+export interface ModelType<S, Beh, L extends string, V> {
+  readonly id: string;
+  readonly language: L;
+  readonly domain: BehaviorDomain<S, Beh>;
+  readonly behaviorOf: (value: V) => Beh;
+}
+
+/** Erased constraint for indexing a particular selected ModelType without any. */
+export interface ModelTypeIndex {
+  readonly id: string;
+  readonly language: string;
+  readonly domain: { readonly shape: unknown };
+  readonly behaviorOf: (value: never) => unknown;
+}
+export type NativeValue<T extends ModelTypeIndex> = Parameters<T['behaviorOf']>[0];
+export type ActualBehavior<T extends ModelTypeIndex> = ReturnType<T['behaviorOf']>;
+export type ShapeOf<T extends ModelTypeIndex> = T['domain']['shape'];
+export type ContractFor<T extends ModelTypeIndex> = Contract<ShapeOf<T>, ActualBehavior<T>>;
+
+export interface ModelInstance<T extends ModelTypeIndex> {
+  readonly modelType: T;
+  readonly value: NativeValue<T>;
+}
+
+/** Intended witness: contract.specification(behavior) holds. Data is not proof. */
+export interface Satisfaction<S, Beh, C extends Contract<S, Beh> = Contract<S, Beh>> {
+  readonly contract: C;
+  readonly behavior: Beh;
+  readonly evidence: unknown;
+}
+
+/**
+ * A lawful implementation of C. The witness must concern behaviorOf(value), or
+ * an observationally equivalent behavior in the same domain (by B1). TypeScript
+ * cannot establish satisfaction, exact domain identity, or that correspondence.
+ * This is a reification of the refinement, not a trusted proof constructor.
+ */
+export interface ContractImplementation<T extends ModelTypeIndex, C extends ContractFor<T> = ContractFor<T>> {
+  readonly instance: ModelInstance<T>;
+  readonly satisfaction: Satisfaction<ShapeOf<T>, ActualBehavior<T>, C>;
+}
+
+/**
+ * A candidate adapter between two realizations of a common shape/behavior domain.
+ * Exact domain agreement remains a semantic obligation. The signature alone
+ * establishes neither satisfaction preservation nor behavioral transparency.
+ */
+export type AdapterSemantics<T extends ModelTypeIndex, U extends ModelTypeIndex> =
+  Equal<ShapeOf<T>, ShapeOf<U>> extends true
+    ? Equal<ActualBehavior<T>, ActualBehavior<U>> extends true
+      ? {
+          readonly sourceType: T;
+          readonly targetType: U;
+          readonly adapt: (instance: ModelInstance<T>) => ModelInstance<U>;
+        }
+      : never
+    : never;
+
+/** Syntax denotes its subject X; the artifact can be text OR a host AST value. */
+export type Syntax<X, L extends string> = Representation<X, { readonly form: 'syntax'; readonly language: L }>;
+export type ModelContractSyntax<S, Beh, D extends string> = Syntax<Contract<S, Beh>, D>;
+export type ModelTypeSyntax<T extends ModelTypeIndex> = Syntax<T, T['language']>;
+export type ImplementationSyntax<T extends ModelTypeIndex> = Syntax<ModelInstance<T>, T['language']>;
+export type AdapterSyntax<T extends ModelTypeIndex, U extends ModelTypeIndex, L extends string> = Syntax<
+  AdapterSemantics<T, U>,
+  L
+>;
+
+/**
+ * Keep C alongside the generated type: native type syntax alone denotes T and
+ * does not establish B for every native value. T realizes C's shape in its domain.
+ */
+export interface TypeGeneration<T extends ModelTypeIndex, C extends ContractFor<T> = ContractFor<T>> {
+  readonly contract: C;
+  readonly modelType: ModelTypeSyntax<T>;
+}
+
+/** A component with C and the chosen T fixed; foundations gives the full Pi/Sigma family. */
+export type TypeGeneratorSemantics<C extends ContractFor<T>, T extends ModelTypeIndex, D extends string> = (
+  input: Syntax<C, D>,
+) => TypeGeneration<T, C>;
+
+export interface AdapterGeneration<
+  T extends ModelTypeIndex,
+  U extends ModelTypeIndex,
+  L extends string,
+  C extends ContractFor<T> = ContractFor<T>,
+> extends TypeGeneration<T, C> {
+  readonly adapter: AdapterSyntax<T, U, L>;
+}
+
+/**
+ * The supplied T is the SAME T targeted by generated adapter semantics. For a
+ * transparent generator, every admitted output adapter must preserve behavior;
+ * retaining C and T in this record is necessary bookkeeping, not that proof.
+ */
+export type AdapterGeneratorSemantics<
+  C extends ContractFor<T>,
+  T extends ModelTypeIndex,
+  U extends ModelTypeIndex,
+  D extends string,
+  L extends string,
+> = (input: {
+  readonly contract: Syntax<C, D>;
+  readonly modelType: ModelTypeSyntax<T>;
+}) => AdapterGeneration<T, U, L, C>;
+
+/** Loaded generators are semantic functions; their source uses a separate host H. */
+export type GeneratorSyntax<G, H extends string> = Syntax<G, H>;

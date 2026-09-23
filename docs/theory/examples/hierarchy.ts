@@ -7,12 +7,12 @@
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import type {
-  Contract,
-  ContractKey,
-  ContractLocation,
-  ContractNavigation,
-  ContractPath,
-  ContractRepresentationMap,
+  Shape,
+  ShapeKey,
+  ShapeLocation,
+  ShapeNavigation,
+  ShapePath,
+  ShapeRepresentationMap,
   Coordinates,
   FamilyPath,
   FamilyPathMeaning,
@@ -26,7 +26,7 @@ import type {
 } from '../model.ts';
 
 type O = string; // The implementation treats these strings as opaque value IDs.
-const node = (value?: O, entries: readonly (readonly [ContractKey, Contract<O>])[] = []): Contract<O> => ({
+const node = (value?: O, entries: readonly (readonly [ShapeKey, Shape<O>])[] = []): Shape<O> => ({
   kind: 'node',
   ...(value === undefined ? {} : { value }),
   children: new Map(entries),
@@ -53,10 +53,10 @@ export const booleanCellTree = node('BooleanCell', [
     ]),
   ],
 ]);
-export const emptyContract = node();
+export const emptyShape = node();
 
-export const contractAt: ContractNavigation<O> = (contract, path) => {
-  let selected = contract;
+export const shapeAt: ShapeNavigation<O> = (shape, path) => {
+  let selected = shape;
   for (const key of path) {
     const child = selected.children.get(key);
     if (child === undefined) return { kind: 'missing' };
@@ -65,12 +65,12 @@ export const contractAt: ContractNavigation<O> = (contract, path) => {
   return { kind: 'found', value: selected };
 };
 
-export function locate<C extends Contract<O>>(root: C, path: ContractPath): Selection<ContractLocation<O, C>> {
-  const result = contractAt(root, path);
+export function locate<S extends Shape<O>>(root: S, path: ShapePath): Selection<ShapeLocation<O, S>> {
+  const result = shapeAt(root, path);
   return result.kind === 'missing' ? result : { kind: 'found', value: { root, path, selected: result.value } };
 }
 
-// Two independent axes; neither is a contract-child key. A higher slot is empty.
+// Two independent axes; neither is a shape-child key. A higher slot is empty.
 export const nestedAscending = { '0:layout': 'nested', '0:order': 'ascending', '1:execution': null } as const;
 export const flatAscending = { ...nestedAscending, '0:layout': 'flat' } as const;
 export const nestedDescending = { ...nestedAscending, '0:order': 'descending' } as const;
@@ -78,10 +78,10 @@ export const flatDescending = { ...flatAscending, '0:order': 'descending' } as c
 
 interface Nested {
   readonly value?: O;
-  readonly children: readonly (readonly [ContractKey, Nested])[];
+  readonly children: readonly (readonly [ShapeKey, Nested])[];
 }
 interface FlatNode {
-  readonly path: ContractPath;
+  readonly path: ShapePath;
   readonly value?: O;
 }
 interface NestedArtifact {
@@ -97,10 +97,10 @@ const valueOf = (source: { readonly value?: O }): { readonly value?: O } =>
   source.value === undefined ? {} : { value: source.value };
 const compareIds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-function render(contract: Contract<O>): Nested {
+function render(shape: Shape<O>): Nested {
   return {
-    ...valueOf(contract),
-    children: [...contract.children].sort(([a], [b]) => compareIds(a, b)).map(([key, child]) => [key, render(child)]),
+    ...valueOf(shape),
+    children: [...shape.children].sort(([a], [b]) => compareIds(a, b)).map(([key, child]) => [key, render(child)]),
   };
 }
 
@@ -114,7 +114,7 @@ function flatArtifact(artifact: unknown): FlatArtifact {
   return artifact as FlatArtifact;
 }
 
-function flatten(root: Nested, path: ContractPath = []): FlatNode[] {
+function flatten(root: Nested, path: ShapePath = []): FlatNode[] {
   // Include EVERY node, even one with no value and no children.
   return [{ path, ...valueOf(root) }, ...root.children.flatMap(([key, child]) => flatten(child, [...path, key]))];
 }
@@ -124,7 +124,7 @@ function reverseChildren(root: Nested): Nested {
     children: [...root.children].reverse().map(([key, child]) => [key, reverseChildren(child)]),
   };
 }
-function comparePaths(a: ContractPath, b: ContractPath, order: Order): number {
+function comparePaths(a: ShapePath, b: ShapePath, order: Order): number {
   for (let index = 0; index < Math.min(a.length, b.length); index++) {
     const compared = compareIds(a[index], b[index]);
     if (compared !== 0) return order === 'ascending' ? compared : -compared;
@@ -132,7 +132,7 @@ function comparePaths(a: ContractPath, b: ContractPath, order: Order): number {
   return a.length - b.length; // A parent always precedes its children.
 }
 
-export function represent<C extends Contract<O>>(subject: C): Representation<C, typeof nestedAscending> {
+export function represent<S extends Shape<O>>(subject: S): Representation<S, typeof nestedAscending> {
   return {
     subject,
     coordinates: nestedAscending,
@@ -164,12 +164,12 @@ export const flattenDescending: TransformationFamily<O, typeof nestedDescending,
   artifact: { kind: 'flat', nodes: flatten(nestedArtifact(input.artifact).root) } satisfies FlatArtifact,
 });
 
-function verifyLocation<Root extends Contract<O>, Selected extends Contract<O>>(
+function verifyLocation<Root extends Shape<O>, Selected extends Shape<O>>(
   subject: Root,
-  location: ContractLocation<O, Root, never, Selected>,
+  location: ShapeLocation<O, Root, never, Selected>,
 ): void {
-  assert.equal(location.root, subject, 'A location belongs to this root contract.');
-  const result = contractAt(subject, location.path);
+  assert.equal(location.root, subject, 'A location belongs to this root shape.');
+  const result = shapeAt(subject, location.path);
   assert.equal(result.kind, 'found', 'A location must name an existing child.');
   if (result.kind === 'found')
     assert.equal(result.value, location.selected, 'The selected subject must match the path.');
@@ -181,7 +181,7 @@ export function nestedNavigation<K extends Coordinates>(): RepresentationNavigat
     let selected = nestedArtifact(input.artifact).root;
     for (const key of location.path) {
       const child = selected.children.find(([candidate]) => candidate === key);
-      assert.ok(child, 'A lawful representation exposes every contract child.');
+      assert.ok(child, 'A lawful representation exposes every shape child.');
       selected = child[1];
     }
     return {
@@ -199,7 +199,7 @@ export function flatNavigation<K extends Coordinates>(): RepresentationNavigatio
       .map((node) => ({ ...valueOf(node), path: node.path.slice(location.path.length) }));
     assert.ok(
       nodes.some((node) => node.path.length === 0),
-      'Even an empty sub-contract has a represented root.',
+      'Even an empty sub-shape has a represented root.',
     );
     return {
       subject: location.selected,
@@ -210,7 +210,7 @@ export function flatNavigation<K extends Coordinates>(): RepresentationNavigatio
 }
 
 // Equality is exact artifact equality in this canonical example. No semantic
-// behavior claims are inferred from the opaque strings in Contract.value.
+// behavior claims are inferred from the opaque strings in Shape.value.
 export function representationEquality<K extends Coordinates>(): RepresentationEquivalence<K> {
   return (left, right) =>
     left.subject === right.subject &&
@@ -288,10 +288,10 @@ export const compositeLaw = {
   equivalent: representationEquality<typeof flatDescending>(),
 } satisfies NavigationTransparency<O, typeof nestedAscending, typeof flatDescending>;
 
-function paths(contract: Contract<O>): ContractPath[] {
-  return [[], ...[...contract.children].flatMap(([key, child]) => paths(child).map((path) => [key, ...path]))];
+function paths(shape: Shape<O>): ShapePath[] {
+  return [[], ...[...shape.children].flatMap(([key, child]) => paths(child).map((path) => [key, ...path]))];
 }
-function requireLocation<C extends Contract<O>>(root: C, path: ContractPath): ContractLocation<O, C> {
+function requireLocation<S extends Shape<O>>(root: S, path: ShapePath): ShapeLocation<O, S> {
   const selected = locate(root, path);
   assert.equal(selected.kind, 'found');
   return selected.value;
@@ -300,8 +300,8 @@ function requireLocation<C extends Contract<O>>(root: C, path: ContractPath): Co
 // This exercises the equation; a passing finite check is not a universal proof.
 export function checkTransparency<From extends Coordinates, To extends Coordinates>(
   law: NavigationTransparency<O, From, To>,
-  input: Representation<Contract<O>, From>,
-  path: ContractPath,
+  input: Representation<Shape<O>, From>,
+  path: ShapePath,
 ): void {
   const location = requireLocation(input.subject, path);
   const transformThenSelect = law.targetAt(law.transform(input), location);
@@ -313,7 +313,7 @@ export function checkTransparency<From extends Coordinates, To extends Coordinat
 }
 
 function checkRepresentationNavigation<K extends Coordinates>(
-  input: Representation<Contract<O>, K>,
+  input: Representation<Shape<O>, K>,
   at: RepresentationNavigation<O, K>,
   observe: RepresentationObservation<O, K>,
 ): void {
@@ -327,7 +327,7 @@ function checkRepresentationNavigation<K extends Coordinates>(
         kind: 'node',
         keys: new Set(location.selected.children.keys()),
       },
-      'Every represented local surface agrees with the contract.',
+      'Every represented local surface agrees with the shape.',
     );
     for (let split = 0; split <= fullPath.length; split++) {
       const prefix = requireLocation(input.subject, fullPath.slice(0, split));
@@ -340,8 +340,8 @@ function checkRepresentationNavigation<K extends Coordinates>(
 }
 
 export const rootRepresentation = represent(booleanCellTree);
-for (const contract of [booleanCellTree, emptyContract]) {
-  const root = represent(contract);
+for (const shape of [booleanCellTree, emptyShape]) {
+  const root = represent(shape);
   const a = root;
   const b = flattenAscending(root);
   const c = reverseNested(root);
@@ -350,17 +350,17 @@ for (const contract of [booleanCellTree, emptyContract]) {
   checkRepresentationNavigation(b, atFlatAscending, observeFlat());
   checkRepresentationNavigation(c, atNestedDescending, observeNested());
   checkRepresentationNavigation(d, atFlatDescending, observeFlat());
-  for (const path of paths(contract)) {
-    const direct = contractAt(contract, path);
+  for (const path of paths(shape)) {
+    const direct = shapeAt(shape, path);
     for (let split = 0; split <= path.length; split++) {
-      const first = contractAt(contract, path.slice(0, split));
+      const first = shapeAt(shape, path.slice(0, split));
       assert.equal(first.kind, 'found');
-      if (first.kind === 'found') assert.deepEqual(contractAt(first.value, path.slice(split)), direct);
+      if (first.kind === 'found') assert.deepEqual(shapeAt(first.value, path.slice(split)), direct);
       // The user's prefix law, exercised for the composite coordinate path:
       // P(at(r, p ++ q)) = at(P(at(r, p)), q).
-      const prefix = requireLocation(contract, path.slice(0, split));
+      const prefix = requireLocation(shape, path.slice(0, split));
       const suffix = requireLocation(prefix.selected, path.slice(split));
-      const left = runLayoutFirst(atNestedAscending(a, requireLocation(contract, path)));
+      const left = runLayoutFirst(atNestedAscending(a, requireLocation(shape, path)));
       const right = atFlatDescending(runLayoutFirst(atNestedAscending(a, prefix)), suffix);
       assert.ok(representationEquality<typeof flatDescending>()(left, right));
     }
@@ -369,24 +369,24 @@ for (const contract of [booleanCellTree, emptyContract]) {
     checkTransparency(reverseFlatLaw, b, path);
     checkTransparency(flattenDescendingLaw, c, path);
     checkTransparency(compositeLaw, a, path);
-    const location = requireLocation(contract, path);
+    const location = requireLocation(shape, path);
     const selected = atNestedAscending(a, location);
     assert.ok(representationEquality<typeof flatDescending>()(runLayoutFirst(selected), runOrderFirst(selected)));
   }
   assert.ok(representationEquality<typeof flatDescending>()(runLayoutFirst(root), runOrderFirst(root)));
 }
 
-assert.equal(contractAt(emptyContract, []).kind, 'found');
-assert.equal(contractAt(emptyContract, ['missing']).kind, 'missing');
-assert.equal(contractAt(booleanCellTree, ['operations', 'missing', 'result']).kind, 'missing');
-assert.equal(contractAt(booleanCellTree, ['operations', 'read', 'arguments']).kind, 'found');
+assert.equal(shapeAt(emptyShape, []).kind, 'found');
+assert.equal(shapeAt(emptyShape, ['missing']).kind, 'missing');
+assert.equal(shapeAt(booleanCellTree, ['operations', 'missing', 'result']).kind, 'missing');
+assert.equal(shapeAt(booleanCellTree, ['operations', 'read', 'arguments']).kind, 'found');
 
 // Partial navigation uses Option/bind: a missing prefix cannot be resumed.
 for (const path of [['missing'], ['operations', 'missing', 'result']]) {
   for (let split = 0; split <= path.length; split++) {
-    const prefix = contractAt(booleanCellTree, path.slice(0, split));
-    const nested = prefix.kind === 'missing' ? prefix : contractAt(prefix.value, path.slice(split));
-    assert.deepEqual(nested, contractAt(booleanCellTree, path));
+    const prefix = shapeAt(booleanCellTree, path.slice(0, split));
+    const nested = prefix.kind === 'missing' ? prefix : shapeAt(prefix.value, path.slice(split));
+    assert.deepEqual(nested, shapeAt(booleanCellTree, path));
   }
 }
 
@@ -403,7 +403,7 @@ assert.throws(() =>
   checkTransparency({ ...flattenLaw, transform: dropDescendants }, rootRepresentation, ['operations']),
 );
 assert.throws(() =>
-  atNestedAscending(rootRepresentation, { root: booleanCellTree, path: ['operations'], selected: emptyContract }),
+  atNestedAscending(rootRepresentation, { root: booleanCellTree, path: ['operations'], selected: emptyShape }),
 );
 
 // A different counterexample COMMUTES with navigation but changes every local
@@ -425,7 +425,7 @@ assert.throws(() => checkRepresentationNavigation(replaceValues(rootRepresentati
 
 console.log({
   subject: booleanCellTree.value,
-  contractPathsChecked: paths(booleanCellTree).length,
+  shapePathsChecked: paths(booleanCellTree).length,
   endpoint: flatDescending,
   twoCoordinatePathsAgree: true,
   navigationTransparency: 'checked at every node and every path split in the example',
