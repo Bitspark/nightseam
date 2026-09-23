@@ -44,28 +44,28 @@ type S = typeof booleanCell;
 
 // The axis schema is chosen here, outside the core model. "rank:key" addresses
 // encode positions and keys. The empty execution coordinate is still a value.
-export const goContractAt = {
-  '0:role': 'contract',
+export const goShapeAt = {
+  '0:role': 'shape',
   '0:form': 'syntax',
   '1:language': 'go',
   '2:execution': null,
 } as const satisfies Coordinates;
 
-export const goTypeAt = { ...goContractAt, '0:role': 'model-type' } as const satisfies Coordinates;
-export const tsContractAt = { ...goContractAt, '1:language': 'typescript' } as const satisfies Coordinates;
+export const goTypeAt = { ...goShapeAt, '0:role': 'model-type' } as const satisfies Coordinates;
+export const tsShapeAt = { ...goShapeAt, '1:language': 'typescript' } as const satisfies Coordinates;
 export const tsTypeAt = { ...goTypeAt, '1:language': 'typescript' } as const satisfies Coordinates;
 export const goMeaningAt = { ...goTypeAt, '0:form': 'semantics' } as const satisfies Coordinates;
 
-// Contract descriptors expressed as source, followed by native type source.
-// Contract/Operation and defineContract are illustrative declaration constructs.
-export const goContract = {
+// Shape descriptors expressed as source, followed by native type source.
+// Shape/Operation and defineShape are illustrative declaration constructs.
+export const goShape = {
   subject: booleanCell,
-  coordinates: goContractAt,
-  artifact: `Contract{Name: "BooleanCell", Operations: []Operation{
+  coordinates: goShapeAt,
+  artifact: `Shape{Name: "BooleanCell", Operations: []Operation{
   {Name: "read", Inputs: nil, Output: "Bool"},
   {Name: "write", Inputs: []string{"Bool"}, Output: "Unit"},
 }}`,
-} as const satisfies Representation<S, typeof goContractAt>;
+} as const satisfies Representation<S, typeof goShapeAt>;
 
 export const goType = {
   subject: booleanCell,
@@ -73,14 +73,14 @@ export const goType = {
   artifact: 'type BooleanCell interface { Read() bool; Write(value bool) }',
 } as const satisfies Representation<S, typeof goTypeAt>;
 
-export const tsContract = {
+export const tsShape = {
   subject: booleanCell,
-  coordinates: tsContractAt,
-  artifact: `defineContract("BooleanCell", {
+  coordinates: tsShapeAt,
+  artifact: `defineShape("BooleanCell", {
   read: { inputs: [], output: "Bool" },
   write: { inputs: ["Bool"], output: "Unit" },
 })`,
-} as const satisfies Representation<S, typeof tsContractAt>;
+} as const satisfies Representation<S, typeof tsShapeAt>;
 
 export const tsType = {
   subject: booleanCell,
@@ -106,7 +106,7 @@ export const formattedGoType = {
 // Each function below is an inhabitant of a single-axis transformation type.
 // All inputs already represent our fixed S, so selecting a fixed output for S
 // is a legitimate small example of a shape-preserving map between these cells.
-export const generateGoType: Transformation<S, typeof goContractAt, typeof goTypeAt> = (input) => ({
+export const generateGoType: Transformation<S, typeof goShapeAt, typeof goTypeAt> = (input) => ({
   ...goType,
   subject: input.subject,
 });
@@ -116,12 +116,12 @@ export const translateType: Transformation<S, typeof goTypeAt, typeof tsTypeAt> 
   subject: input.subject,
 });
 
-export const translateContract: Transformation<S, typeof goContractAt, typeof tsContractAt> = (input) => ({
-  ...tsContract,
+export const translateShape: Transformation<S, typeof goShapeAt, typeof tsShapeAt> = (input) => ({
+  ...tsShape,
   subject: input.subject,
 });
 
-export const generateTypeScriptType: Transformation<S, typeof tsContractAt, typeof tsTypeAt> = (input) => ({
+export const generateTypeScriptType: Transformation<S, typeof tsShapeAt, typeof tsTypeAt> = (input) => ({
   ...tsType,
   subject: input.subject,
 });
@@ -135,8 +135,8 @@ export const interpretGoType: Transformation<S, typeof goTypeAt, typeof goMeanin
 // have exactly this signature, although they produce different source strings.
 export const goTypeGenerationSignature = {
   subject: booleanCell,
-  endpoints: [goContractAt, goTypeAt],
-} as const satisfies TransformationSignature<S, typeof goContractAt, typeof goTypeAt>;
+  endpoints: [goShapeAt, goTypeAt],
+} as const satisfies TransformationSignature<S, typeof goShapeAt, typeof goTypeAt>;
 
 export const goTypeGenerators = [
   {
@@ -149,22 +149,22 @@ export const goTypeGenerators = [
     signature: goTypeGenerationSignature,
     apply: (input) => ({ ...formattedGoType, subject: input.subject }),
   },
-] as const satisfies readonly TransformationInstance<S, typeof goContractAt, typeof goTypeAt>[];
+] as const satisfies readonly TransformationInstance<S, typeof goShapeAt, typeof goTypeAt>[];
 
 // Two distinct paths between the same endpoints. Each changes role and language,
 // in a different order. Each intermediate coordinate has a representation here.
-const throughGoStops = [goContractAt, goTypeAt, tsTypeAt] as const;
+const throughGoStops = [goShapeAt, goTypeAt, tsTypeAt] as const;
 export const throughGo = {
   subject: booleanCell,
   coordinates: throughGoStops,
   steps: [generateGoType, translateType],
 } as const satisfies Path<S, typeof throughGoStops>;
 
-const throughTypeScriptStops = [goContractAt, tsContractAt, tsTypeAt] as const;
+const throughTypeScriptStops = [goShapeAt, tsShapeAt, tsTypeAt] as const;
 export const throughTypeScript = {
   subject: booleanCell,
   coordinates: throughTypeScriptStops,
-  steps: [translateContract, generateTypeScriptType],
+  steps: [translateShape, generateTypeScriptType],
 } as const satisfies Path<S, typeof throughTypeScriptStops>;
 
 // Path interpretation is function composition in the metalanguage.
@@ -173,7 +173,7 @@ export const runThroughGo: PathMeaning<S, typeof throughGoStops> = (input) =>
 export const runThroughTypeScript: PathMeaning<S, typeof throughTypeScriptStops> = (input) =>
   throughTypeScript.steps[1](throughTypeScript.steps[0](input));
 
-const identityStops = [goContractAt] as const;
+const identityStops = [goShapeAt] as const;
 export const identityPath = {
   subject: booleanCell,
   coordinates: identityStops,
@@ -189,27 +189,27 @@ export const executionAxis: ChangedAxis<typeof goMeaningAt, typeof initializedGo
 // These types are empty: they cannot contain elementary transformations.
 type MustBeNever<T extends never> = T;
 export type NoZeroAxisStep = MustBeNever<Transformation<S, typeof goTypeAt, typeof goTypeAt>>;
-export type NoTwoAxisStep = MustBeNever<Transformation<S, typeof goContractAt, typeof tsTypeAt>>;
+export type NoTwoAxisStep = MustBeNever<Transformation<S, typeof goShapeAt, typeof tsTypeAt>>;
 export type NoUnspecifiedPoint = MustBeNever<Transformation<S, Coordinates, typeof goTypeAt>>;
 export const sameCell: CoordinatesEqual<typeof goTypeAt, typeof formattedGoType.coordinates> = true;
 export const differentCell: CoordinatesEqual<typeof goTypeAt, typeof tsTypeAt> = false;
 
 // A few checks on the concrete example, not a general proof of preservation.
-const resultThroughGo = runThroughGo(goContract);
-const resultThroughTypeScript = runThroughTypeScript(goContract);
+const resultThroughGo = runThroughGo(goShape);
+const resultThroughTypeScript = runThroughTypeScript(goShape);
 assert.equal(resultThroughGo.subject, booleanCell);
 assert.equal(resultThroughTypeScript.subject, booleanCell);
 assert.deepEqual(resultThroughGo, resultThroughTypeScript);
 assert.deepEqual(resultThroughGo, tsType);
-assert.equal(runIdentity(goContract), goContract);
+assert.equal(runIdentity(goShape), goShape);
 assert.deepEqual(interpretGoType(formattedGoType), goMeaning);
 assert.equal(equalCoordinates(goTypeAt, { ...goTypeAt }), true);
 assert.equal(equalCoordinates(goTypeAt, tsTypeAt), false);
 assert.equal(equalCoordinates({ first: 'a', second: 'b' }, { first: 'b', second: 'a' }), false);
 assert.equal(equalCoordinates({}, { '2:execution': null }), false);
 assert.equal(goTypeGenerators[0].signature, goTypeGenerators[1].signature);
-const compact = goTypeGenerators[0].apply(goContract);
-const multiline = goTypeGenerators[1].apply(goContract);
+const compact = goTypeGenerators[0].apply(goShape);
+const multiline = goTypeGenerators[1].apply(goShape);
 assert.equal(compact.subject, multiline.subject);
 assert.equal(equalCoordinates(compact.coordinates, multiline.coordinates), true);
 assert.notEqual(compact.artifact, multiline.artifact);

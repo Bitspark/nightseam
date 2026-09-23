@@ -1,20 +1,28 @@
 # Interpreting the model in Nightseam
 
-The theory describes a contract independently of its representations. An
-interpretation chooses the contract's observable content, the coordinate
-schema, the admitted artifacts, and the equivalence used to compare results.
-This page gives a candidate interpretation and identifies where existing code
-provides evidence. It does not introduce a generator API.
+The theory distinguishes a contract `C = (S, B)`, a native realization `T`, an
+instance `i`, and its actual behavior `b`. An interpretation chooses the behavior
+domain and observations, how declarations describe `S` and any `B`, and how
+native and Wire values realize them. This page connects those objects to the
+representation calculus and names existing evidence. It does not introduce a
+generator API or claim a production implementation of the complete theory.
 
 ## Choose the subject before choosing its coordinates
 
-For a shape-only interpretation, `C` can describe a declared interface and its
-parts: operations, arguments, result types, and their relationships. A richer
-interpretation includes behavioral laws. Every admitted transformation must
-preserve the chosen content. A type declaration listing method signatures
-does not, by itself, establish behavioral preservation.
+`S` describes a declared interface and its parts: operations, arguments, result
+types, and their relationships. `B : Behavior[S] -> Prop` states the admitted
+behavior. A native type `T` realizes the structure; a value `i : Instance[T]`
+implements the full contract exactly when `B(BehaviorOf_T(i))` holds. A method
+signature does not establish that predicate for every value implementing it.
 
-The finite contract trees in [model.ts](model.ts) give one abstract basis for
+Two lawful BooleanCells can disagree on an initial read when the contract leaves
+initialization unspecified. A write-ignoring cell has compatible method signatures
+and violates the storing-cell specification. The
+[finite behavior example](examples/behavior.ts) exhibits both distinctions and
+two possible Go realizations. It models their semantics in TypeScript; it neither
+runs Go nor claims these illustrative declarations are production Nightseam syntax.
+
+The finite `Shape<O, G>` trees in [model.ts](model.ts) give one abstract basis for
 hierarchy and substitution. Nightseam's
 [declaration model](../../internal/model/family.go) and
 [canonical declaration graph](../declaration/declaration-identity.md) carry
@@ -23,30 +31,36 @@ explain which information is an opaque local value, which becomes children,
 and how references and generic contexts are represented. The examples do not
 claim to encode the entire production declaration graph as a finite tree.
 
-The [domain graph](../domain.md) also includes instances, participants,
-carriers, and events. Those are not automatically representations of one
-fixed interface contract. Their relationship to this theory requires a chosen
-subject and observation rule. Likewise, a domain node for a model type and a
-coordinate cell need not be the same object: a cell can contain several
-artifacts representing the same `C`.
+The [domain graph](../domain.md) distinguishes ModelContract, ModelType, and
+ModelInstance. Here they correspond to `C`, `T`, and `i`, with satisfaction as
+an explicit relation. The Wire side likewise needs a realization and an
+interpretation of its actual interaction behavior. Runtime participants, carriers,
+and events are not automatically representations of one interface contract.
+A model type is an object; a coordinate cell can contain several artifacts
+representing an object. These are different roles in the model.
 
 ## Choose an interpretation of the axes
 
 The following assignments illustrate cells; their labels are not built into
 the general model.
 
-| Role           | Form                | Language                         | What an artifact can represent                                      |
-| -------------- | ------------------- | -------------------------------- | ------------------------------------------------------------------- |
-| Contract       | Syntax              | Declaration language             | A declaration denoting `C`.                                         |
-| Contract       | Semantics           | Empty, when language-independent | The interpreted contract.                                           |
-| Model type     | Syntax              | Go or TypeScript                 | A native type declaration presenting `C`.                           |
-| Model type     | Semantics           | Go or TypeScript                 | The native type's interpreted interface.                            |
-| Adapter        | Syntax              | A target language                | Code exposing `C` through a selected binding.                       |
-| Implementation | Syntax or semantics | A target language/runtime        | A program realizing the chosen shape and, where included, behavior. |
+| Role           | Form                | Language                         | What an artifact can represent                                                                                 |
+| -------------- | ------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Contract       | Syntax              | Declaration language             | A declaration denoting `C`, if its interpretation includes `B`; otherwise a shape `S`.                         |
+| Contract       | Semantics           | Empty, when language-independent | The pair `(S, B)` in its selected behavior domain.                                                             |
+| Model type     | Syntax              | Go or TypeScript                 | A declaration denoting `T`, also viewable as a representation of `S`.                                          |
+| Model type     | Semantics           | Go or TypeScript                 | The native carrier with its correspondence to the abstract shape and behavior domain.                          |
+| Adapter        | Syntax or semantics | A target language                | Code denoting, or a loaded function implementing, an adapter for the particular `T`.                           |
+| Implementation | Syntax or semantics | A target language/runtime        | Source denoting an instance or factory, or an actual native instance `i`; satisfaction is a separate relation. |
+| Interaction    | Runtime syntax      | A native or Wire surface         | An operation/request and its response, interpreted as effects against an instance.                             |
 
-A transformation changing form alone can be an elementary edge. A generator
-changing both language and role is an unrestricted representation map until
-a path through suitable intermediate cells is supplied. Optional ranked axes
+A transformation changing form alone can be an elementary edge when it preserves
+the same subject. Rows in this table do not automatically share a subject. A
+contract-indexed generation result can retain `C` alongside syntax denoting `T`;
+a bare native interface generally retains only structural information. A generator
+changing both language and role can be an unrestricted representation map when
+that common interpretation is supplied, or a path through suitable intermediate
+cells. Optional ranked axes
 make absent context explicit; they do not manufacture a missing intermediate
 representation or guarantee reachability.
 
@@ -57,31 +71,67 @@ input and output can both be syntax. The language used to implement the
 generator is separate from the languages of the artifacts it consumes and
 produces.
 
-For a selected environment `E`, write a generator family as:
+The semantic signatures expose the selected realization:
 
 ```text
-F_E,C : R_K(C) -> R_L(C)
+TypeGen[D, L] : Π C. Syntax[D, C]
+                 -> Σ T : NativeRealization[L, shape(C)]. Syntax[L, T]
+
+AdapterGen[D, L, U] : Π C. Π T : NativeRealization[L, shape(C)].
+  (Syntax[D, C] × Syntax[L, T]) -> Syntax[L, Adapter(T, U)]
 ```
 
-The environment may include the selected native type, naming decisions, an
-adapter binding, or an implementation strategy. Currying those choices gives
-the unary representation map used by the core. An adapter generator taking
-both a contract declaration and a chosen type must keep that choice explicit;
-`C` alone does not select a native realization. An implementation generator
-must have enough specification or supplied behavior to construct a lawful
-implementation. A scaffold of unimplemented methods satisfies a weaker claim.
+`U` is the chosen target realization, such as an interpreted Wire surface, in
+the same shape/behavior domain. The complete generated result retains `C` and
+the selected `T`. An environment `E` can fix naming, binding, target, or strategy.
+After fixing those choices and supplying the common-subject interpretation,
+one can obtain `F_E,C : R_K(C) -> R_M(C)`. The unary map is a view of this richer
+generation operation, not a reason to erase its dependencies.
 
-There are two distinct subjects here. Applying `F` transforms a representation
-of `C`. Representing the generator itself uses `Representation<G, K>`, where
-`G` is the generator's semantic function, including its signature and laws.
-Generator source and a loaded generator can be representations of that `G`.
-The same general model can describe this level without identifying `G` with
-the contracts on which it acts.
+`C` alone does not select a native realization. A generator emitting methods
+does not establish satisfaction by arbitrary consumers. An implementation
+generator must have enough specification or supplied behavior to construct a
+lawful instance; a scaffold of unimplemented methods satisfies a weaker claim.
+
+There are distinct objects at the generator level too: its shape/signature
+`S_g`, behavioral specification `B_g`, and actual semantic function `g`.
+The function implements `(S_g, B_g)` when its behavior satisfies the preservation
+laws for every admitted input. `GeneratorSyntax<H, g>` denotes that function in
+host language `H`. A generator loaded in Go can consume declaration syntax and
+produce TypeScript syntax. Hosting, input language, and output language are
+independent choices; the acted-upon contract `C` is not the generator's contract.
 
 An ordinary program function is also a semantic function, but it belongs to a
 fixed-subject transformation graph only when it preserves that subject and
 satisfies the coordinate and observation laws. Function composition alone
 does not imply preservation of `C`.
+
+## What adapter transparency means
+
+Let a selected binding map `i : Instance[T]` to a Wire realization `bind(i)`.
+The behavior domain and environment must make the two sides comparable:
+
+```text
+BehaviorOf_Wire(bind(i)) ≈_S BehaviorOf_T(i)
+BehaviorOf_T(stub(bind(i))) ≈_S BehaviorOf_T(i)
+```
+
+These are claims about that instance's behavior. The weaker implication
+`i ⊨ C => bind(i) ⊨ C` permits replacing a true cell with a fresh false cell when
+both initial values satisfy `C`. The finite example's forwarding adapter preserves
+behavior; its replacing adapter preserves satisfaction and fails transparency.
+
+A production interpretation must account for the profile's observable failures,
+lifecycle, ownership and concurrency, or state the environmental assumptions
+under which they are abstracted away. The finite example deliberately has only
+sequential, total read/write interactions. It supplies no evidence about transport
+or invocation semantics. A Wire surface is an interaction language; a particular
+request's interpretation acts on a particular instance.
+
+Syntax held in a generator process is also a native host value, typically an AST
+instance. Its host-level structure and its object-language denotation are two
+views connected by an interpretation. Neither the runtime location of the AST
+nor a `syntax` coordinate changes this relationship.
 
 ## What the current pipeline establishes
 
@@ -109,6 +159,15 @@ context. Nightseam refuses unused declared parameters. Its type parameters
 and family parameters also accept different sorts of arguments. Adapting the
 general laws to declarations therefore requires an explicitly restricted
 domain; treating every opaque hole as interchangeable would erase meaning.
+
+The executable tree navigation and substitution laws concern shapes. To extend
+them to `C = (S, B)`, define how laws restrict to a selected part, how contextual
+laws are retained, and how substitution constructs a new specification `B_σ`.
+A law linking `read` and `write` cannot be recovered from an isolated `read`
+method signature. Composing implementations additionally needs a constructor
+that preserves satisfaction, and behavioral equivalence for routes claiming to
+preserve particular instances. Tree substitution or equal declaration digests
+do not supply these arguments.
 
 ## Where the remaining decisions belong
 

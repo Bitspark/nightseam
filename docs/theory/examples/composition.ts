@@ -1,16 +1,16 @@
 /**
- * Whole-contract holes and simultaneous substitution. TypeScript is the metalanguage.
+ * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import type {
-  Contract,
-  ContractKey,
-  ContractNode,
-  ContractPath,
-  ContractSubstitution,
+  Shape,
+  ShapeKey,
+  ShapeNode,
+  ShapePath,
+  ShapeSubstitution,
   Generic,
   GenericId,
   Representation,
@@ -26,20 +26,20 @@ import type {
 type O = string;
 export const node = <G extends GenericId = never>(
   value?: O,
-  children: readonly (readonly [ContractKey, Contract<O, G>])[] = [],
-): ContractNode<O, G> => ({ kind: 'node', ...(value === undefined ? {} : { value }), children: new Map(children) });
+  children: readonly (readonly [ShapeKey, Shape<O, G>])[] = [],
+): ShapeNode<O, G> => ({ kind: 'node', ...(value === undefined ? {} : { value }), children: new Map(children) });
 
 // The conditional Generic<never> is empty; supplying an id witnesses G is inhabited.
 export const generic = <G extends GenericId>(id: G): Generic<G> => ({ kind: 'generic', id }) as Generic<G>;
 
-export const substitute: ContractSubstitution<O> = (template, bindings) => {
+export const substitute: ShapeSubstitution<O> = (template, bindings) => {
   if (template.kind === 'generic') return bindings(template.id); // Do not substitute again inside the replacement.
   return {
     ...template,
     children: new Map([...template.children].map(([key, child]) => [key, substitute(child, bindings)])),
   };
 };
-export const identity = <G extends GenericId>(id: G): Contract<O, G> => generic(id);
+export const identity = <G extends GenericId>(id: G): Shape<O, G> => generic(id);
 export const compose =
   <G extends GenericId, H extends GenericId, I extends GenericId>(
     first: Substitution<O, G, H>,
@@ -48,11 +48,8 @@ export const compose =
   (id) =>
     substitute(first(id), second);
 
-export function contractAt<G extends GenericId>(
-  contract: Contract<O, G>,
-  path: ContractPath,
-): Selection<Contract<O, G>> {
-  let selected = contract;
+export function shapeAt<G extends GenericId>(shape: Shape<O, G>, path: ShapePath): Selection<Shape<O, G>> {
+  let selected = shape;
   for (const key of path) {
     if (selected.kind === 'generic') return { kind: 'missing' }; // Interior not known until instantiation.
     const child = selected.children.get(key);
@@ -61,23 +58,23 @@ export function contractAt<G extends GenericId>(
   }
   return { kind: 'found', value: selected };
 }
-function requireAt<G extends GenericId>(contract: Contract<O, G>, path: ContractPath): Contract<O, G> {
-  const result = contractAt(contract, path);
+function requireAt<G extends GenericId>(shape: Shape<O, G>, path: ShapePath): Shape<O, G> {
+  const result = shapeAt(shape, path);
   assert.equal(result.kind, 'found');
   return result.value;
 }
-function paths<G extends GenericId>(contract: Contract<O, G>): ContractPath[] {
-  return contract.kind === 'generic'
+function paths<G extends GenericId>(shape: Shape<O, G>): ShapePath[] {
+  return shape.kind === 'generic'
     ? [[]]
-    : [[], ...[...contract.children].flatMap(([key, child]) => paths(child).map((path) => [key, ...path]))];
+    : [[], ...[...shape.children].flatMap(([key, child]) => paths(child).map((path) => [key, ...path]))];
 }
 
 export const nestedAt = { '0:encoding': 'nested', '1:language': null } as const;
 export const flatAt = { ...nestedAt, '0:encoding': 'flat' } as const;
 type Nested =
   | { readonly kind: 'generic'; readonly id: GenericId }
-  | { readonly kind: 'node'; readonly value?: O; readonly children: readonly (readonly [ContractKey, Nested])[] };
-type Row = { readonly path: ContractPath } & (
+  | { readonly kind: 'node'; readonly value?: O; readonly children: readonly (readonly [ShapeKey, Nested])[] };
+type Row = { readonly path: ShapePath } & (
   { readonly kind: 'generic'; readonly id: GenericId } | { readonly kind: 'node'; readonly value?: O }
 );
 interface NestedArtifact {
@@ -91,7 +88,7 @@ interface FlatArtifact {
 const localValue = (source: { readonly value?: O }) => (source.value === undefined ? {} : { value: source.value });
 const orderKeys = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function encode(template: Contract<O, GenericId>): Nested {
+function encode(template: Shape<O, GenericId>): Nested {
   return template.kind === 'generic'
     ? { kind: 'generic', id: template.id }
     : {
@@ -102,7 +99,7 @@ function encode(template: Contract<O, GenericId>): Nested {
           .map(([key, child]) => [key, encode(child)]),
       };
 }
-function flatten(tree: Nested, path: ContractPath = []): Row[] {
+function flatten(tree: Nested, path: ShapePath = []): Row[] {
   return tree.kind === 'generic'
     ? [{ kind: 'generic', path, id: tree.id }]
     : [
@@ -118,7 +115,7 @@ function readFlat(artifact: unknown): FlatArtifact {
   assert.ok(artifact && typeof artifact === 'object' && 'kind' in artifact && artifact.kind === 'flat');
   return artifact as FlatArtifact;
 }
-export function represent<C extends Contract<O, GenericId>>(subject: C): Representation<C, typeof nestedAt> {
+export function represent<S extends Shape<O, GenericId>>(subject: S): Representation<S, typeof nestedAt> {
   return {
     subject,
     coordinates: nestedAt,
@@ -150,12 +147,11 @@ function applyFlat(rows: readonly Row[], argument: (id: GenericId) => readonly R
   );
 }
 
-function verifyApplication<
-  G extends GenericId,
-  H extends GenericId,
-  C extends Contract<O, G>,
-  D extends Contract<O, H>,
->(template: C, bindings: Substitution<O, G, H>, application: SubstitutionApplication<O, G, H, C, D>): void {
+function verifyApplication<G extends GenericId, H extends GenericId, S extends Shape<O, G>, D extends Shape<O, H>>(
+  template: S,
+  bindings: Substitution<O, G, H>,
+  application: SubstitutionApplication<O, G, H, S, D>,
+): void {
   assert.equal(application.template, template);
   assert.equal(application.bindings, bindings);
   assert.deepEqual(
@@ -168,10 +164,10 @@ function verifyApplication<
 // Artifact encodings erase the static G. Resolve only an id present in the input
 // subject; this validates the narrowing back to G before looking up an argument.
 function resolve<G extends GenericId, H extends GenericId>(
-  template: Contract<O, G>,
+  template: Shape<O, G>,
   bindings: Substitution<O, G, H>,
   id: GenericId,
-): { readonly id: G; readonly subject: Contract<O, H> } {
+): { readonly id: G; readonly subject: Shape<O, H> } {
   if (template.kind === 'generic') {
     assert.equal(template.id, id);
     return { id: template.id, subject: bindings(template.id) };
@@ -181,7 +177,7 @@ function resolve<G extends GenericId, H extends GenericId>(
   }
   throw new Error(`Unknown generic id ${id}`);
 }
-function freeIds<G extends GenericId>(template: Contract<O, G>): Set<GenericId> {
+function freeIds<G extends GenericId>(template: Shape<O, G>): Set<GenericId> {
   return template.kind === 'generic'
     ? new Set([template.id])
     : new Set([...template.children.values()].flatMap((child) => [...freeIds(child)]));
@@ -233,14 +229,11 @@ function representedBindings<G extends GenericId, H extends GenericId>(
 ): RepresentedSubstitution<O, G, H, typeof nestedAt> {
   return { semantic, argument: (id) => represent(semantic(id)) };
 }
-function application<G extends GenericId, H extends GenericId>(
-  template: Contract<O, G>,
-  bindings: Substitution<O, G, H>,
-) {
+function application<G extends GenericId, H extends GenericId>(template: Shape<O, G>, bindings: Substitution<O, G, H>) {
   return { template, bindings, result: substitute(template, bindings) };
 }
 export function checkSubstitutionTransparency<G extends GenericId, H extends GenericId>(
-  template: Contract<O, G>,
+  template: Shape<O, G>,
   semantic: Substitution<O, G, H>,
 ): void {
   const input = represent(template),
@@ -253,7 +246,7 @@ export function checkSubstitutionTransparency<G extends GenericId, H extends Gen
   assert.deepEqual(readFlat(fillThenTransform.artifact).rows, flatten(encode(witness.result)));
 }
 
-// The SAME generic occurs twice; both occurrences receive the same whole contract.
+// The SAME generic occurs twice; both occurrences receive the same whole shape.
 export const pair = node<'g0'>('Pair', [
   ['first', generic('g0')],
   ['second', generic('g0')],
@@ -267,7 +260,7 @@ export const closedPair = substitute(pairOfLists, tau);
 
 const empty = node();
 const closedBindings: Substitution<O, never, never> = (id) => {
-  throw new Error(`No closed-contract hole exists: ${id}`);
+  throw new Error(`No closed-shape hole exists: ${id}`);
 };
 const twoHoles = node<'g0' | 'g1'>('Operation', [
   ['input', generic('g0')],
@@ -297,10 +290,10 @@ assert.deepEqual(
 );
 
 // Navigation can enter the replacement after crossing a former hole occurrence.
-assert.equal(contractAt(pair, ['first', 'element']).kind, 'missing');
+assert.equal(shapeAt(pair, ['first', 'element']).kind, 'missing');
 assert.deepEqual(requireAt(pairOfLists, ['first', 'element']), generic('h0'));
 assert.deepEqual(requireAt(closedPair, ['first', 'element']), bool);
-assert.equal(contractAt(substitute(pair, sigma), ['absent']).kind, 'missing');
+assert.equal(shapeAt(substitute(pair, sigma), ['absent']).kind, 'missing');
 assert.deepEqual(requireAt(pairOfLists, ['first']), requireAt(pairOfLists, ['second']));
 
 // Simultaneous means exactly one pass. Same-named holes in a replacement survive.
@@ -353,10 +346,10 @@ assert.equal(throughArguments.subject, staged.subject);
 assert.deepEqual(throughArguments.artifact, staged.artifact);
 
 console.log({
-  holes: 'entire sub-contracts',
+  holes: 'entire sub-shapes',
   example: 'Pair[g0][g0 := List[h0]][h0 := Bool]',
   repeatedOccurrences: 'consistent',
   substitution: 'identity and composition checked',
-  navigation: 'existing paths and paths entering inserted contracts checked',
+  navigation: 'existing paths and paths entering inserted shapes checked',
   transformationTransparency: 'fill then flatten = flatten then fill',
 });

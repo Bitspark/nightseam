@@ -1,8 +1,8 @@
 // Compile-only assertions, including intentional failures. Do not execute this file.
 import type {
   ChangedAxis,
-  Contract,
-  ContractRepresentationMap,
+  Shape,
+  ShapeRepresentationMap,
   Coordinates,
   CoordinatesEqual,
   Path,
@@ -15,15 +15,36 @@ import type {
   FamilyPath,
   Generic,
   Substitution,
+  AdapterSemantics,
+  Contract,
+  ContractImplementation,
+  ModelInstance,
+  ModelType,
+  ModelTypeSyntax,
+  Syntax,
 } from './model.ts';
 import {
+  adapterGeneration,
+  cellContract,
+  functionCell,
+  functionType,
+  generateAdapter,
+  contractSyntax,
+  methodSyntax,
+  methodType,
+  surfaceType,
+  trueCell,
+  type CellMachine,
+  type MethodValue,
+} from './examples/behavior.ts';
+import {
   booleanCell,
-  goContractAt,
+  goShapeAt,
   goTypeAt,
   goType,
   tsTypeAt,
   generateGoType,
-  translateContract,
+  translateShape,
   throughGo,
   runThroughGo,
   runIdentity,
@@ -54,38 +75,38 @@ type EqualPoints = Assert<Equal<CoordinatesEqual<{ a: 'x'; b: null }, { b: null;
 type UnequalPoints = Assert<Equal<CoordinatesEqual<{ a: 'x' }, { a: 'y' }>, false>>;
 type MissingIsDistinct = Assert<Equal<CoordinatesEqual<{}, { a: null }>, false>>;
 type UnknownPointEquality = Assert<Equal<CoordinatesEqual<Coordinates, Coordinates>, boolean>>;
-type NoTwoAxisSignature = Assert<Equal<TransformationSignature<S, typeof goContractAt, typeof tsTypeAt>, never>>;
+type NoTwoAxisSignature = Assert<Equal<TransformationSignature<S, typeof goShapeAt, typeof tsTypeAt>, never>>;
 
 // @ts-expect-error Two-axis composite is not an elementary transformation.
-const invalidTwoAxis: Transformation<S, typeof goContractAt, typeof tsTypeAt> = runThroughGo;
+const invalidTwoAxis: Transformation<S, typeof goShapeAt, typeof tsTypeAt> = runThroughGo;
 // @ts-expect-error Identity changes zero axes.
-const invalidIdentity: Transformation<S, typeof goContractAt, typeof goContractAt> = runIdentity;
+const invalidIdentity: Transformation<S, typeof goShapeAt, typeof goShapeAt> = runIdentity;
 
 const brokenPath: Path<S, typeof throughGo.coordinates> = {
   ...throughGo,
-  // @ts-expect-error Step two requires goTypeAt, but this function requires goContractAt.
-  steps: [generateGoType, translateContract],
+  // @ts-expect-error Step two requires goTypeAt, but this function requires goShapeAt.
+  steps: [generateGoType, translateShape],
 };
 
 const otherSubject = { ...booleanCell, id: 'DifferentSubject' } as const;
-const wrongSubjectMap = (input: Representation<S, typeof goContractAt>) => ({
+const wrongSubjectMap = (input: Representation<S, typeof goShapeAt>) => ({
   ...goType,
   subject: otherSubject,
 });
 // @ts-expect-error A valid one-axis signature cannot change S.
-const changesSubject: Transformation<S, typeof goContractAt, typeof goTypeAt> = wrongSubjectMap;
+const changesSubject: Transformation<S, typeof goShapeAt, typeof goTypeAt> = wrongSubjectMap;
 
-const mismatchedInstance: TransformationInstance<S, typeof goContractAt, typeof goTypeAt> = {
+const mismatchedInstance: TransformationInstance<S, typeof goShapeAt, typeof goTypeAt> = {
   id: 'wrong-signature',
   signature: goTypeGenerationSignature,
   // @ts-expect-error A function inhabiting another endpoint pair cannot fill this signature.
-  apply: translateContract,
+  apply: translateShape,
 };
 
 const unboundedRoute: Path<S, readonly [Coordinates, ...Coordinates[]]> = {
   subject: booleanCell,
   // @ts-expect-error Finite path links cannot be checked from an unbounded coordinate array.
-  coordinates: [goContractAt],
+  coordinates: [goShapeAt],
   steps: [],
 };
 
@@ -94,14 +115,14 @@ type KB = { form: 'flat'; order: 'ascending' };
 type KC = { form: 'flat'; order: 'descending' };
 type NoTwoAxisFamily = Assert<Equal<TransformationFamily<string, KA, KC>, never>>;
 type NoIdentityFamily = Assert<Equal<TransformationFamily<string, KA, KA>, never>>;
-declare const arbitraryContract: Contract<string>;
-const subjectReplacingFamily: ContractRepresentationMap<string, KA, KB> = (input) => ({
+declare const arbitraryShape: Shape<string>;
+const subjectReplacingFamily: ShapeRepresentationMap<string, KA, KB> = (input) => ({
   ...input,
   coordinates: { form: 'flat', order: 'ascending' } as const,
-  // @ts-expect-error A family must preserve the particular C, not replace it with any Contract.
-  subject: arbitraryContract,
+  // @ts-expect-error A family must preserve the particular C, not replace it with any Shape.
+  subject: arbitraryShape,
 });
-// @ts-expect-error Navigation returns Selected, not Root, even though both are contracts.
+// @ts-expect-error Navigation returns Selected, not Root, even though both are shapes.
 const rootReturningNavigation: RepresentationNavigation<string, KA> = (input, location) => input;
 declare const toFlat: TransformationFamily<string, KA, KB>;
 declare const toDescending: TransformationFamily<string, KB, KC>;
@@ -119,14 +140,53 @@ const brokenFamilyPath: FamilyPath<string, readonly [KA, KB, KC]> = {
 };
 
 type ClosedHasNoHoles = Assert<Equal<Generic<never>, never>>;
-// @ts-expect-error Closed contracts do not admit a generic branch.
-const holeInClosedContract: Contract<string> = { kind: 'generic', id: 'g0' };
-// @ts-expect-error A whole-contract hole has no local children of its own.
+// @ts-expect-error Closed shapes do not admit a generic branch.
+const holeInClosedShape: Shape<string> = { kind: 'generic', id: 'g0' };
+// @ts-expect-error A whole-shape hole has no local children of its own.
 const holeWithChildren: Generic<'g0'> = { kind: 'generic', id: 'g0', children: new Map() };
 // @ts-expect-error The replacement's free generic must belong to H.
 const wrongTargetContext: Substitution<string, 'g0', 'h0'> = () => ({ kind: 'generic', id: 'unbound' });
-// @ts-expect-error Substitution supplies a whole contract, not just an opaque local value.
-const localValueInsteadOfContract: Substitution<string, 'g0', never> = () => 'Bool';
-const unfinishedContract: Contract<string, 'h0'> = { kind: 'generic', id: 'h0' };
+// @ts-expect-error Substitution supplies a whole shape, not just an opaque local value.
+const localValueInsteadOfShape: Substitution<string, 'g0', never> = () => 'Bool';
+const unfinishedShape: Shape<string, 'h0'> = { kind: 'generic', id: 'h0' };
 // @ts-expect-error A closing substitution cannot leave a target generic.
-const unfinishedClosingSubstitution: Substitution<string, 'g0', never> = () => unfinishedContract;
+const unfinishedClosingSubstitution: Substitution<string, 'g0', never> = () => unfinishedShape;
+
+const correctSelectedType: ModelTypeSyntax<typeof methodType> = adapterGeneration.modelType;
+// @ts-expect-error A function-record value is not an instance of the chosen method interface.
+const wrongNativeInstance: ModelInstance<typeof methodType> = functionCell;
+const wrongTypeSyntax: ModelTypeSyntax<typeof methodType> = {
+  ...methodSyntax,
+  // @ts-expect-error Same shape and language do not identify the same native realization.
+  subject: functionType,
+};
+// @ts-expect-error Syntax denoting T is not syntax denoting the contract C.
+const typeAsContract: Syntax<typeof cellContract, 'go'> = methodSyntax;
+// @ts-expect-error Shape trees have neither a behavior domain nor a specification.
+const treeAsContract: Contract<Shape<string>, CellMachine> = arbitraryShape;
+// @ts-expect-error B for machines cannot be silently reused for a different behavior domain.
+const wrongBehaviorDomain: Contract<typeof booleanCell, number> = cellContract;
+
+declare const otherShapeType: ModelType<{ readonly id: 'OtherShape' }, CellMachine, 'go', MethodValue>;
+type NoWrongShapeAdapter = Assert<Equal<AdapterSemantics<typeof methodType, typeof otherShapeType>, never>>;
+declare const otherBehaviorType: ModelType<typeof booleanCell, number, 'go', MethodValue>;
+type NoWrongBehaviorAdapter = Assert<Equal<AdapterSemantics<typeof methodType, typeof otherBehaviorType>, never>>;
+
+generateAdapter({
+  contract: contractSyntax,
+  modelType: {
+    ...methodSyntax,
+    // @ts-expect-error Adapter generation must use the selected native T supplied as input.
+    subject: functionType,
+  },
+});
+const wrongOutputAdapter: AdapterSemantics<typeof methodType, typeof surfaceType> = {
+  sourceType: methodType,
+  targetType: surfaceType,
+  // @ts-expect-error The adapter result must belong to the declared target realization.
+  adapt: () => functionCell,
+};
+// @ts-expect-error Native structural compatibility alone does not supply satisfaction evidence.
+const missingSatisfaction: ContractImplementation<typeof methodType> = {
+  instance: trueCell,
+};

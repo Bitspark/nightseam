@@ -1,25 +1,26 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>One contract, many representations</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Contracts, implementations, and representations</title>
 <style>
 :root{color-scheme:light dark;--paper:#f6f5f0;--surface:#fffefb;--ink:#203337;--muted:#536a6c;--line:#d3ddda;--accent:#167263;--wash:#e9f3ed;--code:#edf1ed;--focus:#3158a9;--shadow:rgba(22,51,45,.05)}
 @media(prefers-color-scheme:dark){:root{--paper:#111c1f;--surface:#18272b;--ink:#e5eeeb;--muted:#b3c7c4;--line:#3a5155;--accent:#82d2bf;--wash:#203b38;--code:#213337;--focus:#b5c5fa;--shadow:rgba(0,0,0,.1)}}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:26px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 'Segoe UI',system-ui,sans-serif}a{color:var(--accent);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}a:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}button,select{font:inherit;color:inherit}button{cursor:pointer}p{margin:1em 0}strong{font-weight:600}h1,h2,h3{font-weight:600;line-height:1.22;letter-spacing:-.02em}h1{font-size:clamp(36px,5vw,62px);margin:14px 0 20px;max-width:850px}h2{font-size:27px;margin:70px 0 22px;padding-top:24px;border-top:1px solid var(--line)}h3{font-size:17px;margin:18px 0 12px}code,pre{font-family:Consolas,'Cascadia Code',monospace}code{font-size:.9em;background:var(--code);padding:.12em .28em;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--code);padding:18px 20px;border-radius:9px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}pre code{font:inherit;background:none;padding:0;border-radius:0}blockquote{margin:24px 0;border-left:3px solid var(--accent);padding:2px 20px;color:var(--muted)}
-.shell{max-width:1220px;margin:auto;padding:48px 40px 64px}.hero{padding:0 0 34px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:600;letter-spacing:.13em;color:var(--muted)}.subtitle{font-size:20px;line-height:1.55;max-width:700px;color:var(--muted)}.hero-links{display:flex;gap:22px;flex-wrap:wrap;margin-top:24px;font-size:14px}.layout{display:grid;grid-template-columns:225px minmax(0,1fr);gap:48px}aside{padding-top:44px}.toc{position:sticky;top:28px;font-size:13px;line-height:1.45}.toc summary{font-weight:600;margin-bottom:14px}.toc nav{display:grid;gap:4px}.toc a{color:var(--muted);text-decoration:none;padding:7px 0}.toc a:hover{color:var(--accent)}article{min-width:0}article>h2:first-child{margin-top:22px;border-top:0}.table-wrap{width:100%;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;table-layout:fixed}th{text-align:left;font-weight:600;border-bottom:2px solid var(--line);padding:12px 10px}td{padding:12px 10px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th:first-child,td:first-child{width:36%;padding-left:0}th:last-child,td:last-child{padding-right:0}ol,ul{padding-left:24px}
+.shell{max-width:1220px;margin:auto;padding:48px 40px 64px}.hero{padding:0 0 34px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:600;letter-spacing:.13em;color:var(--muted)}.subtitle{font-size:20px;line-height:1.55;max-width:700px;color:var(--muted)}.hero-links{display:flex;gap:22px;flex-wrap:wrap;margin-top:24px;font-size:14px}.layout{display:grid;grid-template-columns:225px minmax(0,1fr);gap:48px}aside{padding-top:44px}.toc{position:sticky;top:28px;max-height:calc(100vh - 56px);overflow-y:auto;padding-right:8px;font-size:13px;line-height:1.45}.toc summary{font-weight:600;margin-bottom:14px}.toc nav{display:grid;gap:4px}.toc a{color:var(--muted);text-decoration:none;padding:7px 0}.toc a:hover{color:var(--accent)}article{min-width:0}article>h2:first-child{margin-top:22px;border-top:0}.table-wrap{width:100%;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;table-layout:fixed}th{text-align:left;font-weight:600;border-bottom:2px solid var(--line);padding:12px 10px}td{padding:12px 10px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th:first-child,td:first-child{width:36%;padding-left:0}th:last-child,td:last-child{padding-right:0}ol,ul{padding-left:24px}
 .diagram{margin:30px 0;padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 20px var(--shadow)}figcaption{display:flex;flex-direction:column;gap:6px;line-height:1.4;margin-bottom:22px}figcaption strong{font-size:20px}.figure-number{font-size:11px;letter-spacing:.13em;color:var(--muted);font-weight:600}.path-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}select{width:100%;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;font-size:14px;min-height:44px}.route-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}.route-controls button{border:1px solid var(--line);background:var(--surface);padding:8px 12px;border-radius:6px;font-size:13px;min-height:40px}.route-controls button[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}.square{width:100%;min-width:0}.square svg{display:block;width:100%;height:auto;overflow:visible}.graph-node rect{fill:var(--wash);stroke:var(--line);stroke-width:1}.square text{fill:var(--ink);font:14px 'Segoe UI',system-ui,sans-serif}.square .node-title{font-weight:600}.square .node-detail{font:13px Consolas,monospace;fill:var(--muted)}.square .edge{stroke:var(--line);stroke-width:2;fill:none}.square .edge-label{font-size:12px;paint-order:stroke;stroke:var(--surface);stroke-width:7px;stroke-linejoin:round}.square .equivalence{font-size:30px;fill:var(--muted)}.diagram[data-route=first] [data-branch=first],.diagram[data-route=second] [data-branch=second]{stroke:var(--accent);stroke-width:3}.figure-result{font-size:14px;border-top:1px solid var(--line);padding-top:16px;margin:10px 0 0}.artifact-details{margin-top:18px}.artifact-details summary{font-size:14px}.artifact-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.artifact-grid pre{font-size:12px;padding:12px;line-height:1.55}.artifact-grid h3{font-size:14px}.artifact-grid>div{min-width:0}details summary{cursor:pointer}.source{margin:16px 0;padding:18px 0;border-bottom:1px solid var(--line)}.source summary{font-size:15px;font-weight:600}.source-note{font-size:12px;color:var(--muted);font-weight:400;display:block;padding-left:18px;margin-top:4px}.source pre{font-size:12px}.footer{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 @media(max-width:900px){.shell{padding:32px 24px 48px}.layout{grid-template-columns:180px minmax(0,1fr);gap:28px}.diagram{padding:18px}h2{font-size:24px}.toc{font-size:12px}}
-@media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
+@media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;max-height:none;overflow:visible;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
-</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>One contract,<br>many representations.</h1><p class="subtitle">A contract can travel across languages and forms while its parts remain addressable.</p><div class="hero-links"><a href="#transformation-families-and-the-transparency-square">Explore the transparency law ↓</a><a href="#whole-contract-holes">Compose contracts ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#what-the-model-describes">1. What the model describes</a><a href="#coordinates-and-cells">2. Coordinates and cells</a><a href="#elementary-transformations-and-coordinate-paths">3. Elementary transformations and coordinate paths</a><a href="#giving-the-contract-a-hierarchy">4. Giving the contract a hierarchy</a><a href="#contract-navigation">5. Contract navigation</a><a href="#navigating-a-representation">6. Navigating a representation</a><a href="#transformation-families-and-the-transparency-square">7. Transformation families and the transparency square</a><a href="#the-prefix-law-and-arbitrary-coordinate-paths">8. The prefix law and arbitrary coordinate paths</a><a href="#transparency-does-not-force-a-unique-coordinate-path">9. Transparency does not force a unique coordinate path</a><a href="#worked-example-two-routes-one-selected-subtree">10. Worked example: two routes, one selected subtree</a><a href="#interpreting-generator-roles">11. Interpreting generator roles</a><a href="#whole-contract-holes">12. Whole-contract holes</a><a href="#substitution-and-its-composition-laws">13. Substitution and its composition laws</a><a href="#navigation-through-composed-contracts">14. Navigation through composed contracts</a><a href="#substitution-transparency-across-representations">15. Substitution transparency across representations</a><a href="#what-the-typescript-establishes">16. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article><h2 id="what-the-model-describes">1. What the model describes</h2>
-<p>The subject stays fixed while its representation changes. We write
-<code>Representation&lt;C, K&gt;</code> for a representation of contract <code>C</code> at coordinates <code>K</code>.
-A coordinate path describes a sequence of transformations of that same <code>C</code>.
-Contract navigation describes a different operation: selecting a part of <code>C</code>.
-Contract substitution fills whole sub-contract holes and forms a new subject
-<code>C[σ]</code>. Representation transformations must also commute with that composition
-when they support both open templates and their instances.
-<strong>Path transparency connects these two directions: select a part, then
-transform it; or transform the whole, then select the same part.</strong></p>
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="#behavior-figure">Explore behavior ↓</a><a href="#transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#what-the-model-describes">1. What the model describes</a><a href="#shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</a><a href="#native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</a><a href="#syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</a><a href="#adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</a><a href="#coordinates-and-cells">6. Coordinates and cells</a><a href="#elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</a><a href="#giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</a><a href="#shape-navigation">9. Shape navigation</a><a href="#navigating-a-representation">10. Navigating a representation</a><a href="#transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</a><a href="#the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</a><a href="#transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</a><a href="#worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</a><a href="#interpreting-generator-roles">15. Interpreting generator roles</a><a href="#whole-shape-holes">16. Whole-shape holes</a><a href="#substitution-and-its-composition-laws">17. Substitution and its composition laws</a><a href="#navigation-through-composed-shapes">18. Navigation through composed shapes</a><a href="#substitution-transparency-across-representations">19. Substitution transparency across representations</a><a href="#what-the-typescript-establishes">20. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article><h2 id="what-the-model-describes">1. What the model describes</h2>
+<p>The model distinguishes a contract&#39;s shape <code>S</code>, its behavioral specification
+<code>B</code>, and an implementation&#39;s actual behavior <code>b</code>. A contract is <code>C = (S, B)</code>.
+An artifact can represent <code>C</code>; an instance can satisfy <code>C</code>. These are different
+relations. Two instances may satisfy the same contract while behaving differently.</p>
+<p><code>Representation&lt;X, K&gt;</code> represents a chosen semantic subject <code>X</code> at coordinates
+<code>K</code>. A coordinate path changes representations of that same subject. The subject
+can be a shape, a contract, a native type, or a particular implementation.
+Structural navigation selects a part of <code>S</code>; structural substitution fills holes
+and produces <code>S[σ]</code>. Their commuting laws remain useful, but preserving structure
+alone does not establish satisfaction or preserve a particular instance&#39;s behavior.</p>
 <p>TypeScript is the <strong>metalanguage</strong> of this model. Its interfaces describe the
 model; the Go and TypeScript artifacts in the examples are objects within that
 model. These definitions state a developing theory; the examples supply finite
@@ -27,11 +28,12 @@ evidence for its laws. They do not change Nightseam&#39;s runtime or generator A
 <p>The core is in <a href="#source-model-ts">model.ts</a>, which contains only
 types and interfaces. <a href="#source-examples-coordinates-ts">examples/coordinates.ts</a> shows
 language and role coordinates. <a href="#source-examples-hierarchy-ts">examples/hierarchy.ts</a>
-adds contract trees and executable checks of the transparency laws. The
-<a href="#source-examples-composition-ts">composition examples</a> add whole-contract holes and
-substitution. The
-<a href="#top">self-contained HTML edition</a> includes diagrams and all
-four sources.</p>
+adds shape trees and executable checks of the transparency laws.
+<a href="#source-examples-composition-ts">examples/composition.ts</a> adds whole-shape holes and
+substitution. <a href="#source-examples-behavior-ts">examples/behavior.ts</a> adds realizations,
+satisfaction, adapters, generators, and an exhaustive finite behavior example.
+The <a href="#top">self-contained HTML edition</a> includes interactive examples and
+the complete model and all four examples.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -40,12 +42,28 @@ four sources.</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>S</code></td>
+<td><code>X</code></td>
 <td>An arbitrary semantic subject in the general model</td>
 </tr>
 <tr>
-<td><code>C</code></td>
-<td>A particular subject with contract-tree structure</td>
+<td><code>S</code></td>
+<td>Shape or structural signature; finite trees are one encoding</td>
+</tr>
+<tr>
+<td><code>Behavior[S]</code></td>
+<td>Actual behaviors admitted by a chosen observation model for <code>S</code></td>
+</tr>
+<tr>
+<td><code>B</code></td>
+<td>A predicate on <code>Behavior[S]</code>, specifying acceptable behavior</td>
+</tr>
+<tr>
+<td><code>C = (S, B)</code></td>
+<td>A contract</td>
+</tr>
+<tr>
+<td><code>T</code>, <code>i</code>, <code>b</code></td>
+<td>A selected native realization, one of its instances, and its behavior</td>
 </tr>
 <tr>
 <td><code>O</code></td>
@@ -56,27 +74,256 @@ four sources.</p>
 <td>Coordinate assignments</td>
 </tr>
 <tr>
-<td><code>r : R_K(C)</code></td>
-<td>Shorthand for <code>Representation&lt;C, K&gt;</code></td>
+<td><code>r : R_K(S)</code></td>
+<td>Shorthand for <code>Representation&lt;S, K&gt;</code></td>
 </tr>
 <tr>
 <td><code>p</code>, <code>q</code></td>
-<td>Contract paths: lists of child keys</td>
+<td>Shape paths: lists of child keys</td>
 </tr>
 <tr>
 <td><code>P</code>, <code>Q</code></td>
 <td>Coordinate paths: sequences of transformation instances</td>
 </tr>
 <tr>
-<td><code>C|p</code></td>
-<td>The sub-contract selected by a valid path <code>p</code></td>
+<td><code>S|p</code></td>
+<td>The sub-shape selected by a valid path <code>p</code></td>
 </tr>
 <tr>
 <td><code>≈_K</code></td>
 <td>The chosen equivalence of representations at <code>K</code>, for the same subject</td>
 </tr>
 </tbody></table></div>
-<h2 id="coordinates-and-cells">2. Coordinates and cells</h2>
+<p><code>X</code> replaces the earlier use of <code>S</code> for an arbitrary subject. <code>Shape&lt;O, G&gt;</code>
+names the tree previously called <code>Contract&lt;O, G&gt;</code>; <code>Contract&lt;S, Beh&gt;</code> now names
+the semantic pair. <code>Beh</code> is the TypeScript carrier for <code>Behavior[S]</code>, whereas
+<code>B</code> is a predicate on that carrier. Neither <code>B</code> nor <code>b</code> is a syntax coordinate.</p>
+<h2 id="shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</h2>
+<p>A shape specifies available sorts, fields, constructors, operations, arguments,
+results, and roles. A behavior domain fixes what their execution can mean and
+what can be observed: state changes, return values, errors, effects, interaction
+traces, or other relevant observations. Choosing that domain is part of the
+interpretation, not something a method signature determines.</p>
+<pre><code class="language-text">S : Shape
+Behavior[S] : Type
+≈_S : an observational equivalence on Behavior[S]
+B : Behavior[S] -&gt; Prop
+C = (S, B)
+
+Contracts = Σ S : Shape. { B : Behavior[S] -&gt; Prop | B respects ≈_S }
+</code></pre>
+<p>Here <code>Σ</code> forms a dependent pair. The specification depends on the shape through
+its behavior domain. <code>Prop</code> means a mathematical proposition; arbitrary behavior
+satisfaction need not be decidable. A specification may be presented by laws,
+a reference model, a protocol, or a set of admitted behaviors.</p>
+<p><strong>B1 — Observational invariance.</strong> If <code>b ≈_S b&#39;</code>, then <code>B(b) ↔ B(b&#39;)</code>.
+The observation model must distinguish everything the specification constrains.
+If a law cares about an effect, that effect cannot be hidden by the equivalence.
+A contract imposing no behavioral restriction uses the predicate <code>true</code>.</p>
+<p>For BooleanCell, <code>S</code> contains <code>read : Unit -&gt; Bool</code> and <code>write : Bool -&gt; Unit</code>.
+One possible <code>B</code> requires reads to leave behavior unchanged and a completed
+write to determine later reads until the next write. This example fixes
+sequential, total operations with no external mutation, failure, or concurrency.
+It leaves the initial Boolean value unspecified. A storing cell initially true
+and one initially false both satisfy <code>B</code>; a read distinguishes them. A cell
+ignoring writes has the right shape and violates <code>B</code>.</p>
+<p>Thus <code>B</code> is the <strong>specification of acceptable behavior</strong>, not the implementation&#39;s
+actual behavior <code>b</code>. Both belong to the semantic layer and may have syntax.</p>
+<h2 id="native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</h2>
+<p>A native realization includes a carrier of native values and an interpretation
+of those values as behavior at <code>S</code>:</p>
+<pre><code class="language-text">T : NativeRealization[L, S]
+Instance[T] : Type
+BehaviorOf_T : Instance[T] -&gt; Behavior[S]
+i : Instance[T]
+b = BehaviorOf_T(i)
+
+i ⊨_T C  iff  B(BehaviorOf_T(i))
+Implementation[L, C] = Σ T : NativeRealization[L, S].
+                        Σ i : Instance[T]. B(BehaviorOf_T(i))
+</code></pre>
+<p>The last <code>Σ</code> packages an instance with evidence of satisfaction; equivalently it
+is the refinement <code>{ i : Instance[T] | i ⊨_T C }</code>. A native instance is a candidate
+implementation before satisfaction is established. <code>ModelType</code> names <code>T</code>,
+<code>ModelInstance&lt;T&gt;</code> names a native value with its selected realization, and
+<code>ContractImplementation&lt;T, C&gt;</code> reifies the instance and its satisfaction witness
+for the selected contract.</p>
+<p>For stateful systems, <code>i</code> includes the relevant current or initial state and
+environment, or denotes a configuration including them. Behavior describes
+possible interactions from that configuration. Source code may instead denote
+a factory; initialization must then be included before claiming it denotes <code>i</code>.
+<code>BehaviorOf</code> is a semantic interpretation supplied by the model, not a general
+program-analysis algorithm or a concrete run sampling all possibilities.</p>
+<p>Neither <code>C</code> nor <code>(C, L)</code> selects a unique <code>T</code>. A Go method interface and a Go
+record of function values can realize the same shape. They require different
+bindings. Within either realization, different values can have different
+behaviors, including behaviors violating <code>B</code>. A native method signature alone
+does not refine its inhabitants to lawful implementations.</p>
+<p><strong>I1 — Satisfaction concerns this instance.</strong> An implementation witness must
+concern <code>BehaviorOf_T(i)</code> in the contract&#39;s domain, or an observationally
+equivalent behavior by B1. A proof for another lawful cell does not establish
+satisfaction of a write-ignoring cell.</p>
+<p>The TypeScript records describe these objects and obligations. <code>Proposition</code>
+reifies a statement and its parameters; it neither decides nor proves it.
+<code>Satisfaction.evidence</code> is supplied by an interpretation. Arbitrarily constructing
+that record is not a trusted proof. The finite example has a separate decision
+procedure and rejects a witness attached to the wrong instance.</p>
+<h2 id="syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</h2>
+<p>Relative to a language interpretation and its required context:</p>
+<pre><code class="language-text">Syntax[L, X] = { s : Syntax[L] | ⟦s⟧_L = X }
+</code></pre>
+<p>This is a semantic family, not a parser implementation. The TypeScript <code>Syntax</code>
+uses <code>Representation&lt;X, { form: &#39;syntax&#39;, language: L }&gt;</code>; its <code>subject</code> asserts
+the intended denotation. An artifact can be source text or an AST.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Syntax object</th>
+<th>Denotes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ModelContractSyntax[D, C]</code></td>
+<td>The contract <code>C = (S, B)</code></td>
+</tr>
+<tr>
+<td><code>ModelTypeSyntax[L, T]</code></td>
+<td>The selected native realization <code>T</code></td>
+</tr>
+<tr>
+<td><code>ImplementationSyntax[L, T, i]</code></td>
+<td>The particular instance/configuration <code>i</code>, or an explicitly modeled factory</td>
+</tr>
+<tr>
+<td><code>AdapterSyntax[L, T, U]</code></td>
+<td>A function mapping instances of <code>T</code> to instances of <code>U</code></td>
+</tr>
+<tr>
+<td><code>GeneratorSyntax[H, g]</code></td>
+<td>A generator function <code>g</code>, implemented in host language <code>H</code></td>
+</tr>
+</tbody></table></div>
+<p>The semantic indices in this table use mathematical notation; the TypeScript
+aliases infer some indices from <code>T</code>. For example <code>ModelContractSyntax&lt;S, Beh, D&gt;</code>
+describes syntax for contracts in the indicated domain; <code>Syntax&lt;typeof C, D&gt;</code>
+retains a particular contract&#39;s type. TypeScript does not have full dependent
+types or verify an artifact&#39;s claimed denotation.</p>
+<p>Denoting <code>T</code> and representing its shape <code>S</code> are different views. The coordinate
+example interprets a Go interface through its structural view, so its fixed
+subject is <code>S</code>. The implementation example records its direct denotation <code>T</code>.
+Neither view establishes <code>B</code> for every value of that type. A contract-aware
+generation result keeps <code>C</code> alongside the type syntax.</p>
+<p>An AST in an interpreter&#39;s memory has both a host-value view and a syntax view:</p>
+<pre><code class="language-text">a : Instance[ASTModelType[H, L]]
+syntaxView(a) : Syntax[L]
+interpret_H(a) represents ⟦syntaxView(a)⟧_L
+</code></pre>
+<p>The native value can describe an addition node; its object-language meaning can
+be a number. The host&#39;s observation of the AST and the object&#39;s interpreted
+behavior are different semantic subjects related by <code>syntaxView</code> and evaluation.
+This does not require mutually exclusive node kinds or an infinite meta-level
+hierarchy: fix the languages and the interpretation being discussed.</p>
+<p>Syntax/semantics and static/runtime are separate, phase-relative distinctions:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Static view of the object program</th>
+<th>Runtime view of the object program</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Syntax</td>
+<td>Declarations, source, ASTs</td>
+<td>Requests, replies, interaction traces</td>
+</tr>
+<tr>
+<td>Semantics</td>
+<td>Types, contracts, typing and binding judgments</td>
+<td>Values, state transitions, effects and observable behavior</td>
+</tr>
+</tbody></table></div>
+<p>A host runtime value may therefore be static syntax for the program it interprets.
+Dynamic semantics describes execution; its mathematical definition need not itself
+be computed at runtime. A Wire surface can be interpreted as an interaction
+language whose well-formed requests have effects against an instance. A request
+denotes a particular interaction, not the entire contract.</p>
+<h2 id="adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</h2>
+<p>For two realizations of <code>S</code> interpreted in the same behavior domain:</p>
+<pre><code class="language-text">a : Instance[T] -&gt; Instance[U]
+
+A1 — Satisfaction preservation:
+  ∀ i. i ⊨_T C  =&gt;  a(i) ⊨_U C
+
+A2 — Behavioral transparency:
+  ∀ admitted i. BehaviorOf_U(a(i)) ≈_S BehaviorOf_T(i)
+</code></pre>
+<p>A2 implies A1 when admitted inputs include the lawful inputs and B1 holds.
+A1 does not imply A2: an adapter can replace every input with a new storing cell
+initially false. Every output satisfies the cell contract, but adapting a true
+cell changes the result of its first read. An adapter&#39;s admitted domain must be
+stated; it may include only lawful inputs or all structurally compatible ones.</p>
+<p>An adapter into a Wire realization uses the same equation after both sides are
+interpreted in the chosen abstract behavior domain. Transport failures, ownership,
+concurrency and other observable effects must either be included or explicitly
+excluded by that domain. A bind/stub round trip adds the law
+<code>BehaviorOf_T(stub(bind(i))) ≈_S BehaviorOf_T(i)</code>; an intermediate Wire needs its
+own interpretation to claim transparency there too. Transparent adapters compose
+when their domains and intermediate realizations match, by transitivity of <code>≈_S</code>.</p>
+<p>In <a href="#source-examples-behavior-ts">examples/behavior.ts</a>, finite transition systems supply
+that interpretation. Product exploration checks every reachable pair of states
+and every input, deciding equality of all finite traces for each pair of total,
+deterministic machines. The example checks all 512 two-state method machines,
+rejects write-ignoring implementations, compares the two native realizations, and
+distinguishes forwarding from replacement. This is exhaustive for that finite
+domain, not a proof about arbitrary programs or Nightseam transports.</p>
+<figure id="behavior-figure" class="diagram">
+  <figcaption><span class="figure-number">BEHAVIOR EXPLORER</span><strong>Lawful does not mean the same behavior.</strong></figcaption>
+  <p>Compare a storing cell initially true with one of the checked implementations. A replacing adapter returns a lawful cell, but changes the first read.</p>
+  <label class="path-label" for="behavior-case">Implementation to compare</label>
+  <select id="behavior-case"><option value="0">Storing cell · false</option><option value="1">Storing cell · true</option><option value="2">Ignores writes</option><option value="3" selected>Forwarded true cell</option><option value="4">Replaced with fresh false cell</option></select>
+  <p id="behavior-verdict" class="figure-result" aria-live="polite"></p>
+  <div class="route-controls" role="group" aria-label="Cell interactions">
+    <button type="button" data-cell-input="0">Read</button>
+    <button type="button" data-cell-input="1">Write false</button>
+    <button type="button" data-cell-input="2">Write true</button>
+    <button type="button" id="cell-reset">Reset</button>
+  </div>
+  <div class="artifact-grid"><div><h3>Original true cell</h3><pre id="original-trace" aria-live="polite">No interactions yet.</pre></div><div><h3>Selected implementation</h3><pre id="selected-trace" aria-live="polite">No interactions yet.</pre></div></div>
+  <p class="figure-result">The verdict concerns all finite traces from each initial state. The controls show individual traces. Exhaustively checked across 512 finite method implementations; no transport or concurrency is modeled.</p>
+</figure>
+
+<p>Let <code>D</code> be the declaration language, <code>L</code> the output language, and <code>H</code> the host
+implementation language. A type generator has the dependent result:</p>
+<pre><code class="language-text">TypeGen[D, L] : Π C.
+  Syntax[D, C] -&gt; Σ T : NativeRealization[L, shape(C)]. Syntax[L, T]
+</code></pre>
+<p><code>Π</code> means a family of functions, one per contract. <code>Σ</code> means that the output
+chooses a particular <code>T</code> and supplies syntax denoting it. The result is indexed
+by and retains <code>C</code>; the native declaration alone need not express <code>B</code>.
+Choosing a <code>T</code> for the shape does not synthesize a lawful implementation.</p>
+<p>For a selected target realization <code>U</code> of the same shape/domain:</p>
+<pre><code class="language-text">AdapterGen[D, L, U] : Π C. Π T : NativeRealization[L, shape(C)].
+  (Syntax[D, C] × Syntax[L, T]) -&gt; Syntax[L, Adapter(T, U)]
+
+JointResult[L, C, U] = Σ T : NativeRealization[L, shape(C)].
+  (Syntax[L, T] × Syntax[L, Adapter(T, U)])
+</code></pre>
+<p>The target <code>U</code> must be chosen compatibly for each <code>C</code>. The adapter&#39;s source is
+exactly the supplied <code>T</code>, not an unspecified realization of <code>C</code>. An adapter
+generator is behaviorally transparent when every admitted output denotes an
+adapter satisfying A2. <code>TypeGeneratorSemantics</code> and <code>AdapterGeneratorSemantics</code>
+model components with those choices fixed; their records retain <code>C</code> and <code>T</code>.
+Their TypeScript signatures alone do not prove their universal obligations.</p>
+<p>The loaded generator is the semantic function <code>g</code>, even when its inputs and
+outputs are syntax values. Its source has denotation <code>⟦source⟧_H = g</code>. Applying
+it gives <code>g(input) = output</code>, whose target-language interpretation denotes the
+type or adapter. The host language <code>H</code> does not thereby become the output language.</p>
+<p>A generator can itself implement a contract <code>C_g = (S_g, B_g)</code>: <code>S_g</code> specifies
+its dependent input/output signature, and <code>B_g</code> its preservation laws. The actual
+function <code>g</code> is a candidate implementation satisfying those laws or violating them.
+Its source represents <code>g</code>, not the object contract <code>C</code> on which it operates.</p>
+<h2 id="coordinates-and-cells">6. Coordinates and cells</h2>
 <p>An axis is an opaque ID. Each axis has opaque element IDs and may admit an
 explicit empty value. The core needs equality of IDs, not an interpretation of
 their names. The interpretation still belongs to the model: choosing an axis
@@ -98,17 +345,17 @@ Adding or removing a key therefore changes that axis.</p>
 <p><strong>E1 — Coordinate equality.</strong> Two coordinates are equal exactly when their key
 sets agree and all elements at matching axes agree. Equality must be reflexive,
 symmetric, and transitive. Element IDs are compared within the same axis.</p>
-<p>For a fixed <code>C</code>, the cell at <code>K</code> is the collection <code>R_K(C)</code> of its lawful
+<p>For a fixed <code>S</code>, the cell at <code>K</code> is the collection <code>R_K(S)</code> of its lawful
 representations. A cell can contain many artifacts: differently formatted Go
 interfaces, for example. Coordinates identify a cell, not a unique artifact.
 Only meaningful coordinate assignments and inhabited cells need be present in
 the graph. Optional higher ranks avoid inventing dummy values, but do not by
 themselves prove that every possible combination has a representation.</p>
-<h2 id="elementary-transformations-and-coordinate-paths">3. Elementary transformations and coordinate paths</h2>
-<pre><code class="language-typescript">type RepresentationMap&lt;S, From, To&gt; = (input: Representation&lt;S, From&gt;) =&gt; Representation&lt;S, To&gt;;
+<h2 id="elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</h2>
+<pre><code class="language-typescript">type RepresentationMap&lt;X, From, To&gt; = (input: Representation&lt;X, From&gt;) =&gt; Representation&lt;X, To&gt;;
 </code></pre>
 <p>This is mathematical shorthand; the source file supplies the coordinate
-constraints. An elementary <code>Transformation&lt;S, From, To&gt;</code> admits such a function
+constraints. An elementary <code>Transformation&lt;X, From, To&gt;</code> admits such a function
 only when exactly one axis differs:</p>
 <pre><code class="language-text">Diff(K, L) = { a | K[a] and L[a] differ, including absence }
 E2:  |Diff(K, L)| = 1
@@ -119,12 +366,12 @@ Equivalently: ∃a*. ∀a. (K[a] ≠ L[a] ⇔ a = a*)
 with zero changes is not an elementary edge; neither is one changing two axes.
 The TypeScript type is <code>never</code> for either case, and for broad or union-valued
 coordinates that do not designate individual points.</p>
-<p>For fixed <code>S</code>, the ordered tuple <code>(From, To)</code> determines the <strong>transformation
+<p>For fixed <code>X</code>, the ordered tuple <code>(From, To)</code> determines the <strong>transformation
 signature</strong>. A <code>TransformationInstance</code> additionally selects an actual function.
 Two generators may have the same signature and produce different lawful
 artifacts. Endpoint equality does not determine an algorithm.</p>
 <p>A coordinate path <code>P</code> consists of adjacent steps and matching intermediate
-coordinates. Its meaning <code>⟦P⟧</code> is their composition. The same <code>S</code> is carried
+coordinates. Its meaning <code>⟦P⟧</code> is their composition. The same <code>X</code> is carried
 through every step. A composite may differ at several axes, return to its
 starting coordinate, or do both along the way. A change involving several axes
 can be decomposed only if the required intermediate representations and maps
@@ -139,24 +386,24 @@ zero steps. It means identity. Writing <code>P ; Q</code> for doing <code>P</cod
 the effects must be included in its meaning and equivalence. A loop need not
 mean identity. A same-coordinate normalization can be an unrestricted
 <code>RepresentationMap</code>; it is not an elementary transformation under E2.</p>
-<h2 id="giving-the-contract-a-hierarchy">4. Giving the contract a hierarchy</h2>
-<p>The recursive type of finite <strong>closed</strong> contracts is:</p>
-<pre><code class="language-text">Contracts(O) = μX. Option(O) × FiniteMap(Key, X)
+<h2 id="giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</h2>
+<p>The recursive type of finite <strong>closed</strong> shapes is:</p>
+<pre><code class="language-text">Shapes(O) = μX. Option(O) × FiniteMap(Key, X)
 </code></pre>
-<p>A particular <code>C</code> is an inhabitant of that type. Each node has an optional opaque
+<p>A particular <code>S</code> is an inhabitant of that type. Each node has an optional opaque
 value and zero or more uniquely keyed children:</p>
-<pre><code class="language-typescript">interface ContractNode&lt;O&gt; {
+<pre><code class="language-typescript">interface ShapeNode&lt;O&gt; {
   readonly kind: &#39;node&#39;;
   readonly value?: O;
-  readonly children: ReadonlyMap&lt;string, Contract&lt;O&gt;&gt;;
+  readonly children: ReadonlyMap&lt;string, Shape&lt;O&gt;&gt;;
 }
 
-// Closed case; section 12 adds whole-contract holes.
-type Contract&lt;O&gt; = ContractNode&lt;O&gt;;
+// Closed case; section 16 adds whole-shape holes.
+type Shape&lt;O&gt; = ShapeNode&lt;O&gt;;
 </code></pre>
-<p>The map makes <code>at(C, key)</code> single-valued. A set of key/child pairs is equivalent
-only with a uniqueness condition on keys. Child order has no contract meaning.
-A node with neither a value nor children is a valid, present contract; it is
+<p>The map makes <code>at(S, key)</code> single-valued. A set of key/child pairs is equivalent
+only with a uniqueness condition on keys. Child order has no shape meaning.
+A node with neither a value nor children is a valid, present shape; it is
 different from a missing child. The semantic model assumes finite, immutable,
 acyclic trees. A TypeScript <code>ReadonlyMap</code> expresses a read-only view, not a proof
 of those assumptions.</p>
@@ -172,106 +419,108 @@ of those assumptions.</p>
       └─ result: Unit
 </code></pre>
 <p>The strings used as values and keys are opaque IDs to the machinery. <code>Bool</code>
-appearing twice does not merge its two occurrences: their contract paths
-distinguish them. This example states shape only. If <code>O</code> refers to behavioral
-specifications, their interpretation and preservation are additional semantic
-obligations; storing a law&#39;s name does not establish that a program satisfies it.</p>
-<h2 id="contract-navigation">5. Contract navigation</h2>
-<p>A contract path is a list of child keys; <code>++</code> concatenates lists and <code>[]</code> is
+appearing twice does not merge its two occurrences: their shape paths
+distinguish them. This example states shape only. Local values can carry law
+descriptions, but preserving those descriptions does not establish satisfaction.
+Behavioral meaning lives in the separate domain and predicate of <code>C = (S, B)</code>.</p>
+<h2 id="shape-navigation">9. Shape navigation</h2>
+<p>A shape path is a list of child keys; <code>++</code> concatenates lists and <code>[]</code> is
 the empty path. Navigation can fail, so the executable model returns
-<code>Selection&lt;Contract&lt;O&gt;&gt;</code>, a <code>found</code>/<code>missing</code> union.</p>
+<code>Selection&lt;Shape&lt;O&gt;&gt;</code>, a <code>found</code>/<code>missing</code> union.</p>
 <p><strong>N1 — Root.</strong></p>
-<pre><code class="language-text">at(C, []) = found(C)
+<pre><code class="language-text">at(S, []) = found(S)
 </code></pre>
 <p><strong>N2 — Concatenation, including missing paths.</strong></p>
-<pre><code class="language-text">at(C, p ++ q) = bind(at(C, p), D ↦ at(D, q))
+<pre><code class="language-text">at(S, p ++ q) = bind(at(S, p), D ↦ at(D, q))
 </code></pre>
 <p>Here <code>bind(found(D), f) = f(D)</code> and <code>bind(missing, f) = missing</code>. Thus a missing
 prefix stays missing. For valid paths, suppressing <code>found</code> gives the original
 equation:</p>
-<pre><code class="language-text">at(C, p ++ q) = at(at(C, p), q)
+<pre><code class="language-text">at(S, p ++ q) = at(at(S, p), q)
 </code></pre>
-<p>Contract paths and coordinate paths must remain distinct. A contract path moves
-from a subject to a sub-contract. A coordinate path changes the representation
+<p>Shape paths and coordinate paths must remain distinct. A shape path moves
+from a subject to a sub-shape. A coordinate path changes the representation
 of one fixed subject. They are the two directions in the transparency square.</p>
-<h2 id="navigating-a-representation">6. Navigating a representation</h2>
+<h2 id="navigating-a-representation">10. Navigating a representation</h2>
 <p>For every admitted coordinate, representation navigation must expose the same
 abstract children:</p>
-<pre><code class="language-text">at_K : (r : R_K(C), p : ValidPath(C)) → R_K(C|p)
+<pre><code class="language-text">at_K : (r : R_K(S), p : ValidPath(S)) → R_K(S|p)
 </code></pre>
-<p>The result keeps <code>K</code> and changes the subject from <code>C</code> to <code>C|p</code>. In the TypeScript
-model, a <code>ContractLocation</code> records <code>root</code>, <code>path</code>, and <code>selected</code>; construction
+<p>The result keeps <code>K</code> and changes the subject from <code>S</code> to <code>S|p</code>. In the TypeScript
+model, a <code>ShapeLocation</code> records <code>root</code>, <code>path</code>, and <code>selected</code>; construction
 must establish <code>selected = root|path</code>. It is a witness obligation, not a theorem
 proved by that interface. The examples check it at runtime.</p>
-<p>Abstract contract keys need not be native source names: Go <code>Read</code> and TypeScript
+<p>Abstract shape keys need not be native source names: Go <code>Read</code> and TypeScript
 <code>read</code> can expose the same key. Selection need not mean cutting out text. A
 selected representation may retain imports, an environment, or a reference to
 the containing artifact so that the fragment has its intended meaning.</p>
-<p><strong>R1 — Navigation domain and subject.</strong> Every valid contract path has a
-corresponding represented selection with subject <code>C|p</code>, at the same <code>K</code>. Invalid
-paths cannot designate extra contract children. The example API accepts only
+<p><strong>R1 — Navigation domain and subject.</strong> Every valid shape path has a
+corresponding represented selection with subject <code>S|p</code>, at the same <code>K</code>. Invalid
+paths cannot designate extra shape children. The example API accepts only
 valid locations; its <code>locate</code> operation handles failure first.</p>
 <p><strong>R2 — Representation navigation composes.</strong> For valid paths:</p>
 <pre><code class="language-text">at_K(r, []) ≈_K r
 at_K(r, p ++ q) ≈_K at_K(at_K(r, p), q)
 </code></pre>
-<p><strong>R3 — Faithful local surfaces.</strong> Let <code>surface(C)</code> be its optional local value
+<p><strong>R3 — Faithful local surfaces.</strong> Let <code>surface(S)</code> be its optional local value
 and set of immediate child keys. Let <code>observe_K</code> inspect that surface in the
 represented artifact, as modeled by <code>RepresentationObservation</code>:</p>
-<pre><code class="language-text">observe_K(at_K(r, p)) = surface(C|p)
+<pre><code class="language-text">observe_K(at_K(r, p)) = surface(S|p)
 </code></pre>
 <p>Equality includes value presence, the opaque value when present, and precisely
 the child-key set. It must be computed from the artifact&#39;s interpretation, not
 inferred merely by reading <code>r.subject</code>. Together with navigation, this law gives
-a value- and key-preserving isomorphism of the finite <strong>exposed contract tree</strong>
-with <code>C</code>. Raw syntax may contain additional representation details.</p>
-<p>This is where preserving the whole contract becomes more than retaining an ID.
-The generic <code>C</code> parameter expresses the obligation, but TypeScript&#39;s structural
+a value- and key-preserving isomorphism of the finite <strong>exposed shape tree</strong>
+with <code>S</code>. Raw syntax may contain additional representation details.</p>
+<p>This is where preserving the whole shape becomes more than retaining an ID.
+The generic <code>S</code> parameter expresses the obligation, but TypeScript&#39;s structural
 type system cannot prove artifact faithfulness or identity of runtime values.</p>
-<p>If a coordinate cannot support a sub-contract, the navigation requirement is
+<p>If a coordinate cannot support a sub-shape, the navigation requirement is
 not satisfied there. Supply a representation with sufficient context, or choose
 a domain and coordinate schema that are closed under this navigation.</p>
-<h2 id="transformation-families-and-the-transparency-square">7. Transformation families and the transparency square</h2>
-<p>A function for just one fixed <code>C</code> cannot be applied to <code>C|p</code> by assumption. We
-therefore introduce a family with a component for every contract in the chosen
+<h2 id="transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</h2>
+<p>A function for just one fixed <code>S</code> cannot be applied to <code>S|p</code> by assumption. We
+therefore introduce a family with a component for every shape in the chosen
 domain:</p>
-<pre><code class="language-text">F : ∏ C. (R_K(C) → R_L(C))
-F_C : R_K(C) → R_L(C)
+<pre><code class="language-text">F : ∏ S. (R_K(S) → R_L(S))
+F_S : R_K(S) → R_L(S)
 </code></pre>
-<pre><code class="language-typescript">interface ContractRepresentationMap&lt;O, From extends Coordinates, To extends Coordinates&gt; {
-  &lt;C extends Contract&lt;O&gt;&gt;(input: Representation&lt;C, From&gt;): Representation&lt;C, To&gt;;
+<pre><code class="language-typescript">interface ShapeRepresentationMap&lt;O, From extends Coordinates, To extends Coordinates&gt; {
+  &lt;S extends Shape&lt;O&gt;&gt;(input: Representation&lt;S, From&gt;): Representation&lt;S, To&gt;;
 }
 </code></pre>
 <p><code>TransformationFamily</code> adds the one-axis requirement. <code>FamilyPath</code> composes such
 families, so the same coordinate route can be followed at the root or at any
-sub-contract. The admitted domain must be closed under selection. In this model
-the contract domain is finite <code>Contract&lt;O&gt;</code> trees, with lawful representations
+sub-shape. The admitted domain must be closed under selection. In this model
+the shape domain is finite <code>Shape&lt;O&gt;</code> trees, with lawful representations
 as inputs.</p>
-<p><strong>T1 — Preservation.</strong> <code>F_C</code> maps a lawful representation of <code>C</code> to a lawful
-representation of that same <code>C</code>, preserving its chosen observations and any
-included behavioral laws. This is required in addition to its type signature.</p>
+<p><strong>T1 — Preservation.</strong> <code>F_S</code> maps a lawful representation of <code>S</code> to a lawful
+representation of that same <code>S</code>, preserving its chosen structural observations.
+This is required in addition to its type signature. To lift this family to
+contracts or implementations, supply the corresponding behavioral obligations;
+this structural law alone establishes neither A1 nor A2.</p>
 <p><strong>T2 — Navigation transparency.</strong> For every lawful <code>r</code> and valid <code>p</code>:</p>
-<pre><code class="language-text">at_L(F_C(r), p) ≈_L F_(C|p)(at_K(r, p))
+<pre><code class="language-text">at_L(F_S(r), p) ≈_L F_(S|p)(at_K(r, p))
 </code></pre>
 <figure id="transparency-figure" class="diagram" data-route="first">
   <figcaption><span class="figure-number">FIGURE 1</span><strong>One selected part. Two routes.</strong></figcaption>
-  <label class="path-label" for="contract-path">Contract path <code>p</code></label>
-  <select id="contract-path"><option value="0">[] — whole contract</option><option value="1">operations</option><option value="2">operations / read</option><option value="3">operations / read / arguments</option><option value="4">operations / read / result</option><option value="5">operations / write</option><option value="6" selected>operations / write / arguments</option><option value="7">operations / write / arguments / value</option><option value="8">operations / write / result</option></select>
+  <label class="path-label" for="shape-path">Shape path <code>p</code></label>
+  <select id="shape-path"><option value="0">[] — whole shape</option><option value="1">operations</option><option value="2">operations / read</option><option value="3">operations / read / arguments</option><option value="4">operations / read / result</option><option value="5">operations / write</option><option value="6" selected>operations / write / arguments</option><option value="7">operations / write / arguments / value</option><option value="8">operations / write / result</option></select>
   <div class="route-controls" role="group" aria-label="Route through the transparency square">
     <button type="button" data-route-choice="first" aria-pressed="true">Transform → select</button>
     <button type="button" data-route-choice="second" aria-pressed="false">Select → transform</button>
   </div>
   <div class="square" data-square="transparency"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-transparency desc-transparency">
     <title id="title-transparency">Navigation commutes with transformation</title>
-    <desc id="desc-transparency">Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-contract.</desc>
+    <desc id="desc-transparency">Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.</desc>
     <defs><marker id="arrow-transparency" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-transparency)"/>
     <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-transparency)"/>
     <path data-branch="second" class="edge" d="M 150 112 V 208" marker-end="url(#arrow-transparency)"/>
     <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-transparency)"/>
-    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Root at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">R_K(C)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Root at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">R_L(C)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Part at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(C|p)</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Part at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(C|p)</text></g>
-    <text class="edge-label" x="350" y="52" text-anchor="middle">F_C</text>
-    <text class="edge-label" x="350" y="305" text-anchor="middle">F_(C|p)</text>
+    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Root at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">R_K(S)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Root at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">R_L(S)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Part at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(S|p)</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Part at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(S|p)</text></g>
+    <text class="edge-label" x="350" y="52" text-anchor="middle">F_S</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">F_(S|p)</text>
     <text class="edge-label" x="550" y="174" text-anchor="middle">select p</text>
     <text class="edge-label" x="150" y="174" text-anchor="middle">select p</text>
     <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
@@ -286,65 +535,66 @@ It specifies a law to satisfy; a value of the interface is not a proof.</p>
 equivalent representations must have the same chosen observations. Navigation
 and transformations must respect equivalence:</p>
 <pre><code class="language-text">r ≈_K s  ⇒  at_K(r, p) ≈_K at_K(s, p)
-r ≈_K s  ⇒  F_C(r) ≈_L F_C(s)
+r ≈_K s  ⇒  F_S(r) ≈_L F_S(s)
 </code></pre>
 <p>Choose the observations explicitly. Exact artifact equality works in the
-canonical tree example. Other applications may ignore formatting or compare
-behavior. Equivalence must be fine enough to preserve everything counted as
-part of <code>C</code>.</p>
+canonical tree example. Other applications may ignore formatting. An extension
+to behavior must choose observations compatible with B1 and A2; a structural
+equivalence cannot silently become an equivalence of implementations.</p>
 <p>T2 alone is insufficient for T1: uniformly replacing every opaque value with a
-different value could commute with navigation while changing the contract.
-Faithful surfaces and behavioral preservation rule this out.</p>
-<h2 id="the-prefix-law-and-arbitrary-coordinate-paths">8. The prefix law and arbitrary coordinate paths</h2>
+different value could commute with navigation while changing the shape.
+Faithful surfaces rule this out. The separate adapter counterexample demonstrates
+why preserving all structural observations still does not establish A2.</p>
+<h2 id="the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</h2>
 <p>The prefix form of the law becomes well-typed by applying the appropriate component
 of the family at each selected subject:</p>
 <p><strong>T3 — Prefix transparency.</strong></p>
-<pre><code class="language-text">F_(C|p++q)(at_K(r, p ++ q))
-  ≈_L at_L(F_(C|p)(at_K(r, p)), q)
+<pre><code class="language-text">F_(S|p++q)(at_K(r, p ++ q))
+  ≈_L at_L(F_(S|p)(at_K(r, p)), q)
 </code></pre>
-<p>Read <code>C|p++q</code> as <code>C|(p ++ q)</code>. Using R2, this is T2 applied to the representation
+<p>Read <code>S|p++q</code> as <code>S|(p ++ q)</code>. Using R2, this is T2 applied to the representation
 already selected at <code>p</code>. Conversely, setting <code>p = []</code> recovers T2, using the root
 law and congruence. Thus the two formulations express the same transparency
 requirement.</p>
 <p><strong>P2 — Transparency of composite paths.</strong> If every step of <code>P : K → L</code> obeys
 T2 and Q1, so does its composite:</p>
-<pre><code class="language-text">at_L(⟦P⟧_C(r), p) ≈_L ⟦P⟧_(C|p)(at_K(r, p))
+<pre><code class="language-text">at_L(⟦P⟧_S(r), p) ≈_L ⟦P⟧_(S|p)(at_K(r, p))
 </code></pre>
 <p>For two consecutive steps <code>F : K → L</code> and <code>G : L → M</code>, the derivation is:</p>
-<pre><code class="language-text">at_M(G_C(F_C(r)), p)
-  ≈_M G_(C|p)(at_L(F_C(r), p))        by transparency of G
-  ≈_M G_(C|p)(F_(C|p)(at_K(r, p)))    by transparency of F and congruence of G
+<pre><code class="language-text">at_M(G_S(F_S(r)), p)
+  ≈_M G_(S|p)(at_L(F_S(r), p))        by transparency of G
+  ≈_M G_(S|p)(F_(S|p)(at_K(r, p)))    by transparency of F and congruence of G
 </code></pre>
 <p>Identity is immediate; induction extends the argument to every finite path.
 Replacing <code>F</code> by <code>⟦P⟧</code> in T3 also yields the mixed law for any coordinate route
-and any contract-path split <code>p ++ q</code>. The example checks that equation directly
+and any shape-path split <code>p ++ q</code>. The example checks that equation directly
 at every split of every valid path.</p>
-<p>Mathematically, contract occurrences and their selections form a path category.
+<p>Mathematically, shape occurrences and their selections form a path category.
 At each coordinate, lawful representations modulo <code>≈</code> and selection maps give
 a set-valued functor. T2 makes the transformation family a natural
 transformation between these functors. This interpretation assumes R1–R2 and
 Q1; the TypeScript signature alone does not establish it. See Fong and Spivak,
 <a href="https://ocw.mit.edu/courses/18-s097-applied-category-theory-january-iap-2019/a4175d61479a35340d6307ae5e48ef5a_18-s097iap19textbook.pdf">An Invitation to Applied Category Theory, §3.3.4</a>.</p>
-<h2 id="transparency-does-not-force-a-unique-coordinate-path">9. Transparency does not force a unique coordinate path</h2>
+<h2 id="transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</h2>
 <p>Several routes can connect the same cells, and several transformation instances
 can connect the same pair. Navigation transparency says that <strong>each route
 commutes with selection</strong>. It does not say that any two routes produce identical
 artifacts.</p>
 <p><strong>P3 — Parallel-path coherence, when required.</strong> A stronger, separately chosen
 law is:</p>
-<pre><code class="language-text">P, Q : K → L  ⇒  ⟦P⟧_C(r) ≈_L ⟦Q⟧_C(r)
+<pre><code class="language-text">P, Q : K → L  ⇒  ⟦P⟧_S(r) ≈_L ⟦Q⟧_S(r)
 </code></pre>
-<p>If <code>≈</code> observes only the preserved contract, T1 already gives agreement at that
+<p>If <code>≈</code> observes only the preserved shape, T1 already gives agreement at that
 level. If it also observes formatting, implementation strategy, or other
 representation details, coherence needs an additional argument. A chosen
-isomorphism from each exposed contract to <code>C</code> determines the induced contract
+isomorphism from each exposed shape to <code>S</code> determines the induced shape
 correspondence between representations. It does not choose a unique generator,
 artifact, or coordinate route.</p>
-<p>Likewise, abstract contract isomorphism does not provide an executable inverse
+<p>Likewise, abstract shape isomorphism does not provide an executable inverse
 generator. To require a round trip, supply a reverse map <code>G</code> and require
-<code>G_C(F_C(r)) ≈ r</code> (and the other direction for a two-sided inverse). This is an
+<code>G_S(F_S(r)) ≈ r</code> (and the other direction for a two-sided inverse). This is an
 extra law, not a consequence of having the same subject parameter.</p>
-<h2 id="worked-example-two-routes-one-selected-subtree">10. Worked example: two routes, one selected subtree</h2>
+<h2 id="worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</h2>
 <p>The hierarchy example has independent <code>layout</code> and <code>order</code> axes. Every artifact
 encodes the same nine-node BooleanCell tree. Nested encodings store child pairs;
 flat encodings store one row for <strong>every node</strong>, with its relative path and
@@ -376,95 +626,96 @@ optional value. Keeping rows for empty nodes is essential.</p>
 produce exactly equal canonical artifacts here, so this particular square also
 satisfies P3. Nested selection follows child keys. Flat selection filters rows
 by a prefix and removes that prefix from the selected rows. Both expose the
-same selected contract and commute with the transformations.</p>
+same selected shape and commute with the transformations.</p>
 <p>The checks cover root and concatenation laws, missing paths, every local
 surface, all four elementary families, their composition, and the original
-prefix equation. They also cover the entirely empty contract. A deliberately
+prefix equation. They also cover the entirely empty shape. A deliberately
 bad, correctly typed generator keeps only the flat root and drops descendants;
 the law checker rejects it. A fabricated location naming the wrong selected
-contract is rejected as well. A second bad generator replaces every local value:
+shape is rejected as well. A second bad generator replaces every local value:
 it passes the commuting-square checks, but the faithful-surface check rejects it.</p>
-<h2 id="interpreting-generator-roles">11. Interpreting generator roles</h2>
-<p>The core reserves no role names. A concrete domain model can choose coordinates
-such as the following, with preservation judged against the same chosen <code>C</code>:</p>
+<h2 id="interpreting-generator-roles">15. Interpreting generator roles</h2>
+<p>The coordinate core reserves no role names. The semantic layer supplies objects
+that an interpretation may choose as its subjects. Pick the subject before
+claiming that a generator is a representation transformation:</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>Operation</th>
-<th>Possible representation change</th>
+<th>Chosen subject</th>
+<th>Required meaning of preservation</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Type generator</td>
-<td>Contract declaration syntax → native model-type syntax</td>
+<td>Shape <code>S</code></td>
+<td>Type artifacts expose the same structural signature under their supplied interpretations.</td>
 </tr>
 <tr>
-<td>Adapter generator</td>
-<td>A description of <code>C</code> and its selected binding → adapter syntax exposing <code>C</code></td>
+<td>Contract <code>C = (S, B)</code></td>
+<td>The complete result retains shape and specification; projecting only a native interface can forget <code>B</code>.</td>
 </tr>
 <tr>
-<td>Implementation generator</td>
-<td>A description of <code>C</code> → implementation syntax realizing <code>C</code></td>
+<td>Instance <code>i</code> or behavior <code>b</code></td>
+<td>A realization change preserves the chosen observable behavior; producing some lawful instance is insufficient.</td>
 </tr>
 <tr>
-<td>Interpretation or loading</td>
-<td>Syntax → its semantic realization, with language/runtime coordinates as needed</td>
-</tr>
-<tr>
-<td>Ordinary program function</td>
-<td>A function between values; it is a representation transformation only when it also preserves the chosen subject and fits the coordinate rules</td>
+<td>Generator function <code>g</code></td>
+<td>Source and loaded function agree under host-language denotation. Its own contract is <code>C_g</code>, distinct from the contracts it transforms.</td>
 </tr>
 </tbody></table></div>
-<p>These are modeling choices, not claims about an existing Nightseam API. An
-adapter or implementation generator may need a selected native type, strategy,
-or other inputs. Include those in its specified environment or input model;
-they cannot be inferred from the identity of <code>C</code> alone. If several axes change,
-use a lawful path where one exists, or an unrestricted map outside the primitive
-edge type. A behaviorally rich contract also needs more than a generated method
-signature to establish preservation.</p>
-<h2 id="whole-contract-holes">12. Whole-contract holes</h2>
-<p>A generic stands for a complete sub-contract, including its value and children.
+<p>These are modeling choices, not claims about an existing Nightseam API. The
+generator signatures in section 5 connect different direct denotations: input
+syntax denotes <code>C</code>, while output syntax denotes <code>T</code> or <code>a</code>. A common-subject
+representation map requires the appropriate interpretation of those outputs,
+such as the generated package that retains <code>C</code> and the chosen <code>T</code>. Erasing <code>B</code>
+from <code>C</code> is a change of subject, not a primitive coordinate transformation.</p>
+<p>An implementation generator additionally needs enough information to construct
+a lawful <code>i</code>. An unimplemented scaffold only supplies structure. A semantic
+function need not preserve any subject at all. When a lawful representation map
+does exist and several axes change, use a path through meaningful intermediate
+cells or an unrestricted map outside the primitive edge type.</p>
+<h2 id="whole-shape-holes">16. Whole-shape holes</h2>
+<p>A generic stands for a complete sub-shape, including its value and children.
 The union therefore surrounds the entire node constructor:</p>
-<pre><code class="language-text">Contracts(O, G) = μX. Generic(G) + (Option(O) × FiniteMap(Key, X))
+<pre><code class="language-text">Shapes(O, G) = μX. Generic(G) + (Option(O) × FiniteMap(Key, X))
 </code></pre>
 <p><code>G</code> is a context of allowed opaque generic IDs. A template may use an ID more
 than once, or not use every ID in its context. All occurrences of one ID denote
-the same parameter. The core now expresses both open and closed contracts:</p>
+the same parameter. The core now expresses both open and closed shapes:</p>
 <pre><code class="language-typescript">type Generic&lt;G extends string&gt; = [G] extends [never] ? never : { readonly kind: &#39;generic&#39;; readonly id: G };
 
-interface ContractNode&lt;O, G extends string = never&gt; {
+interface ShapeNode&lt;O, G extends string = never&gt; {
   readonly kind: &#39;node&#39;;
   readonly value?: O;
-  readonly children: ReadonlyMap&lt;string, Contract&lt;O, G&gt;&gt;;
+  readonly children: ReadonlyMap&lt;string, Shape&lt;O, G&gt;&gt;;
 }
 
-type Contract&lt;O, G extends string = never&gt; = ContractNode&lt;O, G&gt; | Generic&lt;G&gt;;
+type Shape&lt;O, G extends string = never&gt; = ShapeNode&lt;O, G&gt; | Generic&lt;G&gt;;
 </code></pre>
-<p><code>Contract&lt;O, never&gt;</code> has no holes and recovers the previous closed-tree model.
+<p><code>Shape&lt;O, never&gt;</code> has no holes and recovers the previous closed-tree model.
 A hole has neither a value nor children. An ordinary node without a value or
-children remains a complete, empty contract and is never implicitly a hole.
-At open contracts, faithful representation additionally preserves the node/hole
+children remains a complete, empty shape and is never implicitly a hole.
+At open shapes, faithful representation additionally preserves the node/hole
 distinction and the identity of each generic.</p>
 <p>For example, <code>Pair[g0]</code> can contain two occurrences of <code>g0</code>:</p>
-<figure id="composition-stages" class="diagram"><figcaption><span class="figure-number">FIGURE 3</span><strong>A whole contract at each hole</strong></figcaption><div class="route-controls" role="group" aria-label="Substitution stage"><button type="button" data-stage-choice="0" aria-pressed="true">Template</button><button type="button" data-stage-choice="1" aria-pressed="false">Insert List</button><button type="button" data-stage-choice="2" aria-pressed="false">Insert Bool</button></div><pre id="composition-tree">Pair
+<figure id="composition-stages" class="diagram"><figcaption><span class="figure-number">FIGURE 3</span><strong>A whole shape at each hole</strong></figcaption><div class="route-controls" role="group" aria-label="Substitution stage"><button type="button" data-stage-choice="0" aria-pressed="true">Template</button><button type="button" data-stage-choice="1" aria-pressed="false">Insert List</button><button type="button" data-stage-choice="2" aria-pressed="false">Insert Bool</button></div><pre id="composition-tree">Pair
 ├─ first → ?g0
 └─ second → ?g0</pre><p id="composition-stage-result" class="figure-result" aria-live="polite">Pair[g0]: the same parameter occurs at first and second.</p></figure>
-<p>The inserted contract supplies the whole structure at each occurrence. Filling
+<p>The inserted shape supplies the whole structure at each occurrence. Filling
 a hole need not close the template: the replacement can itself have holes.
 Hole IDs belong to a chosen context. When combining independently named
 templates, consistently rename IDs if they are intended to remain distinct.
 The current language has no binders; introducing binders later would require
 additional scoping and capture-avoidance rules.</p>
-<h2 id="substitution-and-its-composition-laws">13. Substitution and its composition laws</h2>
-<p>A substitution assigns a contract to every generic in its source context:</p>
-<pre><code class="language-text">σ : G → Contracts(O, H)
-C : Contracts(O, G)
-C[σ] : Contracts(O, H)
+<h2 id="substitution-and-its-composition-laws">17. Substitution and its composition laws</h2>
+<p>A substitution assigns a shape to every generic in its source context:</p>
+<pre><code class="language-text">σ : G → Shapes(O, H)
+S : Shapes(O, G)
+S[σ] : Shapes(O, H)
 </code></pre>
-<p>This is the <code>Substitution&lt;O, G, H&gt;</code> type. An assignment to closed contracts has
+<p>This is the <code>Substitution&lt;O, G, H&gt;</code> type. An assignment to closed shapes has
 <code>H = never</code>. Partial instantiation is expressed by mapping each unfilled
 parameter to a generic in the target context. Bindings are total and consistent;
-every repeated occurrence of a parameter receives the same contract.</p>
+every repeated occurrence of a parameter receives the same shape.</p>
 <p><strong>S1 — A hole is replaced by its entire argument.</strong></p>
 <pre><code class="language-text">Generic(g)[σ] = σ(g)
 </code></pre>
@@ -478,12 +729,12 @@ applied inside it. For example, substituting <code>g0 := Box[g0]</code> once int
 produces <code>Box[g0]</code>, rather than expanding forever.</p>
 <p><strong>S3 — Identity.</strong> The identity substitution sends each generic to itself:</p>
 <pre><code class="language-text">η_G(g) = Generic(g)
-C[η_G] = C
+S[η_G] = S
 </code></pre>
 <p><strong>S4 — Staged substitution equals composed substitution.</strong> For
-<code>σ : G → Contracts(O, H)</code> and <code>τ : H → Contracts(O, I)</code>, define:</p>
+<code>σ : G → Shapes(O, H)</code> and <code>τ : H → Shapes(O, I)</code>, define:</p>
 <pre><code class="language-text">(σ ⋆ τ)(g) = σ(g)[τ]
-(C[σ])[τ] = C[σ ⋆ τ]
+(S[σ])[τ] = S[σ ⋆ τ]
 
 η_G ⋆ σ = σ
 σ ⋆ η_H = σ
@@ -491,11 +742,11 @@ C[η_G] = C
 </code></pre>
 <p>The last three equations are pointwise equations on bindings; the contexts
 must match. Induction on the template proves the substitution laws from S1–S2.
-Equality here is equality of abstract contract expressions, including opaque
+Equality here is equality of abstract shape expressions, including opaque
 values, keyed structure, and generic IDs. A particular allocation or amount of
 heap sharing is not part of that equality.</p>
-<p>Substitution forms the subject <code>C[σ]</code>. It is <strong>not</strong> an elementary
-<code>Transformation&lt;C, K, L&gt;</code>: it changes the subject and can keep coordinates
+<p>Substitution forms the subject <code>S[σ]</code>. It is <strong>not</strong> an elementary
+<code>Transformation&lt;S, K, L&gt;</code>: it changes the subject and can keep coordinates
 unchanged. The enlarged model therefore has two distinct operations:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -507,29 +758,29 @@ unchanged. The enlarged model therefore has two distinct operations:</p>
 </thead>
 <tbody><tr>
 <td>Representation transformation</td>
-<td>Preserves <code>C</code></td>
+<td>Preserves <code>S</code></td>
 <td>Changes exactly one axis per primitive step</td>
 </tr>
 <tr>
-<td>Contract instantiation</td>
-<td>Forms <code>C[σ]</code> from <code>C</code> and arguments</td>
+<td>Shape instantiation</td>
+<td>Forms <code>S[σ]</code> from <code>S</code> and arguments</td>
 <td>May take place at the same <code>K</code></td>
 </tr>
 </tbody></table></div>
 <p>A path mixing these operations must track its subject as well as its
 coordinates. The original fixed-subject paths remain exactly as defined.</p>
-<h2 id="navigation-through-composed-contracts">14. Navigation through composed contracts</h2>
+<h2 id="navigation-through-composed-shapes">18. Navigation through composed shapes</h2>
 <p><strong>S5 — Existing paths commute with substitution.</strong> If <code>p</code> selects an existing
 node or hole in the original template:</p>
-<pre><code class="language-text">at(C[σ], p) = at(C, p)[σ]
+<pre><code class="language-text">at(S[σ], p) = at(S, p)[σ]
 </code></pre>
 <p>An ordinary node remains at the same path. When that path ends at a hole, its
-selection after substitution is the supplied replacement contract.</p>
-<p><strong>S6 — Paths can continue inside an inserted contract.</strong> If <code>at(C, p) = Generic(g)</code>:</p>
-<pre><code class="language-text">at(C[σ], p ++ q) = at(σ(g), q)
+selection after substitution is the supplied replacement shape.</p>
+<p><strong>S6 — Paths can continue inside an inserted shape.</strong> If <code>at(S, p) = Generic(g)</code>:</p>
+<pre><code class="language-text">at(S[σ], p ++ q) = at(σ(g), q)
 </code></pre>
 <p>The right side may still be partial. It can select another hole if the
-replacement remains open. These two laws explain how a contract path crosses
+replacement remains open. These two laws explain how a shape path crosses
 from the original template into an argument.</p>
 <p>The validity condition in S5 matters. Before filling <code>Pair[g0]</code>, the path
 <code>first / element</code> cannot be resolved. After <code>g0 := List[h0]</code>, it selects <code>h0</code>;
@@ -537,15 +788,15 @@ after <code>h0 := Bool</code>, it selects <code>Bool</code>. A missing child of 
 stays missing, but an unresolved path continuing through a hole may become
 valid. Thus a blanket equation propagating every failed template lookup through
 substitution would be incorrect.</p>
-<h2 id="substitution-transparency-across-representations">15. Substitution transparency across representations</h2>
+<h2 id="substitution-transparency-across-representations">19. Substitution transparency across representations</h2>
 <p>At each admitted coordinate <code>K</code>, represent both the template and its arguments:</p>
-<pre><code class="language-text">r : R_K(C)
+<pre><code class="language-text">r : R_K(S)
 a(g) : R_K(σ(g))
-plug_K(r, a) : R_K(C[σ])
+plug_K(r, a) : R_K(S[σ])
 </code></pre>
 <p><code>RepresentedSubstitution</code> associates each semantic argument with its represented
 argument. <code>SubstitutionApplication</code> witnesses the particular resulting subject
-<code>D = C[σ]</code>. <code>RepresentationSubstitution</code> returns a representation of that <code>D</code>
+<code>D = S[σ]</code>. <code>RepresentationSubstitution</code> returns a representation of that <code>D</code>
 at the same coordinate. The witness and artifact faithfulness are semantic
 obligations, checked in the examples; merely constructing their records is
 insufficient.</p>
@@ -557,8 +808,8 @@ template and pointwise equivalence of its arguments. These are the represented
 counterparts of S3–S4, including their congruence requirement.</p>
 <p><strong>S8 — Transformation commutes with substitution.</strong> Let <code>F : K → L</code> be a family
 defined for the open template, its arguments, and its instance. Then:</p>
-<pre><code class="language-text">F_(C[σ])(plug_K(r, a))
-  ≈_L plug_L(F_C(r), g ↦ F_(σ(g))(a(g)))
+<pre><code class="language-text">F_(S[σ])(plug_K(r, a))
+  ≈_L plug_L(F_S(r), g ↦ F_(σ(g))(a(g)))
 </code></pre>
 <figure id="composition-figure" class="diagram" data-route="first">
   <figcaption><span class="figure-number">FIGURE 4</span><strong>Filling commutes with transformation</strong></figcaption>
@@ -568,46 +819,73 @@ defined for the open template, its arguments, and its instance. Then:</p>
   </div>
   <div class="square" data-square="composition"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-composition desc-composition">
     <title id="title-composition">Substitution commutes with transformation</title>
-    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent C with the same substituted arguments at the target coordinate.</desc>
+    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent S with the same substituted arguments at the target coordinate.</desc>
     <defs><marker id="arrow-composition" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-composition)"/>
     <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-composition)"/>
     <path data-branch="second" class="edge" d="M 150 112 V 208" marker-end="url(#arrow-composition)"/>
     <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-composition)"/>
-    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Open at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">r, a(g)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Open at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">F(r), F(a)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Filled at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(C[σ])</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Filled at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(C[σ])</text></g>
+    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Open at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">r, a(g)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Open at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">F(r), F(a)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Filled at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(S[σ])</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Filled at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(S[σ])</text></g>
     <text class="edge-label" x="350" y="52" text-anchor="middle">F each</text>
     <text class="edge-label" x="350" y="305" text-anchor="middle">F instance</text>
     <text class="edge-label" x="550" y="174" text-anchor="middle">fill</text>
     <text class="edge-label" x="150" y="174" text-anchor="middle">fill</text>
     <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
   </svg></div>
-  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance C[σ].</p>
+  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance S[σ].</p>
 </figure>
 <p>This is the connecting law: <strong>fill, then transform; or transform the template
 and every argument, then fill</strong>. The <code>SubstitutionTransparency</code> interface records
 the operations needed to state it. The fourth parameter of <code>TransformationFamily</code>
 and <code>FamilyPath</code> specifies their allowed generic context; using <code>GenericId</code>
-admits both open and closed contracts. Their default remains the closed case.</p>
+admits both open and closed shapes. Their default remains the closed case.</p>
 <p>As with navigation transparency, S8 lifts to any coordinate path whose steps
 satisfy it: push each step through plugging, use congruence, then compose the
 transformed arguments. Consequently a pipeline can commute with instantiation,
 not just an individual generator. This requires all the relevant representations
-and operations to exist; a target supporting only closed contracts cannot take
+and operations to exist; a target supporting only closed shapes cannot take
 the open-template route by assumption.</p>
-<p>The strength of S8 depends on <code>≈</code>. If it observes only the instantiated contract,
+<p>The strength of S8 depends on <code>≈</code>. If it observes only the instantiated shape,
 faithful substitution and preservation already imply agreement at that level.
 Exact generated-source equality is a stronger requirement. A specialized
 generator and a generic template may produce different but equivalent code.</p>
 <p>The <a href="#source-examples-composition-ts">composition example</a> uses nested and flat encodings
-of open contracts. A flat hole row is replaced by every row of its argument,
-with the occurrence path prefixed. An inserted empty contract still supplies a
+of open shapes. A flat hole row is replaced by every row of its argument,
+with the occurrence path prefixed. An inserted empty shape still supplies a
 root row. Transforming the filled nested tree produces exactly the same flat
 artifact as filling the transformed template with transformed arguments.</p>
 <p>The example checks repeated holes, multiple different holes, a root hole, empty
-contracts, replacements containing holes, same-named holes surviving one-pass
+shapes, replacements containing holes, same-named holes surviving one-pass
 substitution, the identity/composition laws, and paths entering inserted trees.
 It rejects inconsistent represented arguments and fabricated result witnesses.</p>
-<h2 id="what-the-typescript-establishes">16. What the TypeScript establishes</h2>
+<h3>Lifting structural operations to contracts and implementations</h3>
+<p><code>ShapeNavigation</code> and <code>ShapeSubstitution</code> operate on <code>S</code>. They do not silently
+define operations on <code>B</code>. A read-after-write law relates two sibling operations;
+selecting the <code>read</code> subtree does not yield an independent copy of that law.
+A behavioral restriction must supply a target domain, a projection of behavior,
+and a resulting specification, possibly retaining context:</p>
+<pre><code class="language-text">π_p : Behavior[S] -&gt; Behavior[S|p]
+restrict(C, p) = (S|p, B_p)
+∀ b. B(b) =&gt; B_p(π_p(b))
+</code></pre>
+<p>There is no canonical <code>π_p</code> or <code>B_p</code> for every structural tree. In this display,
+the selected behavior domain must include any required retained context. Without
+that interpretation only the structural selection is defined. When transformations
+claim behavioral navigation transparency, their restrictions must preserve this
+context and commute up to the chosen behavioral equivalence as well.</p>
+<p>Likewise, a behavioral contract template needs parameter specifications and
+admissible bindings, together with a rule constructing <code>B_σ</code> over <code>Behavior[S[σ]]</code>:</p>
+<pre><code class="language-text">C[σ] = (S[σ], B_σ)
+</code></pre>
+<p>To instantiate implementations, supply an implementation constructor and establish
+that lawful arguments produce behavior satisfying <code>B_σ</code>. Substituting <code>Bool</code> for
+a type hole in a cell signature does not provide state storage or implement
+read-after-write. Structural S1–S8 remain valid independently. Their behavioral
+extensions require corresponding identity, composition, and congruence laws for
+the supplied specification and implementation operations. Code-generation routes
+that preserve particular instances must additionally agree under A2, not merely
+produce implementations satisfying the same resulting contract.</p>
+<h2 id="what-the-typescript-establishes">20. What the TypeScript establishes</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -625,14 +903,14 @@ It rejects inconsistent represented arguments and fabricated result witnesses.</
 </tr>
 <tr>
 <td>Same subject type through transformation</td>
-<td>Generic input/output parameter <code>C</code>; runtime identity remains a law</td>
+<td>Generic input/output parameter <code>S</code>; runtime identity remains a law</td>
 </tr>
 <tr>
-<td>Family available at sub-contracts</td>
+<td>Family available at sub-shapes</td>
 <td>Polymorphic call signature, plus the domain-closure requirement</td>
 </tr>
 <tr>
-<td>Valid contract location</td>
+<td>Valid shape location</td>
 <td>Explicit witness data, checked in examples</td>
 </tr>
 <tr>
@@ -648,7 +926,7 @@ It rejects inconsistent represented arguments and fabricated result witnesses.</
 <td>Additional laws where requested, never inferred from endpoints</td>
 </tr>
 <tr>
-<td>Entire sub-contract holes and closed contracts</td>
+<td>Entire sub-shape holes and closed shapes</td>
 <td>A node/hole union, indexed by an allowed generic context; <code>never</code> excludes holes</td>
 </tr>
 <tr>
@@ -659,23 +937,48 @@ It rejects inconsistent represented arguments and fabricated result witnesses.</
 <td>Substitution/navigation/transformation interchange</td>
 <td>Stated laws and executable nested/flat examples; not universal proofs</td>
 </tr>
+<tr>
+<td>Shape versus specification versus actual behavior</td>
+<td>Separate types and predicates, indexed by a selected behavior domain</td>
+</tr>
+<tr>
+<td>Native values and selected adapter realization</td>
+<td><code>ModelInstance&lt;T&gt;</code>, generator input/result indices, and negative type assertions</td>
+</tr>
+<tr>
+<td>Satisfaction of this instance</td>
+<td>Explicit witness obligation; finite example rejects a mismatched witness</td>
+</tr>
+<tr>
+<td>Satisfaction versus behavioral transparency</td>
+<td>Finite behavior decisions and the lawful replacement counterexample</td>
+</tr>
+<tr>
+<td>Syntax and denotation</td>
+<td>Indexed representations; no parser, compiler, or denotation proof is implied</td>
+</tr>
+<tr>
+<td>Behavioral restriction or generic instantiation</td>
+<td>Explicit additional interpretation and laws; never inferred from tree operations</td>
+</tr>
 </tbody></table></div>
 <p>From the repository root, with Node 22.12 or later and <code>pnpm install</code>:</p>
 <pre><code class="language-sh">pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 </code></pre>
 <p><code>verify</code> checks the types, runs the examples, and checks that the HTML edition
-is current. <code>render</code> regenerates it from this page and the four source files.
+is current. <code>render</code> regenerates it from this page and the embedded sources.
 The package scripts enable Node&#39;s TypeScript stripping; no compiled model is
 published.</p>
 <p>The executable examples operate on model artifacts. They do not run Go, compile
 the illustrative source strings, or execute Nightseam&#39;s generators.</p>
-<h2 id="embedded-sources">Embedded sources</h2><p>The complete model and all three example files are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">338 lines · embedded source</span></summary><pre><code>/**
- * A metamodel, expressed entirely as types. S and the meanings of the axes
- * are supplied by its users; there are no built-in languages or generator roles.
+<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">483 lines · embedded source</span></summary><pre><code>/**
+ * A metamodel, expressed entirely as types. X and the meanings of the axes
+ * are supplied by an interpretation. The coordinate core assigns no role names;
+ * the semantic layer distinguishes contracts, realizations and implementations.
  *
- * Representation&lt;S, K&gt; means a representation OF S, not merely one tagged S.
- * Preserving S (including any chosen behavioral laws) is a semantic obligation.
+ * Representation&lt;X, K&gt; means a representation OF X, not merely one tagged X.
+ * Preserving X (including any chosen behavioral laws) is a semantic obligation.
  * TypeScript checks the indices and adjacency, not the meaning of an artifact.
  */
 
@@ -696,16 +999,16 @@ export type AxisElementEquality = (left: CoordinateValue, right: CoordinateValue
 // A missing key is distinct from a present key whose value is explicitly null.
 export type CoordinateEquality = (left: Coordinates, right: Coordinates) =&gt; boolean;
 
-export interface Representation&lt;S, K extends Coordinates&gt; {
-  readonly subject: S;
+export interface Representation&lt;X, K extends Coordinates&gt; {
+  readonly subject: X;
   readonly coordinates: K;
   readonly artifact: unknown;
 }
 
 // An unrestricted map can interpret a path that changes zero or several axes.
-export type RepresentationMap&lt;S, From extends Coordinates, To extends Coordinates&gt; = (
-  input: Representation&lt;S, From&gt;,
-) =&gt; Representation&lt;S, To&gt;;
+export type RepresentationMap&lt;X, From extends Coordinates, To extends Coordinates&gt; = (
+  input: Representation&lt;X, From&gt;,
+) =&gt; Representation&lt;X, To&gt;;
 
 type Equal&lt;A, B&gt; = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type IsUnion&lt;T, Whole = T&gt; = T extends Whole ? ([Whole] extends [T] ? false : true) : never;
@@ -765,123 +1068,123 @@ export type ChangedAxis&lt;From extends Coordinates, To extends Coordinates&gt; 
     : never;
 
 /**
- * One elementary function, with the same S at both ends and exactly one axis
+ * One elementary function, with the same X at both ends and exactly one axis
  * changed. This type is empty (`never`) when the endpoints are not adjacent.
- * Every inhabitant is required to preserve S; the signature alone is no proof
+ * Every inhabitant is required to preserve X; the signature alone is no proof
  * of shape isomorphism or behavioral preservation.
  */
-export type Transformation&lt;S, From extends Coordinates, To extends Coordinates&gt; = [ChangedAxis&lt;From, To&gt;] extends [
+export type Transformation&lt;X, From extends Coordinates, To extends Coordinates&gt; = [ChangedAxis&lt;From, To&gt;] extends [
   never,
 ]
   ? never
-  : RepresentationMap&lt;S, From, To&gt;;
+  : RepresentationMap&lt;X, From, To&gt;;
 
-// The first-class signature: for fixed S, its identity is the ordered endpoint
+// The first-class signature: for fixed X, its identity is the ordered endpoint
 // tuple. It determines the transformation TYPE, without selecting an inhabitant.
-export type TransformationSignature&lt;S, From extends Coordinates, To extends Coordinates&gt; = [
+export type TransformationSignature&lt;X, From extends Coordinates, To extends Coordinates&gt; = [
   ChangedAxis&lt;From, To&gt;,
 ] extends [never]
   ? never
   : {
-      readonly subject: S;
+      readonly subject: X;
       readonly endpoints: readonly [from: From, to: To];
     };
 
 // Several named functions may inhabit the same signature. `apply` is the
 // function itself; its id is independent of the signature&#39;s endpoint identity.
-export interface TransformationInstance&lt;S, From extends Coordinates, To extends Coordinates&gt; {
+export interface TransformationInstance&lt;X, From extends Coordinates, To extends Coordinates&gt; {
   readonly id: string;
-  readonly signature: TransformationSignature&lt;S, From, To&gt;;
-  readonly apply: Transformation&lt;S, From, To&gt;;
+  readonly signature: TransformationSignature&lt;X, From, To&gt;;
+  readonly apply: Transformation&lt;X, From, To&gt;;
 }
 
 // A path lists all visited coordinates. One stop and zero steps is identity.
 export type Stops = readonly [Coordinates, ...Coordinates[]];
 
-export type PathSteps&lt;S, Route extends Stops&gt; = Route extends readonly [
+export type PathSteps&lt;X, Route extends Stops&gt; = Route extends readonly [
   infer From extends Coordinates,
   infer To extends Coordinates,
   ...infer Rest extends Coordinates[],
 ]
-  ? readonly [Transformation&lt;S, From, To&gt;, ...PathSteps&lt;S, readonly [To, ...Rest]&gt;]
+  ? readonly [Transformation&lt;X, From, To&gt;, ...PathSteps&lt;X, readonly [To, ...Rest]&gt;]
   : readonly [];
 
-export interface Path&lt;S, Route extends Stops&gt; {
-  readonly subject: S;
+export interface Path&lt;X, Route extends Stops&gt; {
+  readonly subject: X;
   // A finite tuple makes every link checkable. An unbounded array loses that evidence.
   readonly coordinates: number extends Route[&#39;length&#39;] ? never : Route;
-  readonly steps: PathSteps&lt;S, Route&gt;;
+  readonly steps: PathSteps&lt;X, Route&gt;;
 }
 
 type Last&lt;Route extends Stops&gt; = Route extends readonly [...Coordinates[], infer K extends Coordinates] ? K : never;
 
 // Interpreting a path composes its steps; it need not be an elementary step.
-export type PathMeaning&lt;S, Route extends Stops&gt; = RepresentationMap&lt;S, Route[0], Last&lt;Route&gt;&gt;;
+export type PathMeaning&lt;X, Route extends Stops&gt; = RepresentationMap&lt;X, Route[0], Last&lt;Route&gt;&gt;;
 
-// Contract structure specializes the previously opaque subject S. Contract keys
+// Shape structure specializes the previously opaque subject X. Shape keys
 // are independent of coordinate-axis IDs, even though both use opaque strings.
-export type ContractKey = string;
-export type ContractPath = readonly ContractKey[];
+export type ShapeKey = string;
+export type ShapePath = readonly ShapeKey[];
 
 export type GenericId = string;
 
-/** A hole stands for an ENTIRE contract; it has no local value or children. */
+/** A hole stands for an ENTIRE shape; it has no local value or children. */
 export type Generic&lt;G extends GenericId&gt; = [G] extends [never] ? never : { readonly kind: &#39;generic&#39;; readonly id: G };
 
 /** An immutable, finite, acyclic node. Children have unique keys; order is immaterial. */
-export interface ContractNode&lt;O, G extends GenericId = never&gt; {
+export interface ShapeNode&lt;O, G extends GenericId = never&gt; {
   readonly kind: &#39;node&#39;;
   readonly value?: O;
-  readonly children: ReadonlyMap&lt;ContractKey, Contract&lt;O, G&gt;&gt;;
+  readonly children: ReadonlyMap&lt;ShapeKey, Shape&lt;O, G&gt;&gt;;
 }
 
-/** G is the allowed free-hole context. G = never recovers closed contracts. */
-export type Contract&lt;O = unknown, G extends GenericId = never&gt; = ContractNode&lt;O, G&gt; | Generic&lt;G&gt;;
+/** G is the allowed free-hole context. G = never recovers closed shapes. */
+export type Shape&lt;O = unknown, G extends GenericId = never&gt; = ShapeNode&lt;O, G&gt; | Generic&lt;G&gt;;
 
 // An existing node without a value or children is still Found, not Missing.
 export type Selection&lt;T&gt; = { readonly kind: &#39;found&#39;; readonly value: T } | { readonly kind: &#39;missing&#39; };
 
-/** Required laws: at(C, []) = C; at(C, p ++ q) = bind(at(C, p), at(_, q)). */
-export type ContractNavigation&lt;O, G extends GenericId = never&gt; = (
-  contract: Contract&lt;O, G&gt;,
-  path: ContractPath,
-) =&gt; Selection&lt;Contract&lt;O, G&gt;&gt;;
+/** Required laws: at(S, []) = S; at(S, p ++ q) = bind(at(S, p), at(_, q)). */
+export type ShapeNavigation&lt;O, G extends GenericId = never&gt; = (
+  shape: Shape&lt;O, G&gt;,
+  path: ShapePath,
+) =&gt; Selection&lt;Shape&lt;O, G&gt;&gt;;
 
 /**
  * A location witnesses that selected = at(root, path). Construction must establish
  * this equation. TypeScript relates the subject types but cannot prove the lookup.
  */
-export interface ContractLocation&lt;
+export interface ShapeLocation&lt;
   O,
-  Root extends Contract&lt;O, G&gt;,
+  Root extends Shape&lt;O, G&gt;,
   G extends GenericId = never,
-  Selected extends Contract&lt;O, G&gt; = Contract&lt;O, G&gt;,
+  Selected extends Shape&lt;O, G&gt; = Shape&lt;O, G&gt;,
 &gt; {
   readonly root: Root;
-  readonly path: ContractPath;
+  readonly path: ShapePath;
   readonly selected: Selected;
 }
 
 /**
  * Given a valid location, select the corresponding representation at the SAME
  * coordinate K. Navigation may retain the context needed to interpret a fragment.
- * Its result&#39;s subject is the selected sub-contract, not the original root.
+ * Its result&#39;s subject is the selected sub-shape, not the original root.
  */
 export interface RepresentationNavigation&lt;O, K extends Coordinates, G extends GenericId = never&gt; {
-  &lt;Root extends Contract&lt;O, G&gt;, Selected extends Contract&lt;O, G&gt;&gt;(
+  &lt;Root extends Shape&lt;O, G&gt;, Selected extends Shape&lt;O, G&gt;&gt;(
     input: Representation&lt;Root, K&gt;,
-    location: ContractLocation&lt;O, Root, G, Selected&gt;,
+    location: ShapeLocation&lt;O, Root, G, Selected&gt;,
   ): Representation&lt;Selected, K&gt;;
 }
 
-/** The observable contract surface at ONE node. Child order is not semantic. */
-export interface ContractNodeSurface&lt;O&gt; {
+/** The observable shape surface at ONE node. Child order is not semantic. */
+export interface ShapeNodeSurface&lt;O&gt; {
   readonly kind: &#39;node&#39;;
   readonly value?: O;
-  readonly keys: ReadonlySet&lt;ContractKey&gt;;
+  readonly keys: ReadonlySet&lt;ShapeKey&gt;;
 }
 
-export type ContractSurface&lt;O, G extends GenericId = never&gt; = ContractNodeSurface&lt;O&gt; | Generic&lt;G&gt;;
+export type ShapeSurface&lt;O, G extends GenericId = never&gt; = ShapeNodeSurface&lt;O&gt; | Generic&lt;G&gt;;
 
 /**
  * Observe the represented artifact, not just its subject field. Required law:
@@ -889,30 +1192,30 @@ export type ContractSurface&lt;O, G extends GenericId = never&gt; = ContractNode
  * Equality of opaque values is supplied by the model&#39;s user.
  */
 export interface RepresentationObservation&lt;O, K extends Coordinates, G extends GenericId = never&gt; {
-  &lt;C extends Contract&lt;O, G&gt;&gt;(input: Representation&lt;C, K&gt;): ContractSurface&lt;O, G&gt;;
+  &lt;S extends Shape&lt;O, G&gt;&gt;(input: Representation&lt;S, K&gt;): ShapeSurface&lt;O, G&gt;;
 }
 
 /** An equivalence relation, respected by navigation and admitted transformations. */
 export interface RepresentationEquivalence&lt;K extends Coordinates&gt; {
-  &lt;S&gt;(left: Representation&lt;S, K&gt;, right: Representation&lt;S, K&gt;): boolean;
+  &lt;X&gt;(left: Representation&lt;X, K&gt;, right: Representation&lt;X, K&gt;): boolean;
 }
 
-// A polymorphic map supplies a component for EVERY contract in the chosen domain.
-// The domain here is finite Contract&lt;O, G&gt; trees, and is closed under navigation.
-export interface ContractRepresentationMap&lt;
+// A polymorphic map supplies a component for EVERY shape in the chosen domain.
+// The domain here is finite Shape&lt;O, G&gt; trees, and is closed under navigation.
+export interface ShapeRepresentationMap&lt;
   O,
   From extends Coordinates,
   To extends Coordinates,
   G extends GenericId = never,
 &gt; {
-  &lt;C extends Contract&lt;O, G&gt;&gt;(input: Representation&lt;C, From&gt;): Representation&lt;C, To&gt;;
+  &lt;S extends Shape&lt;O, G&gt;&gt;(input: Representation&lt;S, From&gt;): Representation&lt;S, To&gt;;
 }
 
 export type TransformationFamily&lt;O, From extends Coordinates, To extends Coordinates, G extends GenericId = never&gt; = [
   ChangedAxis&lt;From, To&gt;,
 ] extends [never]
   ? never
-  : ContractRepresentationMap&lt;O, From, To, G&gt;;
+  : ShapeRepresentationMap&lt;O, From, To, G&gt;;
 
 export type FamilyPathSteps&lt;O, Route extends Stops, G extends GenericId = never&gt; = Route extends readonly [
   infer From extends Coordinates,
@@ -927,7 +1230,7 @@ export interface FamilyPath&lt;O, Route extends Stops, G extends GenericId = nev
   readonly steps: FamilyPathSteps&lt;O, Route, G&gt;;
 }
 
-export type FamilyPathMeaning&lt;O, Route extends Stops, G extends GenericId = never&gt; = ContractRepresentationMap&lt;
+export type FamilyPathMeaning&lt;O, Route extends Stops, G extends GenericId = never&gt; = ShapeRepresentationMap&lt;
   O,
   Route[0],
   Last&lt;Route&gt;,
@@ -949,18 +1252,18 @@ export interface NavigationTransparency&lt;
   To extends Coordinates,
   G extends GenericId = never,
 &gt; {
-  readonly transform: ContractRepresentationMap&lt;O, From, To, G&gt;;
+  readonly transform: ShapeRepresentationMap&lt;O, From, To, G&gt;;
   readonly sourceAt: RepresentationNavigation&lt;O, From, G&gt;;
   readonly targetAt: RepresentationNavigation&lt;O, To, G&gt;;
   readonly equivalent: RepresentationEquivalence&lt;To&gt;;
 }
 
-/** A total, simultaneous assignment of source holes to contracts over target holes. */
-export type Substitution&lt;O, G extends GenericId, H extends GenericId&gt; = (id: G) =&gt; Contract&lt;O, H&gt;;
+/** A total, simultaneous assignment of source holes to shapes over target holes. */
+export type Substitution&lt;O, G extends GenericId, H extends GenericId&gt; = (id: G) =&gt; Shape&lt;O, H&gt;;
 
 /** Substitute once: a replacement is returned as-is, not traversed under the same assignment. */
-export interface ContractSubstitution&lt;O&gt; {
-  &lt;G extends GenericId, H extends GenericId&gt;(template: Contract&lt;O, G&gt;, bindings: Substitution&lt;O, G, H&gt;): Contract&lt;O, H&gt;;
+export interface ShapeSubstitution&lt;O&gt; {
+  &lt;G extends GenericId, H extends GenericId&gt;(template: Shape&lt;O, G&gt;, bindings: Substitution&lt;O, G, H&gt;): Shape&lt;O, H&gt;;
 }
 
 /** A semantic witness: result = template[bindings], preserving the particular result subject. */
@@ -968,10 +1271,10 @@ export interface SubstitutionApplication&lt;
   O,
   G extends GenericId,
   H extends GenericId,
-  C extends Contract&lt;O, G&gt;,
-  D extends Contract&lt;O, H&gt;,
+  S extends Shape&lt;O, G&gt;,
+  D extends Shape&lt;O, H&gt;,
 &gt; {
-  readonly template: C;
+  readonly template: S;
   readonly bindings: Substitution&lt;O, G, H&gt;;
   readonly result: D;
 }
@@ -979,34 +1282,371 @@ export interface SubstitutionApplication&lt;
 /** For each g, argument(g) must lawfully represent the SAME subject as semantic(g). */
 export interface RepresentedSubstitution&lt;O, G extends GenericId, H extends GenericId, K extends Coordinates&gt; {
   readonly semantic: Substitution&lt;O, G, H&gt;;
-  readonly argument: (id: G) =&gt; Representation&lt;Contract&lt;O, H&gt;, K&gt;;
+  readonly argument: (id: G) =&gt; Representation&lt;Shape&lt;O, H&gt;, K&gt;;
 }
 
 /**
- * Substitution keeps K, but changes the subject from C to its instantiated D.
+ * Substitution keeps K, but changes the subject from S to its instantiated D.
  * This is not a subject-preserving, one-axis Transformation.
  * The application witness must match the input and the bindings.
  */
 export interface RepresentationSubstitution&lt;O, K extends Coordinates&gt; {
-  &lt;G extends GenericId, H extends GenericId, C extends Contract&lt;O, G&gt;, D extends Contract&lt;O, H&gt;&gt;(
-    input: Representation&lt;C, K&gt;,
+  &lt;G extends GenericId, H extends GenericId, S extends Shape&lt;O, G&gt;, D extends Shape&lt;O, H&gt;&gt;(
+    input: Representation&lt;S, K&gt;,
     bindings: RepresentedSubstitution&lt;O, G, H, K&gt;,
-    application: SubstitutionApplication&lt;O, G, H, C, D&gt;,
+    application: SubstitutionApplication&lt;O, G, H, S, D&gt;,
   ): Representation&lt;D, K&gt;;
 }
 
 /**
- * A family over both open and closed contracts, commuting with substitution:
+ * A family over both open and closed shapes, commuting with substitution:
  * F(substitute_K(r, args)) ≈ substitute_L(F(r), g =&gt; F(args(g))).
  * Identity/associativity of substitution and congruence are also required.
  * As with NavigationTransparency, storing this record does not prove its laws.
  */
 export interface SubstitutionTransparency&lt;O, From extends Coordinates, To extends Coordinates&gt; {
-  readonly transform: ContractRepresentationMap&lt;O, From, To, GenericId&gt;;
+  readonly transform: ShapeRepresentationMap&lt;O, From, To, GenericId&gt;;
   readonly sourceSubstitute: RepresentationSubstitution&lt;O, From&gt;;
   readonly targetSubstitute: RepresentationSubstitution&lt;O, To&gt;;
   readonly equivalent: RepresentationEquivalence&lt;To&gt;;
 }
+
+// Implementation semantics. S is now SHAPE; X above is an arbitrary subject.
+// The tree Shape&lt;O, G&gt; is one choice of S, not a mandatory encoding of every
+// native type. A behavior domain fixes environments, effects and observations.
+
+/** A reified mathematical proposition, not a Boolean test or evidence of truth. */
+export interface Proposition {
+  readonly statement: string;
+  readonly parameters: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}
+
+/** `equivalent` specifies an equivalence relation on behaviors at shape S. */
+export interface BehaviorDomain&lt;S, Beh&gt; {
+  readonly shape: S;
+  readonly equivalent: (left: Beh, right: Beh) =&gt; Proposition;
+}
+
+/** B : Behavior[S] -&gt; Prop. No decision procedure is required in general. */
+export type BehaviorSpecification&lt;Beh&gt; = (behavior: Beh) =&gt; Proposition;
+
+/**
+ * C = (S, B), relative to a selected behavior domain. S = domain.shape.
+ * Required law: B respects domain.equivalent. A shape-only contract uses B = true.
+ */
+export interface Contract&lt;S, Beh&gt; {
+  readonly domain: BehaviorDomain&lt;S, Beh&gt;;
+  readonly specification: BehaviorSpecification&lt;Beh&gt;;
+}
+
+/**
+ * A selected native realization T in L, including its interpretation of values.
+ * behaviorOf includes the correspondence to S, environment and initial/current
+ * state as needed; it is not an algorithm inferred from a native type signature.
+ * Values of T are structural candidates, not automatically lawful under B.
+ */
+export interface ModelType&lt;S, Beh, L extends string, V&gt; {
+  readonly id: string;
+  readonly language: L;
+  readonly domain: BehaviorDomain&lt;S, Beh&gt;;
+  readonly behaviorOf: (value: V) =&gt; Beh;
+}
+
+/** Erased constraint for indexing a particular selected ModelType without any. */
+export interface ModelTypeIndex {
+  readonly id: string;
+  readonly language: string;
+  readonly domain: { readonly shape: unknown };
+  readonly behaviorOf: (value: never) =&gt; unknown;
+}
+export type NativeValue&lt;T extends ModelTypeIndex&gt; = Parameters&lt;T[&#39;behaviorOf&#39;]&gt;[0];
+export type ActualBehavior&lt;T extends ModelTypeIndex&gt; = ReturnType&lt;T[&#39;behaviorOf&#39;]&gt;;
+export type ShapeOf&lt;T extends ModelTypeIndex&gt; = T[&#39;domain&#39;][&#39;shape&#39;];
+export type ContractFor&lt;T extends ModelTypeIndex&gt; = Contract&lt;ShapeOf&lt;T&gt;, ActualBehavior&lt;T&gt;&gt;;
+
+export interface ModelInstance&lt;T extends ModelTypeIndex&gt; {
+  readonly modelType: T;
+  readonly value: NativeValue&lt;T&gt;;
+}
+
+/** Intended witness: contract.specification(behavior) holds. Data is not proof. */
+export interface Satisfaction&lt;S, Beh, C extends Contract&lt;S, Beh&gt; = Contract&lt;S, Beh&gt;&gt; {
+  readonly contract: C;
+  readonly behavior: Beh;
+  readonly evidence: unknown;
+}
+
+/**
+ * A lawful implementation of C. The witness must concern behaviorOf(value), or
+ * an observationally equivalent behavior in the same domain (by B1). TypeScript
+ * cannot establish satisfaction, exact domain identity, or that correspondence.
+ * This is a reification of the refinement, not a trusted proof constructor.
+ */
+export interface ContractImplementation&lt;T extends ModelTypeIndex, C extends ContractFor&lt;T&gt; = ContractFor&lt;T&gt;&gt; {
+  readonly instance: ModelInstance&lt;T&gt;;
+  readonly satisfaction: Satisfaction&lt;ShapeOf&lt;T&gt;, ActualBehavior&lt;T&gt;, C&gt;;
+}
+
+/**
+ * A candidate adapter between two realizations of a common shape/behavior domain.
+ * Exact domain agreement remains a semantic obligation. The signature alone
+ * establishes neither satisfaction preservation nor behavioral transparency.
+ */
+export type AdapterSemantics&lt;T extends ModelTypeIndex, U extends ModelTypeIndex&gt; =
+  Equal&lt;ShapeOf&lt;T&gt;, ShapeOf&lt;U&gt;&gt; extends true
+    ? Equal&lt;ActualBehavior&lt;T&gt;, ActualBehavior&lt;U&gt;&gt; extends true
+      ? {
+          readonly sourceType: T;
+          readonly targetType: U;
+          readonly adapt: (instance: ModelInstance&lt;T&gt;) =&gt; ModelInstance&lt;U&gt;;
+        }
+      : never
+    : never;
+
+/** Syntax denotes its subject X; the artifact can be text OR a host AST value. */
+export type Syntax&lt;X, L extends string&gt; = Representation&lt;X, { readonly form: &#39;syntax&#39;; readonly language: L }&gt;;
+export type ModelContractSyntax&lt;S, Beh, D extends string&gt; = Syntax&lt;Contract&lt;S, Beh&gt;, D&gt;;
+export type ModelTypeSyntax&lt;T extends ModelTypeIndex&gt; = Syntax&lt;T, T[&#39;language&#39;]&gt;;
+export type ImplementationSyntax&lt;T extends ModelTypeIndex&gt; = Syntax&lt;ModelInstance&lt;T&gt;, T[&#39;language&#39;]&gt;;
+export type AdapterSyntax&lt;T extends ModelTypeIndex, U extends ModelTypeIndex, L extends string&gt; = Syntax&lt;
+  AdapterSemantics&lt;T, U&gt;,
+  L
+&gt;;
+
+/**
+ * Keep C alongside the generated type: native type syntax alone denotes T and
+ * does not establish B for every native value. T realizes C&#39;s shape in its domain.
+ */
+export interface TypeGeneration&lt;T extends ModelTypeIndex, C extends ContractFor&lt;T&gt; = ContractFor&lt;T&gt;&gt; {
+  readonly contract: C;
+  readonly modelType: ModelTypeSyntax&lt;T&gt;;
+}
+
+/** A component with C and the chosen T fixed; foundations gives the full Pi/Sigma family. */
+export type TypeGeneratorSemantics&lt;C extends ContractFor&lt;T&gt;, T extends ModelTypeIndex, D extends string&gt; = (
+  input: Syntax&lt;C, D&gt;,
+) =&gt; TypeGeneration&lt;T, C&gt;;
+
+export interface AdapterGeneration&lt;
+  T extends ModelTypeIndex,
+  U extends ModelTypeIndex,
+  L extends string,
+  C extends ContractFor&lt;T&gt; = ContractFor&lt;T&gt;,
+&gt; extends TypeGeneration&lt;T, C&gt; {
+  readonly adapter: AdapterSyntax&lt;T, U, L&gt;;
+}
+
+/**
+ * The supplied T is the SAME T targeted by generated adapter semantics. For a
+ * transparent generator, every admitted output adapter must preserve behavior;
+ * retaining C and T in this record is necessary bookkeeping, not that proof.
+ */
+export type AdapterGeneratorSemantics&lt;
+  C extends ContractFor&lt;T&gt;,
+  T extends ModelTypeIndex,
+  U extends ModelTypeIndex,
+  D extends string,
+  L extends string,
+&gt; = (input: {
+  readonly contract: Syntax&lt;C, D&gt;;
+  readonly modelType: ModelTypeSyntax&lt;T&gt;;
+}) =&gt; AdapterGeneration&lt;T, U, L, C&gt;;
+
+/** Loaded generators are semantic functions; their source uses a separate host H. */
+export type GeneratorSyntax&lt;G, H extends string&gt; = Syntax&lt;G, H&gt;;
+</code></pre></details>
+<details class="source" id="source-model-typecheck-ts"><summary><span>model.typecheck.ts</span><span class="source-note">193 lines · embedded source</span></summary><pre><code>// Compile-only assertions, including intentional failures. Do not execute this file.
+import type {
+  ChangedAxis,
+  Shape,
+  ShapeRepresentationMap,
+  Coordinates,
+  CoordinatesEqual,
+  Path,
+  Representation,
+  Transformation,
+  TransformationInstance,
+  TransformationSignature,
+  TransformationFamily,
+  RepresentationNavigation,
+  FamilyPath,
+  Generic,
+  Substitution,
+  AdapterSemantics,
+  Contract,
+  ContractImplementation,
+  ModelInstance,
+  ModelType,
+  ModelTypeSyntax,
+  Syntax,
+} from &#39;./model.ts&#39;;
+import {
+  adapterGeneration,
+  cellContract,
+  functionCell,
+  functionType,
+  generateAdapter,
+  contractSyntax,
+  methodSyntax,
+  methodType,
+  surfaceType,
+  trueCell,
+  type CellMachine,
+  type MethodValue,
+} from &#39;./examples/behavior.ts&#39;;
+import {
+  booleanCell,
+  goShapeAt,
+  goTypeAt,
+  goType,
+  tsTypeAt,
+  generateGoType,
+  translateShape,
+  throughGo,
+  runThroughGo,
+  runIdentity,
+  goTypeGenerationSignature,
+} from &#39;./examples/coordinates.ts&#39;;
+
+type S = typeof booleanCell;
+type Assert&lt;T extends true&gt; = T;
+type Equal&lt;A, B&gt; = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+type One = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39;; y: 0 }, { x: &#39;b&#39;; y: 0 }&gt;, &#39;x&#39;&gt;&gt;;
+type Added = Assert&lt;Equal&lt;ChangedAxis&lt;{}, { x: &#39;a&#39; }&gt;, &#39;x&#39;&gt;&gt;;
+type Removed = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39; }, {}&gt;, &#39;x&#39;&gt;&gt;;
+type EmptyHigher = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: null }, { x: &#39;a&#39; }&gt;, &#39;x&#39;&gt;&gt;;
+type NoChange = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: true }, { x: true }&gt;, never&gt;&gt;;
+type Two = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39;; y: 0 }, { x: &#39;b&#39;; y: 1 }&gt;, never&gt;&gt;;
+type Three = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39;; y: 0; z: true }, { x: &#39;b&#39;; y: 1; z: false }&gt;, never&gt;&gt;;
+type BroadValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: string }, { x: &#39;a&#39; }&gt;, never&gt;&gt;;
+type UnionValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39; | &#39;b&#39; }, { x: &#39;a&#39; }&gt;, never&gt;&gt;;
+type UnionPoint = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39; } | { y: &#39;b&#39; }, { x: &#39;c&#39; }&gt;, never&gt;&gt;;
+type BroadAxis = Assert&lt;Equal&lt;ChangedAxis&lt;Record&lt;string, &#39;a&#39;&gt;, Record&lt;string, &#39;b&#39;&gt;&gt;, never&gt;&gt;;
+type NumericIndex = Assert&lt;Equal&lt;ChangedAxis&lt;Record&lt;number, &#39;a&#39;&gt;, Record&lt;number, &#39;b&#39;&gt;&gt;, never&gt;&gt;;
+// Axis IDs are strings. Numeric/symbol keys cannot quietly disagree with Object.keys equality.
+type NumericLiteralKey = Assert&lt;Equal&lt;ChangedAxis&lt;{ 1: &#39;a&#39; }, { 1: &#39;b&#39; }&gt;, never&gt;&gt;;
+declare const symbolAxis: unique symbol;
+type SymbolLiteralKey = Assert&lt;Equal&lt;ChangedAxis&lt;{ [symbolAxis]: &#39;a&#39; }, { [symbolAxis]: &#39;b&#39; }&gt;, never&gt;&gt;;
+type EqualPoints = Assert&lt;Equal&lt;CoordinatesEqual&lt;{ a: &#39;x&#39;; b: null }, { b: null; a: &#39;x&#39; }&gt;, true&gt;&gt;;
+type UnequalPoints = Assert&lt;Equal&lt;CoordinatesEqual&lt;{ a: &#39;x&#39; }, { a: &#39;y&#39; }&gt;, false&gt;&gt;;
+type MissingIsDistinct = Assert&lt;Equal&lt;CoordinatesEqual&lt;{}, { a: null }&gt;, false&gt;&gt;;
+type UnknownPointEquality = Assert&lt;Equal&lt;CoordinatesEqual&lt;Coordinates, Coordinates&gt;, boolean&gt;&gt;;
+type NoTwoAxisSignature = Assert&lt;Equal&lt;TransformationSignature&lt;S, typeof goShapeAt, typeof tsTypeAt&gt;, never&gt;&gt;;
+
+// @ts-expect-error Two-axis composite is not an elementary transformation.
+const invalidTwoAxis: Transformation&lt;S, typeof goShapeAt, typeof tsTypeAt&gt; = runThroughGo;
+// @ts-expect-error Identity changes zero axes.
+const invalidIdentity: Transformation&lt;S, typeof goShapeAt, typeof goShapeAt&gt; = runIdentity;
+
+const brokenPath: Path&lt;S, typeof throughGo.coordinates&gt; = {
+  ...throughGo,
+  // @ts-expect-error Step two requires goTypeAt, but this function requires goShapeAt.
+  steps: [generateGoType, translateShape],
+};
+
+const otherSubject = { ...booleanCell, id: &#39;DifferentSubject&#39; } as const;
+const wrongSubjectMap = (input: Representation&lt;S, typeof goShapeAt&gt;) =&gt; ({
+  ...goType,
+  subject: otherSubject,
+});
+// @ts-expect-error A valid one-axis signature cannot change S.
+const changesSubject: Transformation&lt;S, typeof goShapeAt, typeof goTypeAt&gt; = wrongSubjectMap;
+
+const mismatchedInstance: TransformationInstance&lt;S, typeof goShapeAt, typeof goTypeAt&gt; = {
+  id: &#39;wrong-signature&#39;,
+  signature: goTypeGenerationSignature,
+  // @ts-expect-error A function inhabiting another endpoint pair cannot fill this signature.
+  apply: translateShape,
+};
+
+const unboundedRoute: Path&lt;S, readonly [Coordinates, ...Coordinates[]]&gt; = {
+  subject: booleanCell,
+  // @ts-expect-error Finite path links cannot be checked from an unbounded coordinate array.
+  coordinates: [goShapeAt],
+  steps: [],
+};
+
+type KA = { form: &#39;nested&#39;; order: &#39;ascending&#39; };
+type KB = { form: &#39;flat&#39;; order: &#39;ascending&#39; };
+type KC = { form: &#39;flat&#39;; order: &#39;descending&#39; };
+type NoTwoAxisFamily = Assert&lt;Equal&lt;TransformationFamily&lt;string, KA, KC&gt;, never&gt;&gt;;
+type NoIdentityFamily = Assert&lt;Equal&lt;TransformationFamily&lt;string, KA, KA&gt;, never&gt;&gt;;
+declare const arbitraryShape: Shape&lt;string&gt;;
+const subjectReplacingFamily: ShapeRepresentationMap&lt;string, KA, KB&gt; = (input) =&gt; ({
+  ...input,
+  coordinates: { form: &#39;flat&#39;, order: &#39;ascending&#39; } as const,
+  // @ts-expect-error A family must preserve the particular C, not replace it with any Shape.
+  subject: arbitraryShape,
+});
+// @ts-expect-error Navigation returns Selected, not Root, even though both are shapes.
+const rootReturningNavigation: RepresentationNavigation&lt;string, KA&gt; = (input, location) =&gt; input;
+declare const toFlat: TransformationFamily&lt;string, KA, KB&gt;;
+declare const toDescending: TransformationFamily&lt;string, KB, KC&gt;;
+declare const ka: KA;
+declare const kb: KB;
+declare const kc: KC;
+const validFamilyPath: FamilyPath&lt;string, readonly [KA, KB, KC]&gt; = {
+  coordinates: [ka, kb, kc],
+  steps: [toFlat, toDescending],
+};
+const brokenFamilyPath: FamilyPath&lt;string, readonly [KA, KB, KC]&gt; = {
+  coordinates: [ka, kb, kc],
+  // @ts-expect-error The second step starts at KB, so another KA -&gt; KB step cannot fill it.
+  steps: [toFlat, toFlat],
+};
+
+type ClosedHasNoHoles = Assert&lt;Equal&lt;Generic&lt;never&gt;, never&gt;&gt;;
+// @ts-expect-error Closed shapes do not admit a generic branch.
+const holeInClosedShape: Shape&lt;string&gt; = { kind: &#39;generic&#39;, id: &#39;g0&#39; };
+// @ts-expect-error A whole-shape hole has no local children of its own.
+const holeWithChildren: Generic&lt;&#39;g0&#39;&gt; = { kind: &#39;generic&#39;, id: &#39;g0&#39;, children: new Map() };
+// @ts-expect-error The replacement&#39;s free generic must belong to H.
+const wrongTargetContext: Substitution&lt;string, &#39;g0&#39;, &#39;h0&#39;&gt; = () =&gt; ({ kind: &#39;generic&#39;, id: &#39;unbound&#39; });
+// @ts-expect-error Substitution supplies a whole shape, not just an opaque local value.
+const localValueInsteadOfShape: Substitution&lt;string, &#39;g0&#39;, never&gt; = () =&gt; &#39;Bool&#39;;
+const unfinishedShape: Shape&lt;string, &#39;h0&#39;&gt; = { kind: &#39;generic&#39;, id: &#39;h0&#39; };
+// @ts-expect-error A closing substitution cannot leave a target generic.
+const unfinishedClosingSubstitution: Substitution&lt;string, &#39;g0&#39;, never&gt; = () =&gt; unfinishedShape;
+
+const correctSelectedType: ModelTypeSyntax&lt;typeof methodType&gt; = adapterGeneration.modelType;
+// @ts-expect-error A function-record value is not an instance of the chosen method interface.
+const wrongNativeInstance: ModelInstance&lt;typeof methodType&gt; = functionCell;
+const wrongTypeSyntax: ModelTypeSyntax&lt;typeof methodType&gt; = {
+  ...methodSyntax,
+  // @ts-expect-error Same shape and language do not identify the same native realization.
+  subject: functionType,
+};
+// @ts-expect-error Syntax denoting T is not syntax denoting the contract C.
+const typeAsContract: Syntax&lt;typeof cellContract, &#39;go&#39;&gt; = methodSyntax;
+// @ts-expect-error Shape trees have neither a behavior domain nor a specification.
+const treeAsContract: Contract&lt;Shape&lt;string&gt;, CellMachine&gt; = arbitraryShape;
+// @ts-expect-error B for machines cannot be silently reused for a different behavior domain.
+const wrongBehaviorDomain: Contract&lt;typeof booleanCell, number&gt; = cellContract;
+
+declare const otherShapeType: ModelType&lt;{ readonly id: &#39;OtherShape&#39; }, CellMachine, &#39;go&#39;, MethodValue&gt;;
+type NoWrongShapeAdapter = Assert&lt;Equal&lt;AdapterSemantics&lt;typeof methodType, typeof otherShapeType&gt;, never&gt;&gt;;
+declare const otherBehaviorType: ModelType&lt;typeof booleanCell, number, &#39;go&#39;, MethodValue&gt;;
+type NoWrongBehaviorAdapter = Assert&lt;Equal&lt;AdapterSemantics&lt;typeof methodType, typeof otherBehaviorType&gt;, never&gt;&gt;;
+
+generateAdapter({
+  contract: contractSyntax,
+  modelType: {
+    ...methodSyntax,
+    // @ts-expect-error Adapter generation must use the selected native T supplied as input.
+    subject: functionType,
+  },
+});
+const wrongOutputAdapter: AdapterSemantics&lt;typeof methodType, typeof surfaceType&gt; = {
+  sourceType: methodType,
+  targetType: surfaceType,
+  // @ts-expect-error The adapter result must belong to the declared target realization.
+  adapt: () =&gt; functionCell,
+};
+// @ts-expect-error Native structural compatibility alone does not supply satisfaction evidence.
+const missingSatisfaction: ContractImplementation&lt;typeof methodType&gt; = {
+  instance: trueCell,
+};
 </code></pre></details>
 <details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">225 lines · embedded source</span></summary><pre><code>/**
  * Instances of the opaque coordinate model. TypeScript is the metalanguage.
@@ -1054,28 +1694,28 @@ type S = typeof booleanCell;
 
 // The axis schema is chosen here, outside the core model. &quot;rank:key&quot; addresses
 // encode positions and keys. The empty execution coordinate is still a value.
-export const goContractAt = {
-  &#39;0:role&#39;: &#39;contract&#39;,
+export const goShapeAt = {
+  &#39;0:role&#39;: &#39;shape&#39;,
   &#39;0:form&#39;: &#39;syntax&#39;,
   &#39;1:language&#39;: &#39;go&#39;,
   &#39;2:execution&#39;: null,
 } as const satisfies Coordinates;
 
-export const goTypeAt = { ...goContractAt, &#39;0:role&#39;: &#39;model-type&#39; } as const satisfies Coordinates;
-export const tsContractAt = { ...goContractAt, &#39;1:language&#39;: &#39;typescript&#39; } as const satisfies Coordinates;
+export const goTypeAt = { ...goShapeAt, &#39;0:role&#39;: &#39;model-type&#39; } as const satisfies Coordinates;
+export const tsShapeAt = { ...goShapeAt, &#39;1:language&#39;: &#39;typescript&#39; } as const satisfies Coordinates;
 export const tsTypeAt = { ...goTypeAt, &#39;1:language&#39;: &#39;typescript&#39; } as const satisfies Coordinates;
 export const goMeaningAt = { ...goTypeAt, &#39;0:form&#39;: &#39;semantics&#39; } as const satisfies Coordinates;
 
-// Contract descriptors expressed as source, followed by native type source.
-// Contract/Operation and defineContract are illustrative declaration constructs.
-export const goContract = {
+// Shape descriptors expressed as source, followed by native type source.
+// Shape/Operation and defineShape are illustrative declaration constructs.
+export const goShape = {
   subject: booleanCell,
-  coordinates: goContractAt,
-  artifact: `Contract{Name: &quot;BooleanCell&quot;, Operations: []Operation{
+  coordinates: goShapeAt,
+  artifact: `Shape{Name: &quot;BooleanCell&quot;, Operations: []Operation{
   {Name: &quot;read&quot;, Inputs: nil, Output: &quot;Bool&quot;},
   {Name: &quot;write&quot;, Inputs: []string{&quot;Bool&quot;}, Output: &quot;Unit&quot;},
 }}`,
-} as const satisfies Representation&lt;S, typeof goContractAt&gt;;
+} as const satisfies Representation&lt;S, typeof goShapeAt&gt;;
 
 export const goType = {
   subject: booleanCell,
@@ -1083,14 +1723,14 @@ export const goType = {
   artifact: &#39;type BooleanCell interface { Read() bool; Write(value bool) }&#39;,
 } as const satisfies Representation&lt;S, typeof goTypeAt&gt;;
 
-export const tsContract = {
+export const tsShape = {
   subject: booleanCell,
-  coordinates: tsContractAt,
-  artifact: `defineContract(&quot;BooleanCell&quot;, {
+  coordinates: tsShapeAt,
+  artifact: `defineShape(&quot;BooleanCell&quot;, {
   read: { inputs: [], output: &quot;Bool&quot; },
   write: { inputs: [&quot;Bool&quot;], output: &quot;Unit&quot; },
 })`,
-} as const satisfies Representation&lt;S, typeof tsContractAt&gt;;
+} as const satisfies Representation&lt;S, typeof tsShapeAt&gt;;
 
 export const tsType = {
   subject: booleanCell,
@@ -1116,7 +1756,7 @@ export const formattedGoType = {
 // Each function below is an inhabitant of a single-axis transformation type.
 // All inputs already represent our fixed S, so selecting a fixed output for S
 // is a legitimate small example of a shape-preserving map between these cells.
-export const generateGoType: Transformation&lt;S, typeof goContractAt, typeof goTypeAt&gt; = (input) =&gt; ({
+export const generateGoType: Transformation&lt;S, typeof goShapeAt, typeof goTypeAt&gt; = (input) =&gt; ({
   ...goType,
   subject: input.subject,
 });
@@ -1126,12 +1766,12 @@ export const translateType: Transformation&lt;S, typeof goTypeAt, typeof tsTypeA
   subject: input.subject,
 });
 
-export const translateContract: Transformation&lt;S, typeof goContractAt, typeof tsContractAt&gt; = (input) =&gt; ({
-  ...tsContract,
+export const translateShape: Transformation&lt;S, typeof goShapeAt, typeof tsShapeAt&gt; = (input) =&gt; ({
+  ...tsShape,
   subject: input.subject,
 });
 
-export const generateTypeScriptType: Transformation&lt;S, typeof tsContractAt, typeof tsTypeAt&gt; = (input) =&gt; ({
+export const generateTypeScriptType: Transformation&lt;S, typeof tsShapeAt, typeof tsTypeAt&gt; = (input) =&gt; ({
   ...tsType,
   subject: input.subject,
 });
@@ -1145,8 +1785,8 @@ export const interpretGoType: Transformation&lt;S, typeof goTypeAt, typeof goMea
 // have exactly this signature, although they produce different source strings.
 export const goTypeGenerationSignature = {
   subject: booleanCell,
-  endpoints: [goContractAt, goTypeAt],
-} as const satisfies TransformationSignature&lt;S, typeof goContractAt, typeof goTypeAt&gt;;
+  endpoints: [goShapeAt, goTypeAt],
+} as const satisfies TransformationSignature&lt;S, typeof goShapeAt, typeof goTypeAt&gt;;
 
 export const goTypeGenerators = [
   {
@@ -1159,22 +1799,22 @@ export const goTypeGenerators = [
     signature: goTypeGenerationSignature,
     apply: (input) =&gt; ({ ...formattedGoType, subject: input.subject }),
   },
-] as const satisfies readonly TransformationInstance&lt;S, typeof goContractAt, typeof goTypeAt&gt;[];
+] as const satisfies readonly TransformationInstance&lt;S, typeof goShapeAt, typeof goTypeAt&gt;[];
 
 // Two distinct paths between the same endpoints. Each changes role and language,
 // in a different order. Each intermediate coordinate has a representation here.
-const throughGoStops = [goContractAt, goTypeAt, tsTypeAt] as const;
+const throughGoStops = [goShapeAt, goTypeAt, tsTypeAt] as const;
 export const throughGo = {
   subject: booleanCell,
   coordinates: throughGoStops,
   steps: [generateGoType, translateType],
 } as const satisfies Path&lt;S, typeof throughGoStops&gt;;
 
-const throughTypeScriptStops = [goContractAt, tsContractAt, tsTypeAt] as const;
+const throughTypeScriptStops = [goShapeAt, tsShapeAt, tsTypeAt] as const;
 export const throughTypeScript = {
   subject: booleanCell,
   coordinates: throughTypeScriptStops,
-  steps: [translateContract, generateTypeScriptType],
+  steps: [translateShape, generateTypeScriptType],
 } as const satisfies Path&lt;S, typeof throughTypeScriptStops&gt;;
 
 // Path interpretation is function composition in the metalanguage.
@@ -1183,7 +1823,7 @@ export const runThroughGo: PathMeaning&lt;S, typeof throughGoStops&gt; = (input)
 export const runThroughTypeScript: PathMeaning&lt;S, typeof throughTypeScriptStops&gt; = (input) =&gt;
   throughTypeScript.steps[1](throughTypeScript.steps[0](input));
 
-const identityStops = [goContractAt] as const;
+const identityStops = [goShapeAt] as const;
 export const identityPath = {
   subject: booleanCell,
   coordinates: identityStops,
@@ -1199,27 +1839,27 @@ export const executionAxis: ChangedAxis&lt;typeof goMeaningAt, typeof initialize
 // These types are empty: they cannot contain elementary transformations.
 type MustBeNever&lt;T extends never&gt; = T;
 export type NoZeroAxisStep = MustBeNever&lt;Transformation&lt;S, typeof goTypeAt, typeof goTypeAt&gt;&gt;;
-export type NoTwoAxisStep = MustBeNever&lt;Transformation&lt;S, typeof goContractAt, typeof tsTypeAt&gt;&gt;;
+export type NoTwoAxisStep = MustBeNever&lt;Transformation&lt;S, typeof goShapeAt, typeof tsTypeAt&gt;&gt;;
 export type NoUnspecifiedPoint = MustBeNever&lt;Transformation&lt;S, Coordinates, typeof goTypeAt&gt;&gt;;
 export const sameCell: CoordinatesEqual&lt;typeof goTypeAt, typeof formattedGoType.coordinates&gt; = true;
 export const differentCell: CoordinatesEqual&lt;typeof goTypeAt, typeof tsTypeAt&gt; = false;
 
 // A few checks on the concrete example, not a general proof of preservation.
-const resultThroughGo = runThroughGo(goContract);
-const resultThroughTypeScript = runThroughTypeScript(goContract);
+const resultThroughGo = runThroughGo(goShape);
+const resultThroughTypeScript = runThroughTypeScript(goShape);
 assert.equal(resultThroughGo.subject, booleanCell);
 assert.equal(resultThroughTypeScript.subject, booleanCell);
 assert.deepEqual(resultThroughGo, resultThroughTypeScript);
 assert.deepEqual(resultThroughGo, tsType);
-assert.equal(runIdentity(goContract), goContract);
+assert.equal(runIdentity(goShape), goShape);
 assert.deepEqual(interpretGoType(formattedGoType), goMeaning);
 assert.equal(equalCoordinates(goTypeAt, { ...goTypeAt }), true);
 assert.equal(equalCoordinates(goTypeAt, tsTypeAt), false);
 assert.equal(equalCoordinates({ first: &#39;a&#39;, second: &#39;b&#39; }, { first: &#39;b&#39;, second: &#39;a&#39; }), false);
 assert.equal(equalCoordinates({}, { &#39;2:execution&#39;: null }), false);
 assert.equal(goTypeGenerators[0].signature, goTypeGenerators[1].signature);
-const compact = goTypeGenerators[0].apply(goContract);
-const multiline = goTypeGenerators[1].apply(goContract);
+const compact = goTypeGenerators[0].apply(goShape);
+const multiline = goTypeGenerators[1].apply(goShape);
 assert.equal(compact.subject, multiline.subject);
 assert.equal(equalCoordinates(compact.coordinates, multiline.coordinates), true);
 assert.notEqual(compact.artifact, multiline.artifact);
@@ -1242,12 +1882,12 @@ console.log({
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
 import type {
-  Contract,
-  ContractKey,
-  ContractLocation,
-  ContractNavigation,
-  ContractPath,
-  ContractRepresentationMap,
+  Shape,
+  ShapeKey,
+  ShapeLocation,
+  ShapeNavigation,
+  ShapePath,
+  ShapeRepresentationMap,
   Coordinates,
   FamilyPath,
   FamilyPathMeaning,
@@ -1261,7 +1901,7 @@ import type {
 } from &#39;../model.ts&#39;;
 
 type O = string; // The implementation treats these strings as opaque value IDs.
-const node = (value?: O, entries: readonly (readonly [ContractKey, Contract&lt;O&gt;])[] = []): Contract&lt;O&gt; =&gt; ({
+const node = (value?: O, entries: readonly (readonly [ShapeKey, Shape&lt;O&gt;])[] = []): Shape&lt;O&gt; =&gt; ({
   kind: &#39;node&#39;,
   ...(value === undefined ? {} : { value }),
   children: new Map(entries),
@@ -1288,10 +1928,10 @@ export const booleanCellTree = node(&#39;BooleanCell&#39;, [
     ]),
   ],
 ]);
-export const emptyContract = node();
+export const emptyShape = node();
 
-export const contractAt: ContractNavigation&lt;O&gt; = (contract, path) =&gt; {
-  let selected = contract;
+export const shapeAt: ShapeNavigation&lt;O&gt; = (shape, path) =&gt; {
+  let selected = shape;
   for (const key of path) {
     const child = selected.children.get(key);
     if (child === undefined) return { kind: &#39;missing&#39; };
@@ -1300,12 +1940,12 @@ export const contractAt: ContractNavigation&lt;O&gt; = (contract, path) =&gt; {
   return { kind: &#39;found&#39;, value: selected };
 };
 
-export function locate&lt;C extends Contract&lt;O&gt;&gt;(root: C, path: ContractPath): Selection&lt;ContractLocation&lt;O, C&gt;&gt; {
-  const result = contractAt(root, path);
+export function locate&lt;S extends Shape&lt;O&gt;&gt;(root: S, path: ShapePath): Selection&lt;ShapeLocation&lt;O, S&gt;&gt; {
+  const result = shapeAt(root, path);
   return result.kind === &#39;missing&#39; ? result : { kind: &#39;found&#39;, value: { root, path, selected: result.value } };
 }
 
-// Two independent axes; neither is a contract-child key. A higher slot is empty.
+// Two independent axes; neither is a shape-child key. A higher slot is empty.
 export const nestedAscending = { &#39;0:layout&#39;: &#39;nested&#39;, &#39;0:order&#39;: &#39;ascending&#39;, &#39;1:execution&#39;: null } as const;
 export const flatAscending = { ...nestedAscending, &#39;0:layout&#39;: &#39;flat&#39; } as const;
 export const nestedDescending = { ...nestedAscending, &#39;0:order&#39;: &#39;descending&#39; } as const;
@@ -1313,10 +1953,10 @@ export const flatDescending = { ...flatAscending, &#39;0:order&#39;: &#39;descen
 
 interface Nested {
   readonly value?: O;
-  readonly children: readonly (readonly [ContractKey, Nested])[];
+  readonly children: readonly (readonly [ShapeKey, Nested])[];
 }
 interface FlatNode {
-  readonly path: ContractPath;
+  readonly path: ShapePath;
   readonly value?: O;
 }
 interface NestedArtifact {
@@ -1332,10 +1972,10 @@ const valueOf = (source: { readonly value?: O }): { readonly value?: O } =&gt;
   source.value === undefined ? {} : { value: source.value };
 const compareIds = (a: string, b: string): number =&gt; (a &lt; b ? -1 : a &gt; b ? 1 : 0);
 
-function render(contract: Contract&lt;O&gt;): Nested {
+function render(shape: Shape&lt;O&gt;): Nested {
   return {
-    ...valueOf(contract),
-    children: [...contract.children].sort(([a], [b]) =&gt; compareIds(a, b)).map(([key, child]) =&gt; [key, render(child)]),
+    ...valueOf(shape),
+    children: [...shape.children].sort(([a], [b]) =&gt; compareIds(a, b)).map(([key, child]) =&gt; [key, render(child)]),
   };
 }
 
@@ -1349,7 +1989,7 @@ function flatArtifact(artifact: unknown): FlatArtifact {
   return artifact as FlatArtifact;
 }
 
-function flatten(root: Nested, path: ContractPath = []): FlatNode[] {
+function flatten(root: Nested, path: ShapePath = []): FlatNode[] {
   // Include EVERY node, even one with no value and no children.
   return [{ path, ...valueOf(root) }, ...root.children.flatMap(([key, child]) =&gt; flatten(child, [...path, key]))];
 }
@@ -1359,7 +1999,7 @@ function reverseChildren(root: Nested): Nested {
     children: [...root.children].reverse().map(([key, child]) =&gt; [key, reverseChildren(child)]),
   };
 }
-function comparePaths(a: ContractPath, b: ContractPath, order: Order): number {
+function comparePaths(a: ShapePath, b: ShapePath, order: Order): number {
   for (let index = 0; index &lt; Math.min(a.length, b.length); index++) {
     const compared = compareIds(a[index], b[index]);
     if (compared !== 0) return order === &#39;ascending&#39; ? compared : -compared;
@@ -1367,7 +2007,7 @@ function comparePaths(a: ContractPath, b: ContractPath, order: Order): number {
   return a.length - b.length; // A parent always precedes its children.
 }
 
-export function represent&lt;C extends Contract&lt;O&gt;&gt;(subject: C): Representation&lt;C, typeof nestedAscending&gt; {
+export function represent&lt;S extends Shape&lt;O&gt;&gt;(subject: S): Representation&lt;S, typeof nestedAscending&gt; {
   return {
     subject,
     coordinates: nestedAscending,
@@ -1399,12 +2039,12 @@ export const flattenDescending: TransformationFamily&lt;O, typeof nestedDescendi
   artifact: { kind: &#39;flat&#39;, nodes: flatten(nestedArtifact(input.artifact).root) } satisfies FlatArtifact,
 });
 
-function verifyLocation&lt;Root extends Contract&lt;O&gt;, Selected extends Contract&lt;O&gt;&gt;(
+function verifyLocation&lt;Root extends Shape&lt;O&gt;, Selected extends Shape&lt;O&gt;&gt;(
   subject: Root,
-  location: ContractLocation&lt;O, Root, never, Selected&gt;,
+  location: ShapeLocation&lt;O, Root, never, Selected&gt;,
 ): void {
-  assert.equal(location.root, subject, &#39;A location belongs to this root contract.&#39;);
-  const result = contractAt(subject, location.path);
+  assert.equal(location.root, subject, &#39;A location belongs to this root shape.&#39;);
+  const result = shapeAt(subject, location.path);
   assert.equal(result.kind, &#39;found&#39;, &#39;A location must name an existing child.&#39;);
   if (result.kind === &#39;found&#39;)
     assert.equal(result.value, location.selected, &#39;The selected subject must match the path.&#39;);
@@ -1416,7 +2056,7 @@ export function nestedNavigation&lt;K extends Coordinates&gt;(): RepresentationN
     let selected = nestedArtifact(input.artifact).root;
     for (const key of location.path) {
       const child = selected.children.find(([candidate]) =&gt; candidate === key);
-      assert.ok(child, &#39;A lawful representation exposes every contract child.&#39;);
+      assert.ok(child, &#39;A lawful representation exposes every shape child.&#39;);
       selected = child[1];
     }
     return {
@@ -1434,7 +2074,7 @@ export function flatNavigation&lt;K extends Coordinates&gt;(): RepresentationNav
       .map((node) =&gt; ({ ...valueOf(node), path: node.path.slice(location.path.length) }));
     assert.ok(
       nodes.some((node) =&gt; node.path.length === 0),
-      &#39;Even an empty sub-contract has a represented root.&#39;,
+      &#39;Even an empty sub-shape has a represented root.&#39;,
     );
     return {
       subject: location.selected,
@@ -1445,7 +2085,7 @@ export function flatNavigation&lt;K extends Coordinates&gt;(): RepresentationNav
 }
 
 // Equality is exact artifact equality in this canonical example. No semantic
-// behavior claims are inferred from the opaque strings in Contract.value.
+// behavior claims are inferred from the opaque strings in Shape.value.
 export function representationEquality&lt;K extends Coordinates&gt;(): RepresentationEquivalence&lt;K&gt; {
   return (left, right) =&gt;
     left.subject === right.subject &amp;&amp;
@@ -1523,10 +2163,10 @@ export const compositeLaw = {
   equivalent: representationEquality&lt;typeof flatDescending&gt;(),
 } satisfies NavigationTransparency&lt;O, typeof nestedAscending, typeof flatDescending&gt;;
 
-function paths(contract: Contract&lt;O&gt;): ContractPath[] {
-  return [[], ...[...contract.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
+function paths(shape: Shape&lt;O&gt;): ShapePath[] {
+  return [[], ...[...shape.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
 }
-function requireLocation&lt;C extends Contract&lt;O&gt;&gt;(root: C, path: ContractPath): ContractLocation&lt;O, C&gt; {
+function requireLocation&lt;S extends Shape&lt;O&gt;&gt;(root: S, path: ShapePath): ShapeLocation&lt;O, S&gt; {
   const selected = locate(root, path);
   assert.equal(selected.kind, &#39;found&#39;);
   return selected.value;
@@ -1535,8 +2175,8 @@ function requireLocation&lt;C extends Contract&lt;O&gt;&gt;(root: C, path: Contr
 // This exercises the equation; a passing finite check is not a universal proof.
 export function checkTransparency&lt;From extends Coordinates, To extends Coordinates&gt;(
   law: NavigationTransparency&lt;O, From, To&gt;,
-  input: Representation&lt;Contract&lt;O&gt;, From&gt;,
-  path: ContractPath,
+  input: Representation&lt;Shape&lt;O&gt;, From&gt;,
+  path: ShapePath,
 ): void {
   const location = requireLocation(input.subject, path);
   const transformThenSelect = law.targetAt(law.transform(input), location);
@@ -1548,7 +2188,7 @@ export function checkTransparency&lt;From extends Coordinates, To extends Coordi
 }
 
 function checkRepresentationNavigation&lt;K extends Coordinates&gt;(
-  input: Representation&lt;Contract&lt;O&gt;, K&gt;,
+  input: Representation&lt;Shape&lt;O&gt;, K&gt;,
   at: RepresentationNavigation&lt;O, K&gt;,
   observe: RepresentationObservation&lt;O, K&gt;,
 ): void {
@@ -1562,7 +2202,7 @@ function checkRepresentationNavigation&lt;K extends Coordinates&gt;(
         kind: &#39;node&#39;,
         keys: new Set(location.selected.children.keys()),
       },
-      &#39;Every represented local surface agrees with the contract.&#39;,
+      &#39;Every represented local surface agrees with the shape.&#39;,
     );
     for (let split = 0; split &lt;= fullPath.length; split++) {
       const prefix = requireLocation(input.subject, fullPath.slice(0, split));
@@ -1575,8 +2215,8 @@ function checkRepresentationNavigation&lt;K extends Coordinates&gt;(
 }
 
 export const rootRepresentation = represent(booleanCellTree);
-for (const contract of [booleanCellTree, emptyContract]) {
-  const root = represent(contract);
+for (const shape of [booleanCellTree, emptyShape]) {
+  const root = represent(shape);
   const a = root;
   const b = flattenAscending(root);
   const c = reverseNested(root);
@@ -1585,17 +2225,17 @@ for (const contract of [booleanCellTree, emptyContract]) {
   checkRepresentationNavigation(b, atFlatAscending, observeFlat());
   checkRepresentationNavigation(c, atNestedDescending, observeNested());
   checkRepresentationNavigation(d, atFlatDescending, observeFlat());
-  for (const path of paths(contract)) {
-    const direct = contractAt(contract, path);
+  for (const path of paths(shape)) {
+    const direct = shapeAt(shape, path);
     for (let split = 0; split &lt;= path.length; split++) {
-      const first = contractAt(contract, path.slice(0, split));
+      const first = shapeAt(shape, path.slice(0, split));
       assert.equal(first.kind, &#39;found&#39;);
-      if (first.kind === &#39;found&#39;) assert.deepEqual(contractAt(first.value, path.slice(split)), direct);
+      if (first.kind === &#39;found&#39;) assert.deepEqual(shapeAt(first.value, path.slice(split)), direct);
       // The user&#39;s prefix law, exercised for the composite coordinate path:
       // P(at(r, p ++ q)) = at(P(at(r, p)), q).
-      const prefix = requireLocation(contract, path.slice(0, split));
+      const prefix = requireLocation(shape, path.slice(0, split));
       const suffix = requireLocation(prefix.selected, path.slice(split));
-      const left = runLayoutFirst(atNestedAscending(a, requireLocation(contract, path)));
+      const left = runLayoutFirst(atNestedAscending(a, requireLocation(shape, path)));
       const right = atFlatDescending(runLayoutFirst(atNestedAscending(a, prefix)), suffix);
       assert.ok(representationEquality&lt;typeof flatDescending&gt;()(left, right));
     }
@@ -1604,24 +2244,24 @@ for (const contract of [booleanCellTree, emptyContract]) {
     checkTransparency(reverseFlatLaw, b, path);
     checkTransparency(flattenDescendingLaw, c, path);
     checkTransparency(compositeLaw, a, path);
-    const location = requireLocation(contract, path);
+    const location = requireLocation(shape, path);
     const selected = atNestedAscending(a, location);
     assert.ok(representationEquality&lt;typeof flatDescending&gt;()(runLayoutFirst(selected), runOrderFirst(selected)));
   }
   assert.ok(representationEquality&lt;typeof flatDescending&gt;()(runLayoutFirst(root), runOrderFirst(root)));
 }
 
-assert.equal(contractAt(emptyContract, []).kind, &#39;found&#39;);
-assert.equal(contractAt(emptyContract, [&#39;missing&#39;]).kind, &#39;missing&#39;);
-assert.equal(contractAt(booleanCellTree, [&#39;operations&#39;, &#39;missing&#39;, &#39;result&#39;]).kind, &#39;missing&#39;);
-assert.equal(contractAt(booleanCellTree, [&#39;operations&#39;, &#39;read&#39;, &#39;arguments&#39;]).kind, &#39;found&#39;);
+assert.equal(shapeAt(emptyShape, []).kind, &#39;found&#39;);
+assert.equal(shapeAt(emptyShape, [&#39;missing&#39;]).kind, &#39;missing&#39;);
+assert.equal(shapeAt(booleanCellTree, [&#39;operations&#39;, &#39;missing&#39;, &#39;result&#39;]).kind, &#39;missing&#39;);
+assert.equal(shapeAt(booleanCellTree, [&#39;operations&#39;, &#39;read&#39;, &#39;arguments&#39;]).kind, &#39;found&#39;);
 
 // Partial navigation uses Option/bind: a missing prefix cannot be resumed.
 for (const path of [[&#39;missing&#39;], [&#39;operations&#39;, &#39;missing&#39;, &#39;result&#39;]]) {
   for (let split = 0; split &lt;= path.length; split++) {
-    const prefix = contractAt(booleanCellTree, path.slice(0, split));
-    const nested = prefix.kind === &#39;missing&#39; ? prefix : contractAt(prefix.value, path.slice(split));
-    assert.deepEqual(nested, contractAt(booleanCellTree, path));
+    const prefix = shapeAt(booleanCellTree, path.slice(0, split));
+    const nested = prefix.kind === &#39;missing&#39; ? prefix : shapeAt(prefix.value, path.slice(split));
+    assert.deepEqual(nested, shapeAt(booleanCellTree, path));
   }
 }
 
@@ -1638,7 +2278,7 @@ assert.throws(() =&gt;
   checkTransparency({ ...flattenLaw, transform: dropDescendants }, rootRepresentation, [&#39;operations&#39;]),
 );
 assert.throws(() =&gt;
-  atNestedAscending(rootRepresentation, { root: booleanCellTree, path: [&#39;operations&#39;], selected: emptyContract }),
+  atNestedAscending(rootRepresentation, { root: booleanCellTree, path: [&#39;operations&#39;], selected: emptyShape }),
 );
 
 // A different counterexample COMMUTES with navigation but changes every local
@@ -1660,26 +2300,26 @@ assert.throws(() =&gt; checkRepresentationNavigation(replaceValues(rootRepresent
 
 console.log({
   subject: booleanCellTree.value,
-  contractPathsChecked: paths(booleanCellTree).length,
+  shapePathsChecked: paths(booleanCellTree).length,
   endpoint: flatDescending,
   twoCoordinatePathsAgree: true,
   navigationTransparency: &#39;checked at every node and every path split in the example&#39;,
   invalidTransformAndLocation: &#39;rejected by the law checks&#39;,
 });
 </code></pre></details>
-<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">363 lines · embedded source</span></summary><pre><code>/**
- * Whole-contract holes and simultaneous substitution. TypeScript is the metalanguage.
+<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">356 lines · embedded source</span></summary><pre><code>/**
+ * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
  */
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
 import type {
-  Contract,
-  ContractKey,
-  ContractNode,
-  ContractPath,
-  ContractSubstitution,
+  Shape,
+  ShapeKey,
+  ShapeNode,
+  ShapePath,
+  ShapeSubstitution,
   Generic,
   GenericId,
   Representation,
@@ -1695,20 +2335,20 @@ import type {
 type O = string;
 export const node = &lt;G extends GenericId = never&gt;(
   value?: O,
-  children: readonly (readonly [ContractKey, Contract&lt;O, G&gt;])[] = [],
-): ContractNode&lt;O, G&gt; =&gt; ({ kind: &#39;node&#39;, ...(value === undefined ? {} : { value }), children: new Map(children) });
+  children: readonly (readonly [ShapeKey, Shape&lt;O, G&gt;])[] = [],
+): ShapeNode&lt;O, G&gt; =&gt; ({ kind: &#39;node&#39;, ...(value === undefined ? {} : { value }), children: new Map(children) });
 
 // The conditional Generic&lt;never&gt; is empty; supplying an id witnesses G is inhabited.
 export const generic = &lt;G extends GenericId&gt;(id: G): Generic&lt;G&gt; =&gt; ({ kind: &#39;generic&#39;, id }) as Generic&lt;G&gt;;
 
-export const substitute: ContractSubstitution&lt;O&gt; = (template, bindings) =&gt; {
+export const substitute: ShapeSubstitution&lt;O&gt; = (template, bindings) =&gt; {
   if (template.kind === &#39;generic&#39;) return bindings(template.id); // Do not substitute again inside the replacement.
   return {
     ...template,
     children: new Map([...template.children].map(([key, child]) =&gt; [key, substitute(child, bindings)])),
   };
 };
-export const identity = &lt;G extends GenericId&gt;(id: G): Contract&lt;O, G&gt; =&gt; generic(id);
+export const identity = &lt;G extends GenericId&gt;(id: G): Shape&lt;O, G&gt; =&gt; generic(id);
 export const compose =
   &lt;G extends GenericId, H extends GenericId, I extends GenericId&gt;(
     first: Substitution&lt;O, G, H&gt;,
@@ -1717,11 +2357,8 @@ export const compose =
   (id) =&gt;
     substitute(first(id), second);
 
-export function contractAt&lt;G extends GenericId&gt;(
-  contract: Contract&lt;O, G&gt;,
-  path: ContractPath,
-): Selection&lt;Contract&lt;O, G&gt;&gt; {
-  let selected = contract;
+export function shapeAt&lt;G extends GenericId&gt;(shape: Shape&lt;O, G&gt;, path: ShapePath): Selection&lt;Shape&lt;O, G&gt;&gt; {
+  let selected = shape;
   for (const key of path) {
     if (selected.kind === &#39;generic&#39;) return { kind: &#39;missing&#39; }; // Interior not known until instantiation.
     const child = selected.children.get(key);
@@ -1730,23 +2367,23 @@ export function contractAt&lt;G extends GenericId&gt;(
   }
   return { kind: &#39;found&#39;, value: selected };
 }
-function requireAt&lt;G extends GenericId&gt;(contract: Contract&lt;O, G&gt;, path: ContractPath): Contract&lt;O, G&gt; {
-  const result = contractAt(contract, path);
+function requireAt&lt;G extends GenericId&gt;(shape: Shape&lt;O, G&gt;, path: ShapePath): Shape&lt;O, G&gt; {
+  const result = shapeAt(shape, path);
   assert.equal(result.kind, &#39;found&#39;);
   return result.value;
 }
-function paths&lt;G extends GenericId&gt;(contract: Contract&lt;O, G&gt;): ContractPath[] {
-  return contract.kind === &#39;generic&#39;
+function paths&lt;G extends GenericId&gt;(shape: Shape&lt;O, G&gt;): ShapePath[] {
+  return shape.kind === &#39;generic&#39;
     ? [[]]
-    : [[], ...[...contract.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
+    : [[], ...[...shape.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
 }
 
 export const nestedAt = { &#39;0:encoding&#39;: &#39;nested&#39;, &#39;1:language&#39;: null } as const;
 export const flatAt = { ...nestedAt, &#39;0:encoding&#39;: &#39;flat&#39; } as const;
 type Nested =
   | { readonly kind: &#39;generic&#39;; readonly id: GenericId }
-  | { readonly kind: &#39;node&#39;; readonly value?: O; readonly children: readonly (readonly [ContractKey, Nested])[] };
-type Row = { readonly path: ContractPath } &amp; (
+  | { readonly kind: &#39;node&#39;; readonly value?: O; readonly children: readonly (readonly [ShapeKey, Nested])[] };
+type Row = { readonly path: ShapePath } &amp; (
   { readonly kind: &#39;generic&#39;; readonly id: GenericId } | { readonly kind: &#39;node&#39;; readonly value?: O }
 );
 interface NestedArtifact {
@@ -1760,7 +2397,7 @@ interface FlatArtifact {
 const localValue = (source: { readonly value?: O }) =&gt; (source.value === undefined ? {} : { value: source.value });
 const orderKeys = (a: string, b: string) =&gt; (a &lt; b ? -1 : a &gt; b ? 1 : 0);
 
-function encode(template: Contract&lt;O, GenericId&gt;): Nested {
+function encode(template: Shape&lt;O, GenericId&gt;): Nested {
   return template.kind === &#39;generic&#39;
     ? { kind: &#39;generic&#39;, id: template.id }
     : {
@@ -1771,7 +2408,7 @@ function encode(template: Contract&lt;O, GenericId&gt;): Nested {
           .map(([key, child]) =&gt; [key, encode(child)]),
       };
 }
-function flatten(tree: Nested, path: ContractPath = []): Row[] {
+function flatten(tree: Nested, path: ShapePath = []): Row[] {
   return tree.kind === &#39;generic&#39;
     ? [{ kind: &#39;generic&#39;, path, id: tree.id }]
     : [
@@ -1787,7 +2424,7 @@ function readFlat(artifact: unknown): FlatArtifact {
   assert.ok(artifact &amp;&amp; typeof artifact === &#39;object&#39; &amp;&amp; &#39;kind&#39; in artifact &amp;&amp; artifact.kind === &#39;flat&#39;);
   return artifact as FlatArtifact;
 }
-export function represent&lt;C extends Contract&lt;O, GenericId&gt;&gt;(subject: C): Representation&lt;C, typeof nestedAt&gt; {
+export function represent&lt;S extends Shape&lt;O, GenericId&gt;&gt;(subject: S): Representation&lt;S, typeof nestedAt&gt; {
   return {
     subject,
     coordinates: nestedAt,
@@ -1819,12 +2456,11 @@ function applyFlat(rows: readonly Row[], argument: (id: GenericId) =&gt; readonl
   );
 }
 
-function verifyApplication&lt;
-  G extends GenericId,
-  H extends GenericId,
-  C extends Contract&lt;O, G&gt;,
-  D extends Contract&lt;O, H&gt;,
-&gt;(template: C, bindings: Substitution&lt;O, G, H&gt;, application: SubstitutionApplication&lt;O, G, H, C, D&gt;): void {
+function verifyApplication&lt;G extends GenericId, H extends GenericId, S extends Shape&lt;O, G&gt;, D extends Shape&lt;O, H&gt;&gt;(
+  template: S,
+  bindings: Substitution&lt;O, G, H&gt;,
+  application: SubstitutionApplication&lt;O, G, H, S, D&gt;,
+): void {
   assert.equal(application.template, template);
   assert.equal(application.bindings, bindings);
   assert.deepEqual(
@@ -1837,10 +2473,10 @@ function verifyApplication&lt;
 // Artifact encodings erase the static G. Resolve only an id present in the input
 // subject; this validates the narrowing back to G before looking up an argument.
 function resolve&lt;G extends GenericId, H extends GenericId&gt;(
-  template: Contract&lt;O, G&gt;,
+  template: Shape&lt;O, G&gt;,
   bindings: Substitution&lt;O, G, H&gt;,
   id: GenericId,
-): { readonly id: G; readonly subject: Contract&lt;O, H&gt; } {
+): { readonly id: G; readonly subject: Shape&lt;O, H&gt; } {
   if (template.kind === &#39;generic&#39;) {
     assert.equal(template.id, id);
     return { id: template.id, subject: bindings(template.id) };
@@ -1850,7 +2486,7 @@ function resolve&lt;G extends GenericId, H extends GenericId&gt;(
   }
   throw new Error(`Unknown generic id ${id}`);
 }
-function freeIds&lt;G extends GenericId&gt;(template: Contract&lt;O, G&gt;): Set&lt;GenericId&gt; {
+function freeIds&lt;G extends GenericId&gt;(template: Shape&lt;O, G&gt;): Set&lt;GenericId&gt; {
   return template.kind === &#39;generic&#39;
     ? new Set([template.id])
     : new Set([...template.children.values()].flatMap((child) =&gt; [...freeIds(child)]));
@@ -1902,14 +2538,11 @@ function representedBindings&lt;G extends GenericId, H extends GenericId&gt;(
 ): RepresentedSubstitution&lt;O, G, H, typeof nestedAt&gt; {
   return { semantic, argument: (id) =&gt; represent(semantic(id)) };
 }
-function application&lt;G extends GenericId, H extends GenericId&gt;(
-  template: Contract&lt;O, G&gt;,
-  bindings: Substitution&lt;O, G, H&gt;,
-) {
+function application&lt;G extends GenericId, H extends GenericId&gt;(template: Shape&lt;O, G&gt;, bindings: Substitution&lt;O, G, H&gt;) {
   return { template, bindings, result: substitute(template, bindings) };
 }
 export function checkSubstitutionTransparency&lt;G extends GenericId, H extends GenericId&gt;(
-  template: Contract&lt;O, G&gt;,
+  template: Shape&lt;O, G&gt;,
   semantic: Substitution&lt;O, G, H&gt;,
 ): void {
   const input = represent(template),
@@ -1922,7 +2555,7 @@ export function checkSubstitutionTransparency&lt;G extends GenericId, H extends 
   assert.deepEqual(readFlat(fillThenTransform.artifact).rows, flatten(encode(witness.result)));
 }
 
-// The SAME generic occurs twice; both occurrences receive the same whole contract.
+// The SAME generic occurs twice; both occurrences receive the same whole shape.
 export const pair = node&lt;&#39;g0&#39;&gt;(&#39;Pair&#39;, [
   [&#39;first&#39;, generic(&#39;g0&#39;)],
   [&#39;second&#39;, generic(&#39;g0&#39;)],
@@ -1936,7 +2569,7 @@ export const closedPair = substitute(pairOfLists, tau);
 
 const empty = node();
 const closedBindings: Substitution&lt;O, never, never&gt; = (id) =&gt; {
-  throw new Error(`No closed-contract hole exists: ${id}`);
+  throw new Error(`No closed-shape hole exists: ${id}`);
 };
 const twoHoles = node&lt;&#39;g0&#39; | &#39;g1&#39;&gt;(&#39;Operation&#39;, [
   [&#39;input&#39;, generic(&#39;g0&#39;)],
@@ -1966,10 +2599,10 @@ assert.deepEqual(
 );
 
 // Navigation can enter the replacement after crossing a former hole occurrence.
-assert.equal(contractAt(pair, [&#39;first&#39;, &#39;element&#39;]).kind, &#39;missing&#39;);
+assert.equal(shapeAt(pair, [&#39;first&#39;, &#39;element&#39;]).kind, &#39;missing&#39;);
 assert.deepEqual(requireAt(pairOfLists, [&#39;first&#39;, &#39;element&#39;]), generic(&#39;h0&#39;));
 assert.deepEqual(requireAt(closedPair, [&#39;first&#39;, &#39;element&#39;]), bool);
-assert.equal(contractAt(substitute(pair, sigma), [&#39;absent&#39;]).kind, &#39;missing&#39;);
+assert.equal(shapeAt(substitute(pair, sigma), [&#39;absent&#39;]).kind, &#39;missing&#39;);
 assert.deepEqual(requireAt(pairOfLists, [&#39;first&#39;]), requireAt(pairOfLists, [&#39;second&#39;]));
 
 // Simultaneous means exactly one pass. Same-named holes in a replacement survive.
@@ -2022,17 +2655,391 @@ assert.equal(throughArguments.subject, staged.subject);
 assert.deepEqual(throughArguments.artifact, staged.artifact);
 
 console.log({
-  holes: &#39;entire sub-contracts&#39;,
+  holes: &#39;entire sub-shapes&#39;,
   example: &#39;Pair[g0][g0 := List[h0]][h0 := Bool]&#39;,
   repeatedOccurrences: &#39;consistent&#39;,
   substitution: &#39;identity and composition checked&#39;,
-  navigation: &#39;existing paths and paths entering inserted contracts checked&#39;,
+  navigation: &#39;existing paths and paths entering inserted shapes checked&#39;,
   transformationTransparency: &#39;fill then flatten = flatten then fill&#39;,
+});
+</code></pre></details>
+<details class="source" id="source-examples-behavior-ts"><summary><span>examples/behavior.ts</span><span class="source-note">339 lines · embedded source</span></summary><pre><code>/**
+ * Finite, deterministic, total BooleanCell semantics. TypeScript models native
+ * realizations; it does not execute Go or infer behavior from arbitrary code.
+ * Product exploration checks all finite interaction traces of each given pair,
+ * not merely traces up to a chosen length. No concurrency, failure or divergence
+ * is admitted by this example&#39;s observation model.
+ */
+import assert from &#39;node:assert/strict&#39;;
+import type {
+  AdapterGeneratorSemantics,
+  AdapterSemantics,
+  BehaviorDomain,
+  Contract,
+  ContractImplementation,
+  ModelInstance,
+  ModelType,
+  ModelTypeSyntax,
+  Satisfaction,
+  Syntax,
+  TypeGeneratorSemantics,
+} from &#39;../model.ts&#39;;
+import { booleanCell as cellShape } from &#39;./coordinates.ts&#39;;
+
+export type CellInput = { readonly kind: &#39;read&#39; } | { readonly kind: &#39;write&#39;; readonly value: boolean };
+export type CellOutput = { readonly kind: &#39;read&#39;; readonly value: boolean } | { readonly kind: &#39;written&#39; };
+export interface CellMachine {
+  readonly states: readonly string[];
+  readonly initial: string;
+  readonly step: (state: string, input: CellInput) =&gt; { readonly state: string; readonly output: CellOutput };
+}
+export const inputs: readonly CellInput[] = [
+  { kind: &#39;read&#39; },
+  { kind: &#39;write&#39;, value: false },
+  { kind: &#39;write&#39;, value: true },
+];
+
+// Validate the finite domain before using its total-transition reasoning.
+export function validate(machine: CellMachine): void {
+  assert.equal(new Set(machine.states).size, machine.states.length);
+  assert.ok(machine.states.includes(machine.initial));
+  for (const state of machine.states) {
+    for (const input of inputs) {
+      const next = machine.step(state, input);
+      assert.ok(machine.states.includes(next.state));
+      assert.equal(next.output.kind, input.kind === &#39;read&#39; ? &#39;read&#39; : &#39;written&#39;);
+      if (next.output.kind === &#39;read&#39;) assert.equal(typeof next.output.value, &#39;boolean&#39;);
+    }
+  }
+}
+
+const sameOutput = (left: CellOutput, right: CellOutput): boolean =&gt;
+  left.kind === &#39;written&#39; ? right.kind === &#39;written&#39; : right.kind === &#39;read&#39; &amp;&amp; left.value === right.value;
+
+/** A shortest distinguishing trace, or null when every finite trace agrees. */
+export function distinguish(left: CellMachine, right: CellMachine): readonly CellInput[] | null {
+  validate(left);
+  validate(right);
+  const pending = [{ left: left.initial, right: right.initial, trace: [] as readonly CellInput[] }];
+  const visited = new Set&lt;string&gt;();
+  for (let cursor = 0; cursor &lt; pending.length; cursor++) {
+    const pair = pending[cursor];
+    const key = JSON.stringify([pair.left, pair.right]);
+    if (visited.has(key)) continue;
+    visited.add(key);
+    for (const input of inputs) {
+      const a = left.step(pair.left, input);
+      const b = right.step(pair.right, input);
+      const trace = [...pair.trace, input];
+      if (!sameOutput(a.output, b.output)) return trace;
+      pending.push({ left: a.state, right: b.state, trace });
+    }
+  }
+  return null;
+}
+export const equivalent = (left: CellMachine, right: CellMachine): boolean =&gt; distinguish(left, right) === null;
+
+export const referenceCell = (initial: boolean): CellMachine =&gt; ({
+  states: [&#39;false&#39;, &#39;true&#39;],
+  initial: String(initial),
+  step: (state, input) =&gt;
+    input.kind === &#39;read&#39;
+      ? { state, output: { kind: &#39;read&#39;, value: state === &#39;true&#39; } }
+      : { state: String(input.value), output: { kind: &#39;written&#39; } },
+});
+
+export const cellDomain: BehaviorDomain&lt;typeof cellShape, CellMachine&gt; = {
+  shape: cellShape,
+  // A proposition describes a semantic claim; it is neither a Boolean decision
+  // procedure nor a proof. `equivalent` above decides this particular finite case.
+  equivalent: (left, right) =&gt; ({
+    statement: &#39;Every finite read/write trace has the same outputs.&#39;,
+    parameters: { left, right },
+  }),
+};
+export const cellContract = {
+  domain: cellDomain,
+  specification: (behavior: CellMachine) =&gt; ({
+    statement: &#39;Observationally equivalent to a storing cell, with either initial Boolean value.&#39;,
+    parameters: { behavior },
+  }),
+} satisfies Contract&lt;typeof cellShape, CellMachine&gt;;
+
+export function satisfiesCell(behavior: CellMachine): boolean {
+  return equivalent(behavior, referenceCell(false)) || equivalent(behavior, referenceCell(true));
+}
+
+// State-explicit meanings of two possible Go realizations. These are semantic
+// fixtures for a method interface and a function record, not their Go source.
+export interface MethodValue {
+  readonly initial: boolean;
+  readonly Read: (state: boolean) =&gt; { readonly state: boolean; readonly value: boolean };
+  readonly Write: (state: boolean, value: boolean) =&gt; boolean;
+}
+export interface FunctionValue {
+  readonly initial: 0 | 1;
+  readonly get: (state: 0 | 1) =&gt; { readonly state: 0 | 1; readonly value: boolean };
+  readonly set: (state: 0 | 1, value: boolean) =&gt; 0 | 1;
+}
+export const methodType = {
+  id: &#39;go:method-cell&#39;,
+  language: &#39;go&#39;,
+  domain: cellDomain,
+  behaviorOf: (value: MethodValue): CellMachine =&gt; ({
+    states: [&#39;false&#39;, &#39;true&#39;],
+    initial: String(value.initial),
+    step: (state, input) =&gt; {
+      if (input.kind === &#39;write&#39;) {
+        return { state: String(value.Write(state === &#39;true&#39;, input.value)), output: { kind: &#39;written&#39; } };
+      }
+      const result = value.Read(state === &#39;true&#39;);
+      return { state: String(result.state), output: { kind: &#39;read&#39;, value: result.value } };
+    },
+  }),
+} as const satisfies ModelType&lt;typeof cellShape, CellMachine, &#39;go&#39;, MethodValue&gt;;
+export const functionType = {
+  id: &#39;go:function-cell&#39;,
+  language: &#39;go&#39;,
+  domain: cellDomain,
+  behaviorOf: (value: FunctionValue): CellMachine =&gt; ({
+    states: [&#39;0&#39;, &#39;1&#39;],
+    initial: String(value.initial),
+    step: (state, input) =&gt; {
+      if (input.kind === &#39;write&#39;) {
+        return { state: String(value.set(state === &#39;1&#39; ? 1 : 0, input.value)), output: { kind: &#39;written&#39; } };
+      }
+      const result = value.get(state === &#39;1&#39; ? 1 : 0);
+      return { state: String(result.state), output: { kind: &#39;read&#39;, value: result.value } };
+    },
+  }),
+} as const satisfies ModelType&lt;typeof cellShape, CellMachine, &#39;go&#39;, FunctionValue&gt;;
+
+export const methodCell = (initial: boolean, ignoresWrites = false): ModelInstance&lt;typeof methodType&gt; =&gt; ({
+  modelType: methodType,
+  value: {
+    initial,
+    Read: (state) =&gt; ({ state, value: state }),
+    Write: (state, value) =&gt; (ignoresWrites ? state : value),
+  },
+});
+export const functionCell: ModelInstance&lt;typeof functionType&gt; = {
+  modelType: functionType,
+  value: { initial: 1, get: (state) =&gt; ({ state, value: state === 1 }), set: (_state, value) =&gt; (value ? 1 : 0) },
+};
+export const falseCell = methodCell(false);
+export const trueCell = methodCell(true);
+export const ignoresWrites = methodCell(false, true);
+export const behaviorOf = (instance: ModelInstance&lt;typeof methodType&gt;): CellMachine =&gt;
+  instance.modelType.behaviorOf(instance.value);
+
+function establish(behavior: CellMachine): Satisfaction&lt;typeof cellShape, CellMachine, typeof cellContract&gt; {
+  assert.ok(satisfiesCell(behavior), &#39;The instance must satisfy the cell specification.&#39;);
+  return {
+    contract: cellContract,
+    behavior,
+    evidence: { method: &#39;Exhaustive finite product exploration against the two reference initial states.&#39; },
+  };
+}
+export const lawfulCell: ContractImplementation&lt;typeof methodType, typeof cellContract&gt; = {
+  instance: trueCell,
+  satisfaction: establish(behaviorOf(trueCell)),
+};
+
+function checkImplementation(implementation: ContractImplementation&lt;typeof methodType, typeof cellContract&gt;): void {
+  assert.equal(implementation.satisfaction.contract, cellContract);
+  assert.ok(
+    equivalent(behaviorOf(implementation.instance), implementation.satisfaction.behavior),
+    &#39;Witness must concern this instance.&#39;,
+  );
+  assert.ok(satisfiesCell(implementation.satisfaction.behavior));
+}
+
+// A semantic wire surface for this example, with no transport failures. This is
+// an interpretation of the cell&#39;s interactions, not Nightseam&#39;s actual Wire API.
+export interface SurfaceValue {
+  readonly machine: CellMachine;
+}
+export const surfaceType = {
+  id: &#39;cell:interaction-surface&#39;,
+  language: &#39;interaction-model&#39;,
+  domain: cellDomain,
+  behaviorOf: (value: SurfaceValue): CellMachine =&gt; value.machine,
+} as const satisfies ModelType&lt;typeof cellShape, CellMachine, &#39;interaction-model&#39;, SurfaceValue&gt;;
+export const forwardingAdapter = {
+  sourceType: methodType,
+  targetType: surfaceType,
+  adapt: (instance: ModelInstance&lt;typeof methodType&gt;): ModelInstance&lt;typeof surfaceType&gt; =&gt; ({
+    modelType: surfaceType,
+    value: { machine: behaviorOf(instance) },
+  }),
+} satisfies AdapterSemantics&lt;typeof methodType, typeof surfaceType&gt;;
+export const replacingAdapter = {
+  ...forwardingAdapter,
+  adapt: (_instance: ModelInstance&lt;typeof methodType&gt;): ModelInstance&lt;typeof surfaceType&gt; =&gt; ({
+    modelType: surfaceType,
+    value: { machine: referenceCell(false) },
+  }),
+} satisfies AdapterSemantics&lt;typeof methodType, typeof surfaceType&gt;;
+const adaptedBehavior = (
+  adapter: AdapterSemantics&lt;typeof methodType, typeof surfaceType&gt;,
+  instance: ModelInstance&lt;typeof methodType&gt;,
+) =&gt; {
+  const result = adapter.adapt(instance);
+  return result.modelType.behaviorOf(result.value);
+};
+
+// A loaded generator is a semantic function on syntax values. These fixtures
+// stipulate denotation; they do not parse or compile their illustrative source.
+export const contractSyntax: Syntax&lt;typeof cellContract, &#39;cell-declaration&#39;&gt; = {
+  subject: cellContract,
+  coordinates: { form: &#39;syntax&#39;, language: &#39;cell-declaration&#39; },
+  artifact: &#39;BooleanCell { read: Unit -&gt; Bool; write: Bool -&gt; Unit; laws: storing-cell }&#39;,
+};
+export const methodSyntax: ModelTypeSyntax&lt;typeof methodType&gt; = {
+  subject: methodType,
+  coordinates: { form: &#39;syntax&#39;, language: &#39;go&#39; },
+  artifact: &#39;type BooleanCell interface { Read() bool; Write(value bool) }&#39;,
+};
+export const generateType: TypeGeneratorSemantics&lt;typeof cellContract, typeof methodType, &#39;cell-declaration&#39;&gt; = (
+  input,
+) =&gt; ({
+  contract: input.subject,
+  modelType: methodSyntax,
+});
+export const generateAdapter: AdapterGeneratorSemantics&lt;
+  typeof cellContract,
+  typeof methodType,
+  typeof surfaceType,
+  &#39;cell-declaration&#39;,
+  &#39;go&#39;
+&gt; = (input) =&gt; {
+  assert.equal(input.modelType.subject, methodType);
+  return {
+    contract: input.contract.subject,
+    modelType: input.modelType,
+    adapter: {
+      subject: forwardingAdapter,
+      coordinates: { form: &#39;syntax&#39;, language: &#39;go&#39; },
+      artifact: &#39;// Illustrative adapter source for the selected BooleanCell method interface.&#39;,
+    },
+  };
+};
+export const typeGeneration = generateType(contractSyntax);
+export const adapterGeneration = generateAdapter({ contract: contractSyntax, modelType: typeGeneration.modelType });
+const generatorSyntax: Syntax&lt;typeof generateAdapter, &#39;go&#39;&gt; = {
+  subject: generateAdapter,
+  coordinates: { form: &#39;syntax&#39;, language: &#39;go&#39; },
+  artifact: &#39;// Illustrative Go source denoting the loaded adapter generator.&#39;,
+};
+
+assert.ok(satisfiesCell(behaviorOf(falseCell)));
+assert.ok(satisfiesCell(behaviorOf(trueCell)));
+assert.equal(equivalent(behaviorOf(falseCell), behaviorOf(trueCell)), false);
+assert.ok(equivalent(behaviorOf(trueCell), functionType.behaviorOf(functionCell.value)));
+assert.equal(satisfiesCell(behaviorOf(ignoresWrites)), false);
+assert.throws(() =&gt; establish(behaviorOf(ignoresWrites)), /must satisfy/);
+checkImplementation(lawfulCell);
+assert.throws(() =&gt; checkImplementation({ ...lawfulCell, instance: ignoresWrites }), /this instance/);
+assert.deepEqual(distinguish(behaviorOf(ignoresWrites), referenceCell(false)), [inputs[2], inputs[0]]);
+assert.ok(equivalent(adaptedBehavior(forwardingAdapter, trueCell), behaviorOf(trueCell)));
+assert.ok(satisfiesCell(adaptedBehavior(replacingAdapter, trueCell)));
+assert.deepEqual(distinguish(adaptedBehavior(replacingAdapter, trueCell), behaviorOf(trueCell)), [inputs[0]]);
+assert.equal(adapterGeneration.contract, cellContract);
+assert.equal(adapterGeneration.modelType.subject, typeGeneration.modelType.subject);
+assert.equal(adapterGeneration.adapter.subject.sourceType, methodType);
+assert.equal(generatorSyntax.subject, generateAdapter);
+
+// Every deterministic two-state method machine: 2 initial states, four possible
+// read values, four read-transition tables, and sixteen write-transition tables.
+// Equivalent behaviors satisfy B alike; forwarding preserves even unlawful
+// behavior, while replacement guarantees only a lawful result.
+export let checkedMachines = 0;
+for (const initial of [false, true]) {
+  for (let reads = 0; reads &lt; 4; reads++) {
+    for (let readNext = 0; readNext &lt; 4; readNext++) {
+      for (let writeNext = 0; writeNext &lt; 16; writeNext++) {
+        const bit = (table: number, index: number) =&gt; Boolean(table &amp; (1 &lt;&lt; index));
+        const instance: ModelInstance&lt;typeof methodType&gt; = {
+          modelType: methodType,
+          value: {
+            initial,
+            Read: (state) =&gt; ({ state: bit(readNext, Number(state)), value: bit(reads, Number(state)) }),
+            Write: (state, value) =&gt; bit(writeNext, 2 * Number(state) + Number(value)),
+          },
+        };
+        const original = behaviorOf(instance);
+        const forwarded = adaptedBehavior(forwardingAdapter, instance);
+        assert.ok(equivalent(original, forwarded));
+        assert.equal(satisfiesCell(original), satisfiesCell(forwarded));
+        assert.ok(satisfiesCell(adaptedBehavior(replacingAdapter, instance)));
+        checkedMachines++;
+      }
+    }
+  }
+}
+assert.equal(checkedMachines, 512);
+assert.throws(() =&gt; validate({ ...referenceCell(false), initial: &#39;missing&#39; }));
+assert.throws(() =&gt;
+  validate({ ...referenceCell(false), step: () =&gt; ({ state: &#39;missing&#39;, output: { kind: &#39;written&#39; } }) }),
+);
+
+// Renderer data comes from the checked semantics, not separately authored claims.
+export const cases = [
+  { name: &#39;Storing cell · false&#39;, machine: behaviorOf(falseCell) },
+  { name: &#39;Storing cell · true&#39;, machine: behaviorOf(trueCell) },
+  { name: &#39;Ignores writes&#39;, machine: behaviorOf(ignoresWrites) },
+  { name: &#39;Forwarded true cell&#39;, machine: adaptedBehavior(forwardingAdapter, trueCell) },
+  { name: &#39;Replaced with fresh false cell&#39;, machine: adaptedBehavior(replacingAdapter, trueCell) },
+].map(({ name, machine }) =&gt; ({
+  name,
+  lawful: satisfiesCell(machine),
+  sameAsTrueCell: equivalent(machine, behaviorOf(trueCell)),
+  initial: machine.initial,
+  transitions: machine.states.map((state) =&gt; ({ state, steps: inputs.map((input) =&gt; machine.step(state, input)) })),
+}));
+console.log({
+  behaviorMachines: checkedMachines,
+  cases: cases.map(({ name, lawful, sameAsTrueCell }) =&gt; ({ name, lawful, sameAsTrueCell })),
 });
 </code></pre></details><footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
 <script>
-const samples = [{"path":[],"label":"[] — whole contract","nested":{"kind":"nested","root":{"value":"BooleanCell","children":[["operations",{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}]]}},"flat":{"kind":"flat","nodes":[{"value":"BooleanCell","path":[]},{"path":["operations"]},{"value":"operation","path":["operations","read"]},{"path":["operations","read","arguments"]},{"value":"Bool","path":["operations","read","result"]},{"value":"operation","path":["operations","write"]},{"path":["operations","write","arguments"]},{"value":"Bool","path":["operations","write","arguments","value"]},{"value":"Unit","path":["operations","write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"BooleanCell"},{"path":["operations"]},{"path":["operations","write"],"value":"operation"},{"path":["operations","write","result"],"value":"Unit"},{"path":["operations","write","arguments"]},{"path":["operations","write","arguments","value"],"value":"Bool"},{"path":["operations","read"],"value":"operation"},{"path":["operations","read","result"],"value":"Bool"},{"path":["operations","read","arguments"]}]}},{"path":["operations"],"label":"operations","nested":{"kind":"nested","root":{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"operation","path":["read"]},{"path":["read","arguments"]},{"value":"Bool","path":["read","result"]},{"value":"operation","path":["write"]},{"path":["write","arguments"]},{"value":"Bool","path":["write","arguments","value"]},{"value":"Unit","path":["write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["write"],"value":"operation"},{"path":["write","result"],"value":"Unit"},{"path":["write","arguments"]},{"path":["write","arguments","value"],"value":"Bool"},{"path":["read"],"value":"operation"},{"path":["read","result"],"value":"Bool"},{"path":["read","arguments"]}]}},{"path":["operations","read"],"label":"operations / read","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Bool"},{"path":["arguments"]}]}},{"path":["operations","read","arguments"],"label":"operations / read / arguments","nested":{"kind":"nested","root":{"children":[]}},"flat":{"kind":"flat","nodes":[{"path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]}]}},{"path":["operations","read","result"],"label":"operations / read / result","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write"],"label":"operations / write","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["arguments","value"]},{"value":"Unit","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Unit"},{"path":["arguments"]},{"path":["arguments","value"],"value":"Bool"}]}},{"path":["operations","write","arguments"],"label":"operations / write / arguments","nested":{"kind":"nested","root":{"children":[["value",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"Bool","path":["value"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["value"],"value":"Bool"}]}},{"path":["operations","write","arguments","value"],"label":"operations / write / arguments / value","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write","result"],"label":"operations / write / result","nested":{"kind":"nested","root":{"value":"Unit","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Unit","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Unit"}]}}];
-const stages = [{"title":"Template","tree":"Pair\n├─ first → ?g0\n└─ second → ?g0","description":"Pair[g0]: the same parameter occurs at first and second."},{"title":"Insert List","tree":"Pair\n├─ first → List\n│  └─ element → ?h0\n└─ second → List\n   └─ element → ?h0","description":"g0 := List[h0]: both holes receive an entire List contract, including its element child."},{"title":"Insert Bool","tree":"Pair\n├─ first → List\n│  └─ element → Bool\n└─ second → List\n   └─ element → Bool","description":"h0 := Bool: both lists are now closed contracts."}];
+const samples = [{"path":[],"label":"[] — whole shape","nested":{"kind":"nested","root":{"value":"BooleanCell","children":[["operations",{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}]]}},"flat":{"kind":"flat","nodes":[{"value":"BooleanCell","path":[]},{"path":["operations"]},{"value":"operation","path":["operations","read"]},{"path":["operations","read","arguments"]},{"value":"Bool","path":["operations","read","result"]},{"value":"operation","path":["operations","write"]},{"path":["operations","write","arguments"]},{"value":"Bool","path":["operations","write","arguments","value"]},{"value":"Unit","path":["operations","write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"BooleanCell"},{"path":["operations"]},{"path":["operations","write"],"value":"operation"},{"path":["operations","write","result"],"value":"Unit"},{"path":["operations","write","arguments"]},{"path":["operations","write","arguments","value"],"value":"Bool"},{"path":["operations","read"],"value":"operation"},{"path":["operations","read","result"],"value":"Bool"},{"path":["operations","read","arguments"]}]}},{"path":["operations"],"label":"operations","nested":{"kind":"nested","root":{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"operation","path":["read"]},{"path":["read","arguments"]},{"value":"Bool","path":["read","result"]},{"value":"operation","path":["write"]},{"path":["write","arguments"]},{"value":"Bool","path":["write","arguments","value"]},{"value":"Unit","path":["write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["write"],"value":"operation"},{"path":["write","result"],"value":"Unit"},{"path":["write","arguments"]},{"path":["write","arguments","value"],"value":"Bool"},{"path":["read"],"value":"operation"},{"path":["read","result"],"value":"Bool"},{"path":["read","arguments"]}]}},{"path":["operations","read"],"label":"operations / read","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Bool"},{"path":["arguments"]}]}},{"path":["operations","read","arguments"],"label":"operations / read / arguments","nested":{"kind":"nested","root":{"children":[]}},"flat":{"kind":"flat","nodes":[{"path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]}]}},{"path":["operations","read","result"],"label":"operations / read / result","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write"],"label":"operations / write","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["arguments","value"]},{"value":"Unit","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Unit"},{"path":["arguments"]},{"path":["arguments","value"],"value":"Bool"}]}},{"path":["operations","write","arguments"],"label":"operations / write / arguments","nested":{"kind":"nested","root":{"children":[["value",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"Bool","path":["value"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["value"],"value":"Bool"}]}},{"path":["operations","write","arguments","value"],"label":"operations / write / arguments / value","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write","result"],"label":"operations / write / result","nested":{"kind":"nested","root":{"value":"Unit","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Unit","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Unit"}]}}];
+const stages = [{"title":"Template","tree":"Pair\n├─ first → ?g0\n└─ second → ?g0","description":"Pair[g0]: the same parameter occurs at first and second."},{"title":"Insert List","tree":"Pair\n├─ first → List\n│  └─ element → ?h0\n└─ second → List\n   └─ element → ?h0","description":"g0 := List[h0]: both holes receive an entire List shape, including its element child."},{"title":"Insert Bool","tree":"Pair\n├─ first → List\n│  └─ element → Bool\n└─ second → List\n   └─ element → Bool","description":"h0 := Bool: both lists are now closed shapes."}];
+const behaviorCases = [{"name":"Storing cell · false","lawful":true,"sameAsTrueCell":false,"initial":"false","transitions":[{"state":"false","steps":[{"state":"false","output":{"kind":"read","value":false}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]},{"state":"true","steps":[{"state":"true","output":{"kind":"read","value":true}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]}]},{"name":"Storing cell · true","lawful":true,"sameAsTrueCell":true,"initial":"true","transitions":[{"state":"false","steps":[{"state":"false","output":{"kind":"read","value":false}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]},{"state":"true","steps":[{"state":"true","output":{"kind":"read","value":true}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]}]},{"name":"Ignores writes","lawful":false,"sameAsTrueCell":false,"initial":"false","transitions":[{"state":"false","steps":[{"state":"false","output":{"kind":"read","value":false}},{"state":"false","output":{"kind":"written"}},{"state":"false","output":{"kind":"written"}}]},{"state":"true","steps":[{"state":"true","output":{"kind":"read","value":true}},{"state":"true","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]}]},{"name":"Forwarded true cell","lawful":true,"sameAsTrueCell":true,"initial":"true","transitions":[{"state":"false","steps":[{"state":"false","output":{"kind":"read","value":false}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]},{"state":"true","steps":[{"state":"true","output":{"kind":"read","value":true}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]}]},{"name":"Replaced with fresh false cell","lawful":true,"sameAsTrueCell":false,"initial":"false","transitions":[{"state":"false","steps":[{"state":"false","output":{"kind":"read","value":false}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]},{"state":"true","steps":[{"state":"true","output":{"kind":"read","value":true}},{"state":"false","output":{"kind":"written"}},{"state":"true","output":{"kind":"written"}}]}]}];
+const behaviorInputs = [{"kind":"read"},{"kind":"write","value":false},{"kind":"write","value":true}];
+const behaviorPicker = document.getElementById('behavior-case');
+let originalState;
+let selectedState;
+let originalTrace;
+let selectedTrace;
+function resetBehavior() {
+  const selected = behaviorCases[Number(behaviorPicker.value)];
+  originalState = behaviorCases[1].initial;
+  selectedState = selected.initial;
+  originalTrace = [];
+  selectedTrace = [];
+  document.getElementById('original-trace').textContent = 'No interactions yet.';
+  document.getElementById('selected-trace').textContent = 'No interactions yet.';
+  document.getElementById('behavior-verdict').textContent = 'Satisfies the cell contract: ' + (selected.lawful ? 'yes' : 'no') + '. Same behavior as the original true cell: ' + (selected.sameAsTrueCell ? 'yes' : 'no') + '.';
+}
+behaviorPicker.addEventListener('change', resetBehavior);
+document.getElementById('cell-reset').addEventListener('click', resetBehavior);
+document.querySelectorAll('[data-cell-input]').forEach(button => button.addEventListener('click', () => {
+  const index = Number(button.dataset.cellInput);
+  const input = behaviorInputs[index];
+  const label = input.kind === 'read' ? 'read' : 'write(' + input.value + ')';
+  const selected = behaviorCases[Number(behaviorPicker.value)];
+  const originalNext = behaviorCases[1].transitions.find(row => row.state === originalState).steps[index];
+  const selectedNext = selected.transitions.find(row => row.state === selectedState).steps[index];
+  const output = next => next.output.kind === 'read' ? String(next.output.value) : 'done';
+  originalTrace.push(label + ' → ' + output(originalNext));
+  selectedTrace.push(label + ' → ' + output(selectedNext));
+  originalState = originalNext.state;
+  selectedState = selectedNext.state;
+  document.getElementById('original-trace').textContent = originalTrace.join('\n');
+  document.getElementById('selected-trace').textContent = selectedTrace.join('\n');
+}));
+resetBehavior();
 const drawSquare = function drawSquare(kind, width) {
   const w = Math.max(250, Math.round(width));
   const narrow = w < 430;
@@ -2049,17 +3056,17 @@ const drawSquare = function drawSquare(kind, width) {
   const isComposition = kind === 'composition';
   const nodes = isLaw
     ? [
-        ['Root at K', 'R_K(C)'],
-        ['Root at L', 'R_L(C)'],
-        ['Part at K', 'R_K(C|p)'],
-        ['Part at L', 'R_L(C|p)'],
+        ['Root at K', 'R_K(S)'],
+        ['Root at L', 'R_L(S)'],
+        ['Part at K', 'R_K(S|p)'],
+        ['Part at L', 'R_L(S|p)'],
       ]
     : isComposition
       ? [
           ['Open at K', 'r, a(g)'],
           ['Open at L', 'F(r), F(a)'],
-          ['Filled at K', 'R_K(C[σ])'],
-          ['Filled at L', 'R_L(C[σ])'],
+          ['Filled at K', 'R_K(S[σ])'],
+          ['Filled at L', 'R_L(S[σ])'],
         ]
       : [
           ['Nested', 'ascending'],
@@ -2068,7 +3075,7 @@ const drawSquare = function drawSquare(kind, width) {
           ['Flat', 'descending'],
         ];
   const labels = isLaw
-    ? ['F_C', 'select p', 'select p', 'F_(C|p)']
+    ? ['F_S', 'select p', 'select p', 'F_(S|p)']
     : isComposition
       ? ['F each', 'fill', 'fill', 'F instance']
       : ['flatten', 'reorder', 'reorder', 'flatten'];
@@ -2079,7 +3086,7 @@ const drawSquare = function drawSquare(kind, width) {
     `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
   return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
     <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
-    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-contract.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent C with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
     <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
     ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
@@ -2093,7 +3100,7 @@ const drawSquare = function drawSquare(kind, width) {
     <text class="equivalence" x="${w / 2}" y="171" text-anchor="middle">≈</text>
   </svg>`;
 };
-const picker = document.getElementById('contract-path');
+const picker = document.getElementById('shape-path');
 const lawFigure = document.getElementById('transparency-figure');
 function updateSelection() {
   const sample = samples[Number(picker.value)];
@@ -2109,7 +3116,7 @@ document.querySelectorAll('.diagram').forEach(figure => {
     figure.dataset.route = button.dataset.routeChoice;
     figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
     if (figure === lawFigure) updateSelection();
-    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance C[σ].';
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance S[σ].';
     else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
   }));
 });

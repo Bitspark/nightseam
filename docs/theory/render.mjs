@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
 import { marked } from 'marked';
 import * as hierarchy from './examples/hierarchy.ts';
 import * as composition from './examples/composition.ts';
+import * as behavior from './examples/behavior.ts';
 
 const directory = import.meta.dirname;
 const escape = (value) =>
@@ -16,7 +18,14 @@ const slug = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-const files = ['model.ts', 'examples/coordinates.ts', 'examples/hierarchy.ts', 'examples/composition.ts'];
+const files = [
+  'model.ts',
+  'model.typecheck.ts',
+  'examples/coordinates.ts',
+  'examples/hierarchy.ts',
+  'examples/composition.ts',
+  'examples/behavior.ts',
+];
 const sources = await Promise.all(
   files.map(async (name) => ({
     name,
@@ -35,6 +44,24 @@ for (const name of files) document = document.replaceAll(`href="${name}"`, `href
 document = document.replaceAll('href="index.html"', 'href="#top"');
 document = document.replaceAll('<table>', '<div class="table-wrap"><table>').replaceAll('</table>', '</table></div>');
 
+const behaviorFigure = `<figure id="behavior-figure" class="diagram">
+  <figcaption><span class="figure-number">BEHAVIOR EXPLORER</span><strong>Lawful does not mean the same behavior.</strong></figcaption>
+  <p>Compare a storing cell initially true with one of the checked implementations. A replacing adapter returns a lawful cell, but changes the first read.</p>
+  <label class="path-label" for="behavior-case">Implementation to compare</label>
+  <select id="behavior-case">${behavior.cases.map((item, index) => `<option value="${index}"${index === 3 ? ' selected' : ''}>${escape(item.name)}</option>`).join('')}</select>
+  <p id="behavior-verdict" class="figure-result" aria-live="polite"></p>
+  <div class="route-controls" role="group" aria-label="Cell interactions">
+    <button type="button" data-cell-input="0">Read</button>
+    <button type="button" data-cell-input="1">Write false</button>
+    <button type="button" data-cell-input="2">Write true</button>
+    <button type="button" id="cell-reset">Reset</button>
+  </div>
+  <div class="artifact-grid"><div><h3>Original true cell</h3><pre id="original-trace" aria-live="polite">No interactions yet.</pre></div><div><h3>Selected implementation</h3><pre id="selected-trace" aria-live="polite">No interactions yet.</pre></div></div>
+  <p class="figure-result">The verdict concerns all finite traces from each initial state. The controls show individual traces. Exhaustively checked across ${behavior.checkedMachines} finite method implementations; no transport or concurrency is modeled.</p>
+</figure>`;
+assert.ok(document.includes('<!-- behavior-explorer -->'));
+document = document.replace('<!-- behavior-explorer -->', behaviorFigure);
+
 function drawSquare(kind, width) {
   const w = Math.max(250, Math.round(width));
   const narrow = w < 430;
@@ -51,17 +78,17 @@ function drawSquare(kind, width) {
   const isComposition = kind === 'composition';
   const nodes = isLaw
     ? [
-        ['Root at K', 'R_K(C)'],
-        ['Root at L', 'R_L(C)'],
-        ['Part at K', 'R_K(C|p)'],
-        ['Part at L', 'R_L(C|p)'],
+        ['Root at K', 'R_K(S)'],
+        ['Root at L', 'R_L(S)'],
+        ['Part at K', 'R_K(S|p)'],
+        ['Part at L', 'R_L(S|p)'],
       ]
     : isComposition
       ? [
           ['Open at K', 'r, a(g)'],
           ['Open at L', 'F(r), F(a)'],
-          ['Filled at K', 'R_K(C[σ])'],
-          ['Filled at L', 'R_L(C[σ])'],
+          ['Filled at K', 'R_K(S[σ])'],
+          ['Filled at L', 'R_L(S[σ])'],
         ]
       : [
           ['Nested', 'ascending'],
@@ -70,7 +97,7 @@ function drawSquare(kind, width) {
           ['Flat', 'descending'],
         ];
   const labels = isLaw
-    ? ['F_C', 'select p', 'select p', 'F_(C|p)']
+    ? ['F_S', 'select p', 'select p', 'F_(S|p)']
     : isComposition
       ? ['F each', 'fill', 'fill', 'F instance']
       : ['flatten', 'reorder', 'reorder', 'flatten'];
@@ -81,7 +108,7 @@ function drawSquare(kind, width) {
     `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
   return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
     <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
-    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-contract.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent C with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
     <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
     ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
@@ -96,8 +123,8 @@ function drawSquare(kind, width) {
   </svg>`;
 }
 
-function allPaths(contract, prefix = []) {
-  return [prefix, ...[...contract.children].flatMap(([key, child]) => allPaths(child, [...prefix, key]))];
+function allPaths(shape, prefix = []) {
+  return [prefix, ...[...shape.children].flatMap(([key, child]) => allPaths(child, [...prefix, key]))];
 }
 const samples = allPaths(hierarchy.booleanCellTree).map((path) => {
   const selection = hierarchy.locate(hierarchy.booleanCellTree, path);
@@ -114,7 +141,7 @@ const samples = allPaths(hierarchy.booleanCellTree).map((path) => {
   assert.deepEqual(firstRoute.artifact, secondRoute.artifact);
   return {
     path,
-    label: path.length ? path.join(' / ') : '[] — whole contract',
+    label: path.length ? path.join(' / ') : '[] — whole shape',
     nested: part.artifact,
     flat: transformThenSelect.artifact,
     flatDescending: firstRoute.artifact,
@@ -129,8 +156,8 @@ const choices = samples
 
 const lawFigure = `<figure id="transparency-figure" class="diagram" data-route="first">
   <figcaption><span class="figure-number">FIGURE 1</span><strong>One selected part. Two routes.</strong></figcaption>
-  <label class="path-label" for="contract-path">Contract path <code>p</code></label>
-  <select id="contract-path">${choices}</select>
+  <label class="path-label" for="shape-path">Shape path <code>p</code></label>
+  <select id="shape-path">${choices}</select>
   <div class="route-controls" role="group" aria-label="Route through the transparency square">
     <button type="button" data-route-choice="first" aria-pressed="true">Transform → select</button>
     <button type="button" data-route-choice="second" aria-pressed="false">Select → transform</button>
@@ -155,10 +182,10 @@ const compositionFigure = `<figure id="composition-figure" class="diagram" data-
     <button type="button" data-route-choice="second" aria-pressed="false">Fill → transform</button>
   </div>
   <div class="square" data-square="composition">${drawSquare('composition', 700)}</div>
-  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance C[σ].</p>
+  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance S[σ].</p>
 </figure>`;
 
-function contractTree(root) {
+function shapeTree(root) {
   const label = (node) => (node.kind === 'generic' ? '?' + node.id : (node.value ?? '(no local value)'));
   const lines = [label(root)];
   function visit(node, prefix) {
@@ -176,21 +203,21 @@ function contractTree(root) {
 const stages = [
   {
     title: 'Template',
-    tree: contractTree(composition.pair),
+    tree: shapeTree(composition.pair),
     description: 'Pair[g0]: the same parameter occurs at first and second.',
   },
   {
     title: 'Insert List',
-    tree: contractTree(composition.pairOfLists),
-    description: 'g0 := List[h0]: both holes receive an entire List contract, including its element child.',
+    tree: shapeTree(composition.pairOfLists),
+    description: 'g0 := List[h0]: both holes receive an entire List shape, including its element child.',
   },
   {
     title: 'Insert Bool',
-    tree: contractTree(composition.closedPair),
-    description: 'h0 := Bool: both lists are now closed contracts.',
+    tree: shapeTree(composition.closedPair),
+    description: 'h0 := Bool: both lists are now closed shapes.',
   },
 ];
-const stageFigure = `<figure id="composition-stages" class="diagram"><figcaption><span class="figure-number">FIGURE 3</span><strong>A whole contract at each hole</strong></figcaption><div class="route-controls" role="group" aria-label="Substitution stage">${stages.map((stage, index) => `<button type="button" data-stage-choice="${index}" aria-pressed="${index === 0}">${stage.title}</button>`).join('')}</div><pre id="composition-tree">${escape(stages[0].tree)}</pre><p id="composition-stage-result" class="figure-result" aria-live="polite">${escape(stages[0].description)}</p></figure>`;
+const stageFigure = `<figure id="composition-stages" class="diagram"><figcaption><span class="figure-number">FIGURE 3</span><strong>A whole shape at each hole</strong></figcaption><div class="route-controls" role="group" aria-label="Substitution stage">${stages.map((stage, index) => `<button type="button" data-stage-choice="${index}" aria-pressed="${index === 0}">${stage.title}</button>`).join('')}</div><pre id="composition-tree">${escape(stages[0].tree)}</pre><p id="composition-stage-result" class="figure-result" aria-live="polite">${escape(stages[0].description)}</p></figure>`;
 const treeFence = /<pre><code class="language-text">Pair\[g0\][\s\S]*?<\/code><\/pre>/;
 assert.ok(treeFence.test(document));
 document = document.replace(treeFence, stageFigure);
@@ -208,23 +235,58 @@ const appendix = sources
   )
   .join('\n');
 const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>One contract, many representations</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Contracts, implementations, and representations</title>
 <style>
 :root{color-scheme:light dark;--paper:#f6f5f0;--surface:#fffefb;--ink:#203337;--muted:#536a6c;--line:#d3ddda;--accent:#167263;--wash:#e9f3ed;--code:#edf1ed;--focus:#3158a9;--shadow:rgba(22,51,45,.05)}
 @media(prefers-color-scheme:dark){:root{--paper:#111c1f;--surface:#18272b;--ink:#e5eeeb;--muted:#b3c7c4;--line:#3a5155;--accent:#82d2bf;--wash:#203b38;--code:#213337;--focus:#b5c5fa;--shadow:rgba(0,0,0,.1)}}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:26px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 'Segoe UI',system-ui,sans-serif}a{color:var(--accent);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}a:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}button,select{font:inherit;color:inherit}button{cursor:pointer}p{margin:1em 0}strong{font-weight:600}h1,h2,h3{font-weight:600;line-height:1.22;letter-spacing:-.02em}h1{font-size:clamp(36px,5vw,62px);margin:14px 0 20px;max-width:850px}h2{font-size:27px;margin:70px 0 22px;padding-top:24px;border-top:1px solid var(--line)}h3{font-size:17px;margin:18px 0 12px}code,pre{font-family:Consolas,'Cascadia Code',monospace}code{font-size:.9em;background:var(--code);padding:.12em .28em;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--code);padding:18px 20px;border-radius:9px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}pre code{font:inherit;background:none;padding:0;border-radius:0}blockquote{margin:24px 0;border-left:3px solid var(--accent);padding:2px 20px;color:var(--muted)}
-.shell{max-width:1220px;margin:auto;padding:48px 40px 64px}.hero{padding:0 0 34px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:600;letter-spacing:.13em;color:var(--muted)}.subtitle{font-size:20px;line-height:1.55;max-width:700px;color:var(--muted)}.hero-links{display:flex;gap:22px;flex-wrap:wrap;margin-top:24px;font-size:14px}.layout{display:grid;grid-template-columns:225px minmax(0,1fr);gap:48px}aside{padding-top:44px}.toc{position:sticky;top:28px;font-size:13px;line-height:1.45}.toc summary{font-weight:600;margin-bottom:14px}.toc nav{display:grid;gap:4px}.toc a{color:var(--muted);text-decoration:none;padding:7px 0}.toc a:hover{color:var(--accent)}article{min-width:0}article>h2:first-child{margin-top:22px;border-top:0}.table-wrap{width:100%;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;table-layout:fixed}th{text-align:left;font-weight:600;border-bottom:2px solid var(--line);padding:12px 10px}td{padding:12px 10px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th:first-child,td:first-child{width:36%;padding-left:0}th:last-child,td:last-child{padding-right:0}ol,ul{padding-left:24px}
+.shell{max-width:1220px;margin:auto;padding:48px 40px 64px}.hero{padding:0 0 34px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:600;letter-spacing:.13em;color:var(--muted)}.subtitle{font-size:20px;line-height:1.55;max-width:700px;color:var(--muted)}.hero-links{display:flex;gap:22px;flex-wrap:wrap;margin-top:24px;font-size:14px}.layout{display:grid;grid-template-columns:225px minmax(0,1fr);gap:48px}aside{padding-top:44px}.toc{position:sticky;top:28px;max-height:calc(100vh - 56px);overflow-y:auto;padding-right:8px;font-size:13px;line-height:1.45}.toc summary{font-weight:600;margin-bottom:14px}.toc nav{display:grid;gap:4px}.toc a{color:var(--muted);text-decoration:none;padding:7px 0}.toc a:hover{color:var(--accent)}article{min-width:0}article>h2:first-child{margin-top:22px;border-top:0}.table-wrap{width:100%;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;table-layout:fixed}th{text-align:left;font-weight:600;border-bottom:2px solid var(--line);padding:12px 10px}td{padding:12px 10px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th:first-child,td:first-child{width:36%;padding-left:0}th:last-child,td:last-child{padding-right:0}ol,ul{padding-left:24px}
 .diagram{margin:30px 0;padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 20px var(--shadow)}figcaption{display:flex;flex-direction:column;gap:6px;line-height:1.4;margin-bottom:22px}figcaption strong{font-size:20px}.figure-number{font-size:11px;letter-spacing:.13em;color:var(--muted);font-weight:600}.path-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}select{width:100%;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;font-size:14px;min-height:44px}.route-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}.route-controls button{border:1px solid var(--line);background:var(--surface);padding:8px 12px;border-radius:6px;font-size:13px;min-height:40px}.route-controls button[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}.square{width:100%;min-width:0}.square svg{display:block;width:100%;height:auto;overflow:visible}.graph-node rect{fill:var(--wash);stroke:var(--line);stroke-width:1}.square text{fill:var(--ink);font:14px 'Segoe UI',system-ui,sans-serif}.square .node-title{font-weight:600}.square .node-detail{font:13px Consolas,monospace;fill:var(--muted)}.square .edge{stroke:var(--line);stroke-width:2;fill:none}.square .edge-label{font-size:12px;paint-order:stroke;stroke:var(--surface);stroke-width:7px;stroke-linejoin:round}.square .equivalence{font-size:30px;fill:var(--muted)}.diagram[data-route=first] [data-branch=first],.diagram[data-route=second] [data-branch=second]{stroke:var(--accent);stroke-width:3}.figure-result{font-size:14px;border-top:1px solid var(--line);padding-top:16px;margin:10px 0 0}.artifact-details{margin-top:18px}.artifact-details summary{font-size:14px}.artifact-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.artifact-grid pre{font-size:12px;padding:12px;line-height:1.55}.artifact-grid h3{font-size:14px}.artifact-grid>div{min-width:0}details summary{cursor:pointer}.source{margin:16px 0;padding:18px 0;border-bottom:1px solid var(--line)}.source summary{font-size:15px;font-weight:600}.source-note{font-size:12px;color:var(--muted);font-weight:400;display:block;padding-left:18px;margin-top:4px}.source pre{font-size:12px}.footer{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 @media(max-width:900px){.shell{padding:32px 24px 48px}.layout{grid-template-columns:180px minmax(0,1fr);gap:28px}.diagram{padding:18px}h2{font-size:24px}.toc{font-size:12px}}
-@media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
+@media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;max-height:none;overflow:visible;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
-</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>One contract,<br>many representations.</h1><p class="subtitle">A contract can travel across languages and forms while its parts remain addressable.</p><div class="hero-links"><a href="#transformation-families-and-the-transparency-square">Explore the transparency law ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents">${contents.map(({ id, title }) => `<a href="#${id}">${title}</a>`).join('')}<a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>${document}<h2 id="embedded-sources">Embedded sources</h2><p>The complete model and both example files are included below. The diagrams, interactions, styles, and sources work offline.</p>${appendix}<footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="#behavior-figure">Explore behavior ↓</a><a href="#transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents">${contents.map(({ id, title }) => `<a href="#${id}">${title}</a>`).join('')}<a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>${document}<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p>${appendix}<footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
 <script>
 const samples = ${JSON.stringify(samples).replaceAll('<', '\\u003c')};
 const stages = ${JSON.stringify(stages).replaceAll('<', '\\u003c')};
+const behaviorCases = ${JSON.stringify(behavior.cases).replaceAll('<', '\\u003c')};
+const behaviorInputs = ${JSON.stringify(behavior.inputs).replaceAll('<', '\\u003c')};
+const behaviorPicker = document.getElementById('behavior-case');
+let originalState;
+let selectedState;
+let originalTrace;
+let selectedTrace;
+function resetBehavior() {
+  const selected = behaviorCases[Number(behaviorPicker.value)];
+  originalState = behaviorCases[1].initial;
+  selectedState = selected.initial;
+  originalTrace = [];
+  selectedTrace = [];
+  document.getElementById('original-trace').textContent = 'No interactions yet.';
+  document.getElementById('selected-trace').textContent = 'No interactions yet.';
+  document.getElementById('behavior-verdict').textContent = 'Satisfies the cell contract: ' + (selected.lawful ? 'yes' : 'no') + '. Same behavior as the original true cell: ' + (selected.sameAsTrueCell ? 'yes' : 'no') + '.';
+}
+behaviorPicker.addEventListener('change', resetBehavior);
+document.getElementById('cell-reset').addEventListener('click', resetBehavior);
+document.querySelectorAll('[data-cell-input]').forEach(button => button.addEventListener('click', () => {
+  const index = Number(button.dataset.cellInput);
+  const input = behaviorInputs[index];
+  const label = input.kind === 'read' ? 'read' : 'write(' + input.value + ')';
+  const selected = behaviorCases[Number(behaviorPicker.value)];
+  const originalNext = behaviorCases[1].transitions.find(row => row.state === originalState).steps[index];
+  const selectedNext = selected.transitions.find(row => row.state === selectedState).steps[index];
+  const output = next => next.output.kind === 'read' ? String(next.output.value) : 'done';
+  originalTrace.push(label + ' → ' + output(originalNext));
+  selectedTrace.push(label + ' → ' + output(selectedNext));
+  originalState = originalNext.state;
+  selectedState = selectedNext.state;
+  document.getElementById('original-trace').textContent = originalTrace.join('\\n');
+  document.getElementById('selected-trace').textContent = selectedTrace.join('\\n');
+}));
+resetBehavior();
 const drawSquare = ${drawSquare.toString()};
-const picker = document.getElementById('contract-path');
+const picker = document.getElementById('shape-path');
 const lawFigure = document.getElementById('transparency-figure');
 function updateSelection() {
   const sample = samples[Number(picker.value)];
@@ -240,7 +302,7 @@ document.querySelectorAll('.diagram').forEach(figure => {
     figure.dataset.route = button.dataset.routeChoice;
     figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
     if (figure === lawFigure) updateSelection();
-    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance C[σ].';
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance S[σ].';
     else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
   }));
 });
@@ -264,13 +326,10 @@ window.addEventListener('hashchange', revealSource);
 updateSelection();
 revealSource();
 </script></body></html>`;
-assert.ok(!/https?:\/\//.test(html.match(/<script>[\s\S]*<\/script>/)[0]));
-const finalHtml = html
-  .replace('The complete model and both example files', 'The complete model and all three example files')
-  .replace(
-    '<a href="#embedded-sources">Read the model sources ↓</a>',
-    '<a href="#whole-contract-holes">Compose contracts ↓</a><a href="#embedded-sources">Read the model sources ↓</a>',
-  );
+const browserScript = html.match(/<script>([\s\S]*)<\/script>/)[1];
+assert.ok(!/https?:\/\//.test(browserScript));
+new Script(browserScript); // Reject malformed generated JavaScript before browser verification.
+const finalHtml = html;
 const output = `${directory}/index.html`;
 if (process.argv.slice(2).some((argument) => argument !== '--check')) {
   throw new Error('Usage: node --experimental-strip-types render.mjs [--check]');
