@@ -3,8 +3,10 @@ package duplex_test
 import (
 	"errors"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 	"github.com/Bitspark/nightseam/duplex/go"
@@ -228,3 +230,104 @@ func TestDeclaredReplacingAssemblerHandlesCannotRetargetBoundAccess(t *testing.T
 		t.Fatal("replacing assembler handles retargeted previously bound access")
 	}
 }
+
+func declaredRequest(id string) bitwire.Message {
+	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileRequest, ID: id, Params: []byte("null")}, Return: &bitwire.ReturnAddress{Wire: duplex.RefusingOrigin{}}}
+}
+
+func declaredCancel(request bitwire.Message) bitwire.Message {
+	return bitwire.Message{Frame: bitwire.ProfileFrame{Version: 1, Kind: bitwire.ProfileCancel, ID: request.Frame.ID}, Return: request.Return}
+}
+
+func TestDeclaredCancelReachesTheDestinationItsRequestWasAdmittedTo(t *testing.T) {
+	gate := &declaredPolicy{remaining: -1}
+	first, second := &declaredOrigin{}, &declaredOrigin{}
+	branch := declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{}, duplex.DeclaredChild{Key: "b", Node: declaredNode(t, first, duplex.PermitAdmission{})})
+	root := declaredNode(t, duplex.RefusingOrigin{}, gate, duplex.DeclaredChild{Key: "a", Node: branch})
+	bound := root.Bind()
+	selected := duplex.At(bound, []string{"a"})
+	direct, viewed := declaredRequest("c:1"), declaredRequest("c:1")
+	if err := bound.Send([]string{"a", "b"}, direct); err != nil {
+		t.Fatal(err)
+	}
+	if err := selected.Send([]string{"b"}, viewed); err != nil {
+		t.Fatal(err)
+	}
+	checks := len(gate.paths)
+
+	// Rebuild every node from its parts, then rebind a/b to another destination.
+	value, _ := root.Decompose()
+	branchValue, _ := branch.Decompose()
+	rebound := declaredNode(t, value.Own, value.Policy, duplex.DeclaredChild{Key: "a", Node: declaredNode(t, branchValue.Own, branchValue.Policy,
+		duplex.DeclaredChild{Key: "b", Node: declaredNode(t, second, duplex.PermitAdmission{})})})
+	if err := rebound.Bind().Send([]string{"a", "b"}, declaredCancel(direct)); !errors.Is(err, duplex.ErrDeclaredFrame) {
+		t.Fatalf("new access cancelled a request it never admitted: %v", err)
+	}
+	if err := bound.Send([]string{"a", "b"}, declaredCancel(direct)); err != nil {
+		t.Fatalf("cancel through the admitting access: %v", err)
+	}
+	if err := selected.Send([]string{"b"}, declaredCancel(viewed)); err != nil {
+		t.Fatalf("cancel through the admitting view: %v", err)
+	}
+	if len(gate.paths) != checks {
+		t.Fatal("a cancel entered admission again")
+	}
+	if len(second.messages) != 0 || len(first.messages) != 4 {
+		t.Fatalf("cancels were retargeted: first %d, second %d", len(first.messages), len(second.messages))
+	}
+	for i, want := range []bitwire.Message{direct, viewed, declaredCancel(direct), declaredCancel(viewed)} {
+		got := first.messages[i]
+		if got.Frame.Kind != want.Frame.Kind || got.Frame.ID != want.Frame.ID || got.Return != want.Return || len(first.paths[i]) != 0 {
+			t.Fatalf("delivery %d = %+v at %v, want %v at []", i, got.Frame, first.paths[i], want.Frame.Kind)
+		}
+	}
+	if err := bound.Send([]string{"a", "b"}, declaredCancel(direct)); !errors.Is(err, duplex.ErrDeclaredFrame) {
+		t.Fatalf("a second cancel for one request was delivered: %v", err)
+	}
+}
+
+func TestDeclaredRefusedRequestsLeaveNothingToCancel(t *testing.T) {
+	target := &declaredOrigin{}
+	root := declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{},
+		duplex.DeclaredChild{Key: "guarded", Node: declaredNode(t, target, &declaredPolicy{})},
+		duplex.DeclaredChild{Key: "gone", Node: declaredNode(t, duplex.RefusingOrigin{}, duplex.PermitAdmission{})})
+	bound := root.Bind()
+	for _, path := range [][]string{{"guarded"}, {"gone"}, {"missing"}} {
+		request := declaredRequest("c:1")
+		if err := bound.Send(path, request); err == nil {
+			t.Fatalf("%v admitted", path)
+		}
+		if err := bound.Send(path, declaredCancel(request)); !errors.Is(err, duplex.ErrDeclaredFrame) {
+			t.Fatalf("%v: a refused request left a cancel to route: %v", path, err)
+		}
+	}
+	if len(target.messages) != 0 {
+		t.Fatal("a refused request or its cancel reached the destination")
+	}
+}
+
+func TestDeclaredAdmissionIsHeldNoLongerThanItsReturnCapability(t *testing.T) {
+	root := declaredNode(t, declaredSink{}, duplex.PermitAdmission{})
+	bound := root.Bind()
+	func() {
+		if err := bound.Send(nil, declaredRequest("c:1")); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if held := duplex.DeclaredAdmissions(bound); held != 1 {
+		t.Fatalf("admissions held = %d, want 1", held)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for duplex.DeclaredAdmissions(bound) != 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("an admission outlived its return capability")
+		}
+		runtime.GC()
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// declaredSink admits without retaining the message or its return capability.
+type declaredSink struct{}
+
+func (declaredSink) Send([]string, bitwire.Message) error { return nil }

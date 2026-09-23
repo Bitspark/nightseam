@@ -141,9 +141,17 @@ through selected access would bypass those checks. Bound facades expose only
 Send, with no parts, receiver, closure or unwrapping operation. They borrow
 all capabilities and never close them.
 
-This entry admits requests and events only. Responses and cancellation use the
-captured invocation's public facilities; reconstruction or exhausted quotas
-do not introduce another admission check on those paths. Retries, rewriting,
+This entry admits requests and events only. A reply goes to the request's own
+return capability, and a callee's controls go through the captured invocation's
+public facilities. A requester cancels as the profile says, by presenting the
+cancel where it sent the request. So a cancel at bound access is not a new
+admission: it goes once to the origin that admitted the request it names by
+return capability and identifier, with no check and no lookup. That route
+lives no longer than the capability, and a rebuild or rebind cannot retarget
+it. This is the generic control entry that Bitwire ADR0005 binds to the
+captured invocation. Any other cancel, and every response, is refused. Reconstruction
+or an exhausted quota therefore neither suppresses nor re-admits a reply or a
+cancellation already owed. Retries, rewriting,
 fanout, completion permits and transport fault transparency require their own
 contracts. The [independent acceptance suite](../../conformance/declared/README.md)
 records actual production coverage and remaining limits.

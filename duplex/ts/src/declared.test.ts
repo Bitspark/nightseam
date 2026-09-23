@@ -142,3 +142,70 @@ test('attachment retains ancestor values and the previous bound view', () => {
   assert.equal(next.at(['a'])!.decompose().value.own, leaf.decompose().value.own);
   assert.equal(next.decompose().value.policy, gate.policy);
 });
+
+const request = (id: string): Message => ({
+  frame: { version: 1, kind: 'request', id, params: null },
+  return: { wire: refusingOrigin },
+});
+const cancelOf = (sent: Message): Message => ({
+  frame: { version: 1, kind: 'cancel', id: (sent.frame as { id: string }).id },
+  ...(sent.return ? { return: sent.return } : {}),
+});
+
+test('a cancel reaches the destination its request was admitted to, once and unchecked, across rebuild and rebind', () => {
+  const first = origin(),
+    second = origin(),
+    gate = quota(-1);
+  const branch = Declared.compose({ own: refusingOrigin, policy: permitAdmission }, [
+    ['b', Declared.compose({ own: first.wire, policy: permitAdmission }, [])],
+  ]);
+  const root = Declared.compose({ own: refusingOrigin, policy: gate.policy }, [['a', branch]]);
+  const bound = root.bind();
+  const selected = at(bound, ['a']);
+  const direct = request('c:1'),
+    viewed = request('c:1');
+  bound.send(['a', 'b'], direct);
+  selected.send(['b'], viewed);
+  const checks = gate.paths.length;
+
+  // Rebuild every node from its parts, then rebind a/b to another destination.
+  const { value } = root.decompose();
+  const rebound = Declared.compose(value, [
+    [
+      'a',
+      Declared.compose(branch.decompose().value, [
+        ['b', Declared.compose({ own: second.wire, policy: permitAdmission }, [])],
+      ]),
+    ],
+  ]);
+  assert.throws(() => rebound.bind().send(['a', 'b'], cancelOf(direct)), { code: 'invalid_frame' });
+  bound.send(['a', 'b'], cancelOf(direct));
+  selected.send(['b'], cancelOf(viewed));
+  assert.equal(gate.paths.length, checks, 'a cancel entered admission again');
+  assert.equal(second.deliveries.length, 0);
+  assert.deepEqual(
+    first.deliveries.map(({ path, message }) => [path, message.frame.kind, message.return]),
+    [
+      [[], 'request', direct.return],
+      [[], 'request', viewed.return],
+      [[], 'cancel', direct.return],
+      [[], 'cancel', viewed.return],
+    ],
+  );
+  assert.throws(() => bound.send(['a', 'b'], cancelOf(direct)), { code: 'invalid_frame' });
+});
+
+test('refused requests leave nothing to cancel', () => {
+  const target = origin();
+  const root = Declared.compose({ own: refusingOrigin, policy: permitAdmission }, [
+    ['guarded', Declared.compose({ own: target.wire, policy: quota(0).policy }, [])],
+    ['gone', Declared.compose({ own: refusingOrigin, policy: permitAdmission }, [])],
+  ]);
+  const bound = root.bind();
+  for (const path of [['guarded'], ['gone'], ['missing']]) {
+    const sent = request('c:1');
+    assert.throws(() => bound.send(path, sent));
+    assert.throws(() => bound.send(path, cancelOf(sent)), { code: 'invalid_frame' });
+  }
+  assert.equal(target.deliveries.length, 0);
+});

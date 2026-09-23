@@ -2,7 +2,10 @@ package duplex
 
 import (
 	"errors"
+	"runtime"
 	"slices"
+	"sync"
+	"weak"
 
 	bitwire "github.com/Bitspark/bitwire/wire/go"
 )
@@ -179,16 +182,36 @@ func (d Declared) attach(parent []string, key string, child Declared) Declared {
 // Bind returns only send access and grants no construction, Receive or Close
 // authority. Selection through At keeps this declaration and ancestor policies.
 // Rebuilding from selected children is not decomposition: it repeats their guards.
-// Responses and cancellation use the captured invocation's facilities, not this
-// new-admission entry. Destination endpoints remain responsible for asynchronous
-// application dispatch, admission validation and invocation lifetime.
+// Destination endpoints remain responsible for asynchronous application dispatch,
+// admission validation and invocation lifetime.
+//
+// A cancel is not a new admission. Bound access delivers it, once and without a
+// check or lookup, to the origin that admitted the request it names by return
+// capability and identifier; that route lives no longer than the capability, and
+// a rebuild or rebind cannot retarget it. Every other cancel and every response
+// is refused: replies go to the request's own return capability.
 func (d Declared) Bind() bitwire.Wire { return &declaredWire{root: d} }
 
-type declaredWire struct{ root Declared }
+type declaredWire struct {
+	root     Declared
+	mu       sync.Mutex
+	admitted map[weak.Pointer[bitwire.ReturnAddress]]map[string]*declaredRoute
+}
+
+// declaredRoute is one admitted request's destination. Its identity, not the
+// destination's, tells a refused delegation apart from a newer admission.
+type declaredRoute struct{ own bitwire.Wire }
 
 func (w *declaredWire) Send(path []string, message bitwire.Message) error {
 	if _, err := EncodePath(path); err != nil {
 		return err
+	}
+	if message.Frame.Kind == bitwire.ProfileCancel {
+		destination := w.release(message.Return, message.Frame.ID)
+		if destination == nil {
+			return ErrDeclaredFrame
+		}
+		return destination.Send([]string{}, message)
 	}
 	if message.Frame.Kind != bitwire.ProfileRequest && message.Frame.Kind != bitwire.ProfileEvent {
 		return ErrDeclaredFrame
@@ -203,11 +226,72 @@ func (w *declaredWire) Send(path []string, message bitwire.Message) error {
 			return err
 		}
 		if i == len(path) {
-			return current.node.value.Own.Send([]string{}, message)
+			return w.deliver(current.node.value.Own, message)
 		}
 		current = current.node.children[path[i]]
 		if !current.valid() {
 			return ErrNoRoute
 		}
 	}
+}
+
+// deliver records a request's route before delegating it, so a cancel that
+// races the destination's admission still finds it, and forgets it on refusal.
+func (w *declaredWire) deliver(own bitwire.Wire, message bitwire.Message) error {
+	if message.Frame.Kind != bitwire.ProfileRequest || message.Return == nil {
+		return own.Send([]string{}, message)
+	}
+	route := w.admit(message.Return, message.Frame.ID, own)
+	if err := own.Send([]string{}, message); err != nil {
+		w.forget(message.Return, message.Frame.ID, route)
+		return err
+	}
+	return nil
+}
+
+func (w *declaredWire) admit(capability *bitwire.ReturnAddress, id string, own bitwire.Wire) *declaredRoute {
+	key := weak.Make(capability)
+	route := &declaredRoute{own}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.admitted == nil {
+		w.admitted = map[weak.Pointer[bitwire.ReturnAddress]]map[string]*declaredRoute{}
+	}
+	requests := w.admitted[key]
+	if requests == nil {
+		requests = map[string]*declaredRoute{}
+		w.admitted[key] = requests
+		runtime.AddCleanup(capability, w.drop, key)
+	}
+	requests[id] = route
+	return route
+}
+
+func (w *declaredWire) drop(key weak.Pointer[bitwire.ReturnAddress]) {
+	w.mu.Lock()
+	delete(w.admitted, key)
+	w.mu.Unlock()
+}
+
+func (w *declaredWire) forget(capability *bitwire.ReturnAddress, id string, route *declaredRoute) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if requests := w.admitted[weak.Make(capability)]; requests[id] == route {
+		delete(requests, id)
+	}
+}
+
+func (w *declaredWire) release(capability *bitwire.ReturnAddress, id string) bitwire.Wire {
+	if capability == nil {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	requests := w.admitted[weak.Make(capability)]
+	route := requests[id]
+	if route == nil {
+		return nil
+	}
+	delete(requests, id)
+	return route.own
 }
