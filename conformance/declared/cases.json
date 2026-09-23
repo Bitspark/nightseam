@@ -1,1583 +1,1097 @@
 {
-  "schemaVersion": 1,
-  "nodes": [
+  "schemaVersion": 2,
+  "declarations": [
     {
       "id": "root",
-      "own": "root",
-      "policy": "outer",
+      "origin": "root",
       "children": [
-        [
-          "a",
-          "branch"
-        ],
-        [
-          "alias",
-          "leaf"
-        ],
-        [
-          "",
-          "blank"
-        ],
-        [
-          "a/b",
-          "slash"
-        ],
-        [
-          "é",
-          "acute"
-        ],
-        [
-          "é",
-          "combining"
-        ],
-        [
-          "empty",
-          "empty"
-        ]
+        ["a","branch"],
+        ["alias","leaf"],
+        ["","blank"],
+        ["a/b","slash"],
+        ["\u00e9","acute"],
+        ["e\u0301","combining"],
+        ["empty","empty"]
       ]
     },
+    {"id":"branch","origin":"branch","children":[["b","leaf"]]},
+    {"id":"blank","origin":"blank","children":[["","blankLeaf"]]},
+    {"id":"empty","origin":null,"children":[]},
     {
-      "id": "branch",
-      "own": "branch",
-      "policy": "inner",
+      "id": "mroot",
+      "origin": null,
       "children": [
-        [
-          "b",
-          "leaf"
-        ]
+        ["a","mbranch"],
+        ["alias","leaf"],
+        ["","mblank"],
+        ["a/b","slash"],
+        ["\u00e9","acute"],
+        ["e\u0301","combining"],
+        ["empty","empty"]
       ]
     },
-    {
-      "id": "leaf",
-      "own": "leaf",
-      "children": []
-    },
-    {
-      "id": "blank",
-      "own": "blank",
-      "children": []
-    },
-    {
-      "id": "slash",
-      "own": "slash",
-      "children": []
-    },
-    {
-      "id": "acute",
-      "own": "acute",
-      "children": []
-    },
-    {
-      "id": "combining",
-      "own": "combining",
-      "children": []
-    },
-    {
-      "id": "empty",
-      "own": null,
-      "children": []
-    }
+    {"id":"mbranch","origin":null,"children":[["b","leaf"]]},
+    {"id":"mblank","origin":null,"children":[["","blankLeaf"]]},
+    {"id":"leaf","access":"leaf"},
+    {"id":"slash","access":"slash"},
+    {"id":"acute","access":"acute"},
+    {"id":"combining","access":"combining"},
+    {"id":"blankLeaf","access":"blank-leaf"},
+    {"id":"replacement","access":"replacement"},
+    {"id":"extra","access":"extra"}
   ],
   "cases": [
     {
-      "id": "own-and-descendant",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "origin-and-descendants",
+      "root": "root",
       "steps": [
-        {
-          "op": "send",
-          "path": []
-        },
-        {
-          "op": "send",
-          "path": [
-            "a"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        }
+        {"op":"structure","path":[]},
+        {"op":"send","path":[]},
+        {"op":"send","path":["a"]},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":[""]},
+        {"op":"send","path":["",""]},
+        {"op":"send","path":["a/b"]},
+        {"op":"send","path":["\u00e9"]},
+        {"op":"send","path":["e\u0301"]},
+        {"op":"send","path":["alias","x"]},
+        {"op":"send","path":["a","b","x","y"]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "admitted"
+        "trace": [
+          [
+            "structure",
+            {
+              "origin": ["root",1],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ],
+          ["delivered",["root"],1],
+          ["delivered",["branch"],1],
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["blank"],1],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["slash"],1],
+          ["delivered",["acute"],1],
+          ["delivered",["combining"],1],
+          ["delivered",["leaf","x"],3],
+          ["delivered",["leaf","x","y"],4]
         ],
-        "checks": [
-          [
-            "outer",
-            []
-          ],
-          [
-            "outer",
-            [
-              "a"
-            ]
-          ],
-          [
-            "inner",
-            []
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "root",
-            1
-          ],
-          [
-            "branch",
-            1
-          ],
-          [
-            "leaf",
-            1
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "nested-selected",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "nested-selection-agrees",
+      "root": "root",
       "steps": [
-        {
-          "op": "send",
-          "path": [],
-          "selections": [
-            [],
-            [
-              "a"
-            ],
-            [],
-            [
-              "b"
-            ]
-          ]
-        }
+        {"op":"send","path":[],"selections":[[]]},
+        {"op":"send","path":[],"selections":[[],["a"],[],["b"]]},
+        {"op":"send","path":["b"],"selections":[["a"]]},
+        {"op":"send","path":[],"selections":[["a","b"]]},
+        {"op":"send","path":[],"selections":[["a"]]},
+        {"op":"send","path":[""],"selections":[[""]]},
+        {"op":"send","path":[],"selections":[[""]]},
+        {"op":"send","path":["x"],"selections":[["alias"]]},
+        {"op":"send","path":[],"selections":[["alias"],["x"],[]]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted"
+        "trace": [
+          ["delivered",["root"],1],
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["leaf"],3],
+          ["delivered",["branch"],1],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["blank"],1],
+          ["delivered",["leaf","x"],4],
+          ["delivered",["leaf","x"],5]
         ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "root-cut-retains-quota",
-      "limits": {
-        "outer": 1,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "rebuild",
-          "cut": "root"
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "complete-cut-retains-alias",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "rebuild",
-          "cut": "all"
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        },
-        {
-          "op": "rebuild",
-          "cut": "all"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "admitted"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ],
-          [
-            "leaf",
-            3
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "shared-sibling-budget",
-      "limits": {
-        "outer": 2,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "denied-selected",
-      "limits": {
-        "outer": 0,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [],
-          "selections": [
-            [
-              "a"
-            ],
-            [
-              "b"
-            ]
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "negative-raw-child-bypasses",
-      "limits": {
-        "outer": 0,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [],
-          "raw": "leaf"
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted"
-        ],
-        "checks": [],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "negative-bound-child-doubles",
-      "limits": {
-        "outer": 1,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "boundChild"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "negative-reset-policy",
-      "limits": {
-        "outer": 1,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        },
-        {
-          "op": "resetPolicy"
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "same-policy-two-occurrences",
-      "limits": {
-        "outer": 2,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "sharePolicy"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": []
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            []
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      }
-    },
-    {
-      "id": "opaque-empty-and-origin-refusal",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            ""
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "a/b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "é"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "é"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "empty"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "admitted",
-          "admitted",
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              ""
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a/b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "é"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "é"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "empty"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "blank",
-            1
-          ],
-          [
-            "slash",
-            1
-          ],
-          [
-            "acute",
-            1
-          ],
-          [
-            "combining",
-            1
-          ]
-        ],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
       "id": "missing-never-falls-back",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "root": "root",
       "steps": [
-        {
-          "op": "send",
-          "path": [
-            "missing"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "missing"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "empty",
-            "x"
-          ]
-        }
+        {"op":"send","path":["missing"]},
+        {"op":"send","path":["a","missing"]},
+        {"op":"send","path":["empty"]},
+        {"op":"send","path":["empty","x"]},
+        {"op":"send","path":["","missing"]},
+        {"op":"send","path":[],"selections":[["missing"]]},
+        {"op":"send","path":[],"selections":[["a"],["missing"]]},
+        {"op":"send","path":[]},
+        {"op":"send","path":["a"]}
       ],
       "expected": {
-        "outcomes": [
-          "refused",
-          "refused",
-          "refused"
+        "trace": [
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["delivered",["root"],1],
+          ["delivered",["branch"],1]
         ],
-        "checks": [
-          [
-            "outer",
-            [
-              "missing"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "missing"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "missing"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "empty",
-              "x"
-            ]
-          ]
-        ],
-        "deliveries": [],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "negative-lost-own",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "empty-branch-versus-missing",
+      "root": "root",
       "steps": [
-        {
-          "op": "dropOwn"
-        },
-        {
-          "op": "send",
-          "path": []
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
+        {"op":"structure","path":["empty"]},
+        {"op":"structure","path":["missing"]},
+        {"op":"send","path":["empty"]},
+        {"op":"send","path":["missing"]},
+        {"op":"structure","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "refused",
-          "admitted"
-        ],
-        "checks": [
+        "trace": [
+          ["structure",{"origin":null,"children":[]}],
+          ["structure","missing"],
+          ["refused"],
+          ["refused"],
           [
-            "outer",
-            []
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
+            "structure",
+            {
+              "origin": ["root",1],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
           ]
         ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "negative-omitted-child",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "root-cut-reconstruction",
+      "root": "root",
       "steps": [
-        {
-          "op": "omit"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        }
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[[""],["a"],["a/b"],["alias"],["empty"],["e\u0301"],["\u00e9"]]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":[]},
+        {"op":"send","path":["a"]},
+        {"op":"structure","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "refused"
-        ],
-        "checks": [
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["root"],1],
+          ["delivered",["branch"],1],
           [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
+            "structure",
+            {
+              "origin": ["root",1],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
           ]
         ],
-        "deliveries": [],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "negative-renamed-child",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "complete-cuts-agree",
+      "root": "root",
       "steps": [
-        {
-          "op": "rename"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "renamed",
-            "b"
-          ]
-        }
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":[]},
+        {"op":"rebuild","keep":[["a"]]},
+        {"op":"send","path":["alias"]},
+        {"op":"rebuild","keep":[[""],["empty"]]},
+        {"op":"send","path":["",""]},
+        {"op":"rebuild","keep":[[]]},
+        {"op":"send","path":["a"]},
+        {"op":"rebuild","keep":[["a","b"]]},
+        {"op":"send","path":["a","b"]},
+        {"op":"structure","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "refused",
-          "admitted"
-        ],
-        "checks": [
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["root"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["branch"],1],
+          ["delivered",["leaf"],3],
           [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "renamed",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
+            "structure",
+            {
+              "origin": ["root",1],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
           ]
         ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "negative-extra-child",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "children-alone-lose-origin",
+      "root": "root",
       "steps": [
-        {
-          "op": "extra"
-        },
-        {
-          "op": "send",
-          "path": [
-            "extra"
-          ]
-        }
+        {"op":"send","path":[]},
+        {"op":"origin","path":[],"origin":null},
+        {"op":"send","path":[]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted"
-        ],
-        "checks": [
+        "trace": [
+          ["delivered",["root"],1],
+          ["refused"],
+          ["delivered",["leaf"],1],
           [
-            "outer",
-            [
-              "extra"
-            ]
+            "structure",
+            {
+              "origin": null,
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
           ]
         ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "fresh-origin-resets-parent-state",
+      "root": "root",
+      "steps": [
+        {"op":"send","path":[]},
+        {"op":"send","path":[]},
+        {"op":"origin","path":[],"origin":"fresh"},
+        {"op":"send","path":[]},
+        {"op":"structure","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["root"],1],
+          ["delivered",["root"],2],
+          ["delivered",["root"],1],
+          [
+            "structure",
+            {
+              "origin": ["root",2],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
       }
     },
     {
       "id": "equivalent-substitution",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "root": "root",
       "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "substitute"
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
+        {"op":"send","path":["a","b"]},
+        {"op":"substitute","path":["a"],"mode":"parts"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["a"]},
+        {"op":"structure","path":["a"]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "admitted"
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["leaf"],3],
+          ["delivered",["branch"],1],
+          ["structure",{"origin":["branch",1],"children":[["b",{"access":["leaf",1]}]]}]
         ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ],
-          [
-            "leaf",
-            3
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "forwarded-reconstruction",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "copied-subtree-breaks-sharing",
+      "root": "root",
       "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "rebuild",
-          "cut": "all"
-        },
-        {
-          "op": "send",
-          "path": [],
-          "selections": [
-            [
-              "a"
-            ],
-            [
-              "b"
-            ]
-          ]
-        }
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["a"]},
+        {"op":"substitute","path":["a"],"mode":"copy"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["a"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":["a"]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted"
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["branch"],1],
+          ["delivered",["leaf"],1],
+          ["delivered",["branch"],1],
+          ["delivered",["leaf"],2],
+          ["structure",{"origin":["branch",2],"children":[["b",{"access":["leaf",2]}]]}]
         ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
-      },
-      "relay": true
-    },
-    {
-      "id": "inner-refusal-consumes-outer",
-      "limits": {
-        "outer": 1,
-        "inner": 0
-      },
-      "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
-      ],
-      "expected": {
-        "outcomes": [
-          "refused",
-          "refused"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [],
-        "unchanged": true,
-        "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "invalid-path-before-policy",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "altered-children-detected",
+      "root": "root",
       "steps": [
-        {
-          "op": "invalidPath"
-        }
+        {"op":"send","path":["a","b"]},
+        {"op":"omit","path":[],"key":"a"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"rename","path":[],"key":"alias","to":"renamed"},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["renamed"]},
+        {"op":"add","path":[],"key":"extra","node":"extra"},
+        {"op":"send","path":["extra"]},
+        {"op":"send","path":[]},
+        {"op":"structure","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "refused"
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["refused"],
+          ["delivered",["leaf"],2],
+          ["refused"],
+          ["delivered",["leaf"],3],
+          ["delivered",["extra"],1],
+          ["delivered",["root"],1],
+          [
+            "structure",
+            {
+              "origin": ["root",1],
+              "children": [
+                ["",{"origin":["blank",1],"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["extra",{"access":["extra",1]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["renamed",{"access":["leaf",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ]
         ],
-        "checks": [],
-        "deliveries": [],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "conflicting-children",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
-      "steps": [],
+      "id": "invalid-path-never-reaches-origin",
+      "root": "root",
+      "steps": [{"op":"invalidPath"},{"op":"send","path":[]}],
       "expected": {
-        "construction": "refused"
-      },
-      "fault": "duplicate"
-    },
-    {
-      "id": "invalid-key-bytes",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
-      "steps": [],
-      "expected": {
-        "construction": "refused"
-      },
-      "fault": "invalidKey"
-    },
-    {
-      "id": "pending-across-rebuild",
-      "kind": "pending",
-      "limits": {
-        "outer": 1,
-        "inner": -1
-      },
-      "steps": [],
-      "expected": {
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "newCallRefused": true,
-        "lateReply": "old",
-        "cancelled": [
-          "old"
-        ],
-        "returnPreserved": true,
+        "trace": [["refused"],["delivered",["root"],1]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
         "borrowedUsable": true
       }
     },
     {
       "id": "selection-retains-original-binding",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "root": "root",
       "steps": [
-        {
-          "op": "captureView",
-          "selections": [
-            [
-              "a"
-            ],
-            [
-              "b"
-            ]
-          ]
-        },
-        {
-          "op": "rebind"
-        },
-        {
-          "op": "send",
-          "path": [],
-          "useView": true
-        },
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "send",
-          "path": [
-            "alias"
-          ]
-        }
+        {"op":"view","selections":[["a"],["b"]]},
+        {"op":"replace","path":["a","b"],"node":"replacement"},
+        {"op":"send","path":[],"via":"view"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":["a"]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted",
-          "admitted"
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["replacement"],1],
+          ["delivered",["leaf"],2],
+          ["structure",{"origin":["branch",1],"children":[["b",{"access":["replacement",1]}]]}]
         ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "alias"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "replacement",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ]
-        ],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "mounted-reconstruction-and-teardown",
+      "id": "forwarded-reconstruction",
+      "root": "root",
+      "relay": true,
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":[],"selections":[["a"],["b"]]},
+        {"op":"send","path":[]}
+      ],
+      "expected": {
+        "trace": [["delivered",["leaf"],1],["delivered",["leaf"],2],["delivered",["root"],1]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mounted-carrier-reconstruction",
+      "root": "root",
       "mount": true,
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
       "steps": [
-        {
-          "op": "send",
-          "path": [
-            "a",
-            "b"
-          ]
-        },
-        {
-          "op": "rebuild",
-          "cut": "all"
-        },
-        {
-          "op": "send",
-          "selections": [
-            [
-              "a"
-            ],
-            [
-              "b"
-            ]
-          ],
-          "path": []
-        }
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":[],"selections":[["a"],["b"]]},
+        {"op":"send","path":[]}
       ],
       "expected": {
-        "outcomes": [
-          "admitted",
-          "admitted"
-        ],
-        "checks": [
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ],
-          [
-            "outer",
-            [
-              "a",
-              "b"
-            ]
-          ],
-          [
-            "inner",
-            [
-              "b"
-            ]
-          ]
-        ],
-        "deliveries": [
-          [
-            "leaf",
-            1
-          ],
-          [
-            "leaf",
-            2
-          ]
-        ],
+        "trace": [["delivered",["leaf"],1],["delivered",["leaf"],2],["delivered",["root"],1]],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
     },
     {
-      "id": "controls-are-not-new-admission",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
+      "id": "pending-across-reconstruction",
+      "root": "root",
+      "kind": "pending",
+      "expected": {
+        "trace": [["delivered",["replacement"],1]],
+        "lateReply": "old",
+        "cancelled": ["old"],
+        "unchanged": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-routing",
+      "root": "mroot",
       "steps": [
-        {
-          "op": "control",
-          "kind": "cancel",
-          "path": [
-            "alias"
-          ]
-        },
-        {
-          "op": "control",
-          "kind": "response",
-          "path": [
-            "alias"
-          ]
-        }
+        {"op":"structure","path":[]},
+        {"op":"send","path":[]},
+        {"op":"send","path":["a"]},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":[""]},
+        {"op":"send","path":["",""]},
+        {"op":"send","path":["a/b"]},
+        {"op":"send","path":["\u00e9"]},
+        {"op":"send","path":["e\u0301"]},
+        {"op":"send","path":["empty"]},
+        {"op":"send","path":["missing"]},
+        {"op":"send","path":["alias","x"]},
+        {"op":"send","path":["a","b","x","y"]}
       ],
       "expected": {
-        "outcomes": [
-          "refused",
-          "refused"
+        "trace": [
+          [
+            "structure",
+            {
+              "origin": null,
+              "children": [
+                ["",{"origin":null,"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":null,"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ],
+          ["refused"],
+          ["refused"],
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["refused"],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["slash"],1],
+          ["delivered",["acute"],1],
+          ["delivered",["combining"],1],
+          ["refused"],
+          ["refused"],
+          ["delivered",["leaf","x"],3],
+          ["delivered",["leaf","x","y"],4]
         ],
-        "checks": [],
-        "deliveries": [],
+        "partsExact": true,
         "unchanged": true,
         "sendOnly": true,
-        "borrowedUsable": true,
-        "partsRetained": true
+        "borrowedUsable": true
       }
+    },
+    {
+      "id": "mount-nested-selection",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":[],"selections":[[],["a"],[],["b"]]},
+        {"op":"send","path":["b"],"selections":[["a"]]},
+        {"op":"send","path":[],"selections":[["a","b"]]},
+        {"op":"send","path":[""],"selections":[[""]]},
+        {"op":"send","path":["x","y"],"selections":[["alias"]]},
+        {"op":"send","path":[],"selections":[[]]},
+        {"op":"send","path":[],"selections":[["a"]]},
+        {"op":"send","path":[],"selections":[["missing"]]},
+        {"op":"send","path":[],"selections":[["empty"],[]]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["leaf"],3],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["leaf","x","y"],4],
+          ["refused"],
+          ["refused"],
+          ["refused"],
+          ["refused"]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-complete-cuts-agree",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":["alias"]},
+        {"op":"rebuild","keep":[["a"]]},
+        {"op":"send","path":["",""]},
+        {"op":"rebuild","keep":[[""],["empty"]]},
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[[]]},
+        {"op":"send","path":[]},
+        {"op":"structure","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["leaf"],3],
+          ["refused"],
+          [
+            "structure",
+            {
+              "origin": null,
+              "children": [
+                ["",{"origin":null,"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a",{"origin":null,"children":[["b",{"access":["leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["alias",{"access":["leaf",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-empty-branch-versus-missing",
+      "root": "mroot",
+      "steps": [
+        {"op":"structure","path":["empty"]},
+        {"op":"structure","path":["missing"]},
+        {"op":"send","path":["empty"]},
+        {"op":"send","path":["missing"]}
+      ],
+      "expected": {
+        "trace": [["structure",{"origin":null,"children":[]}],["structure","missing"],["refused"],["refused"]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-altered-children-detected",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"omit","path":[],"key":"a"},
+        {"op":"send","path":["a","b"]},
+        {"op":"rename","path":[],"key":"alias","to":"renamed"},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["renamed"]},
+        {"op":"add","path":[],"key":"extra","node":"extra"},
+        {"op":"send","path":["extra"]},
+        {"op":"send","path":["",""]},
+        {"op":"structure","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["refused"],
+          ["refused"],
+          ["delivered",["leaf"],2],
+          ["delivered",["extra"],1],
+          ["delivered",["blank-leaf"],1],
+          [
+            "structure",
+            {
+              "origin": null,
+              "children": [
+                ["",{"origin":null,"children":[["",{"access":["blank-leaf",1]}]]}],
+                ["a/b",{"access":["slash",1]}],
+                ["empty",{"origin":null,"children":[]}],
+                ["extra",{"access":["extra",1]}],
+                ["e\u0301",{"access":["combining",1]}],
+                ["renamed",{"access":["leaf",1]}],
+                ["\u00e9",{"access":["acute",1]}]
+              ]
+            }
+          ]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "conflicting-children",
+      "root": "mroot",
+      "fault": "duplicate",
+      "steps": [{"op":"send","path":["a"]}],
+      "expected": {"construction":"refused"}
+    },
+    {
+      "id": "invalid-key",
+      "root": "mroot",
+      "fault": "invalidKey",
+      "steps": [{"op":"invalidPath"}],
+      "expected": {"construction":"refused"}
+    },
+    {
+      "id": "missing-child-value",
+      "root": "mroot",
+      "fault": "missingChild",
+      "steps": [{"op":"send","path":["hole"]}],
+      "expected": {"construction":"refused"}
     },
     {
       "id": "cyclic-declaration",
+      "root": "mroot",
       "fault": "cycle",
-      "limits": {
-        "outer": -1,
-        "inner": -1
-      },
       "steps": [],
+      "expected": {"construction":"refused"}
+    },
+    {
+      "id": "mount-invalid-path",
+      "root": "mroot",
+      "steps": [{"op":"invalidPath"},{"op":"send","path":["alias"]}],
       "expected": {
-        "construction": "refused"
+        "trace": [["refused"],["delivered",["leaf"],1]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-shared-child-state",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]}
+      ],
+      "expected": {
+        "trace": [["delivered",["leaf"],1],["delivered",["leaf"],2],["delivered",["leaf"],3],["delivered",["leaf"],4]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-equivalent-substitution",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"substitute","path":["a"],"mode":"parts"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":["a"]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["leaf"],3],
+          ["structure",{"origin":null,"children":[["b",{"access":["leaf",1]}]]}]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-copied-subtree-breaks-sharing",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["alias"]},
+        {"op":"substitute","path":["a"],"mode":"copy"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":["a"]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["structure",{"origin":null,"children":[["b",{"access":["leaf",2]}]]}]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-forwarded-reconstruction",
+      "root": "mroot",
+      "relay": true,
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":[],"selections":[["a"],["b"]]},
+        {"op":"send","path":["",""]}
+      ],
+      "expected": {
+        "trace": [["delivered",["leaf"],1],["delivered",["leaf"],2],["delivered",["blank-leaf"],1]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-mounted-carrier",
+      "root": "mroot",
+      "mount": true,
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":[],"selections":[["a"],["b"]]},
+        {"op":"send","path":["",""]}
+      ],
+      "expected": {
+        "trace": [["delivered",["leaf"],1],["delivered",["leaf"],2],["delivered",["blank-leaf"],1]],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-selection-retains-original-binding",
+      "root": "mroot",
+      "steps": [
+        {"op":"view","selections":[["a"],["b"]]},
+        {"op":"replace","path":["a","b"],"node":"replacement"},
+        {"op":"send","path":[],"via":"view"},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":["a"]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["replacement"],1],
+          ["delivered",["leaf"],2],
+          ["structure",{"origin":null,"children":[["b",{"access":["replacement",1]}]]}]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-pending-across-reconstruction",
+      "root": "mroot",
+      "kind": "pending",
+      "expected": {
+        "trace": [["delivered",["replacement"],1]],
+        "lateReply": "old",
+        "cancelled": ["old"],
+        "unchanged": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "mount-teardown-keeps-borrowed",
+      "root": "mroot",
+      "steps": [
+        {"op":"send","path":["a","b"]},
+        {"op":"teardown"},
+        {"op":"direct","node":"leaf","path":[]},
+        {"op":"direct","node":"blankLeaf","path":[]},
+        {"op":"direct","node":"leaf","path":["x"]}
+      ],
+      "expected": {
+        "trace": [
+          ["delivered",["leaf"],1],
+          ["delivered",["leaf"],2],
+          ["delivered",["blank-leaf"],1],
+          ["delivered",["leaf","x"],3]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "guard-around-composite",
+      "root": "mroot",
+      "steps": [
+        {"op":"guard","id":"g","limit":2},
+        {"op":"send","path":["a","b"]},
+        {"op":"send","path":["b"],"selections":[["a"]]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["check","g",["a","b"]],
+          ["delivered",["leaf"],1],
+          ["check","g",["a","b"]],
+          ["delivered",["leaf"],2],
+          ["check","g",["alias"]],
+          ["refused"],
+          ["check","g",[]],
+          ["refused"]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "guard-state-survives-reconstruction",
+      "root": "mroot",
+      "steps": [
+        {"op":"guard","id":"g","limit":2},
+        {"op":"send","path":["a","b"]},
+        {"op":"rebuild","keep":[]},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["check","g",["a","b"]],
+          ["delivered",["leaf"],1],
+          ["check","g",["alias"]],
+          ["delivered",["leaf"],2],
+          ["check","g",["alias"]],
+          ["refused"],
+          [
+            "structure",
+            {
+              "guard": ["g",1],
+              "inner": {
+                "origin": null,
+                "children": [
+                  ["",{"origin":null,"children":[["",{"access":["blank-leaf",1]}]]}],
+                  ["a",{"origin":null,"children":[["b",{"access":["leaf",1]}]]}],
+                  ["a/b",{"access":["slash",1]}],
+                  ["alias",{"access":["leaf",1]}],
+                  ["empty",{"origin":null,"children":[]}],
+                  ["e\u0301",{"access":["combining",1]}],
+                  ["\u00e9",{"access":["acute",1]}]
+                ]
+              }
+            }
+          ]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "fresh-guard-resets-state",
+      "root": "mroot",
+      "steps": [
+        {"op":"guard","id":"g","limit":1},
+        {"op":"send","path":["alias"]},
+        {"op":"freshGuard"},
+        {"op":"send","path":["alias"]},
+        {"op":"structure","path":[]}
+      ],
+      "expected": {
+        "trace": [
+          ["check","g",["alias"]],
+          ["delivered",["leaf"],1],
+          ["check","g",["alias"]],
+          ["delivered",["leaf"],2],
+          [
+            "structure",
+            {
+              "guard": ["g",2],
+              "inner": {
+                "origin": null,
+                "children": [
+                  ["",{"origin":null,"children":[["",{"access":["blank-leaf",1]}]]}],
+                  ["a",{"origin":null,"children":[["b",{"access":["leaf",1]}]]}],
+                  ["a/b",{"access":["slash",1]}],
+                  ["alias",{"access":["leaf",1]}],
+                  ["empty",{"origin":null,"children":[]}],
+                  ["e\u0301",{"access":["combining",1]}],
+                  ["\u00e9",{"access":["acute",1]}]
+                ]
+              }
+            }
+          ]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "guarded-child-complete-access",
+      "root": "mroot",
+      "steps": [
+        {"op":"guardChild","path":[],"key":"alias","id":"h","limit":-1},
+        {"op":"send","path":["alias"]},
+        {"op":"send","path":["alias","x"]},
+        {"op":"send","path":[],"selections":[["alias"]]},
+        {"op":"send","path":["a","b"]},
+        {"op":"structure","path":["alias"]}
+      ],
+      "expected": {
+        "trace": [
+          ["check","h",[]],
+          ["delivered",["leaf"],1],
+          ["check","h",["x"]],
+          ["delivered",["leaf","x"],2],
+          ["check","h",[]],
+          ["delivered",["leaf"],3],
+          ["delivered",["leaf"],4],
+          ["structure",{"guard":["h",1],"inner":{"access":["leaf",1]}}]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
+      }
+    },
+    {
+      "id": "rebuilding-from-guarded-views-repeats-checks",
+      "root": "mroot",
+      "steps": [
+        {"op":"guard","id":"g","limit":-1},
+        {"op":"send","path":["alias"]},
+        {"op":"rebuildFromViews"},
+        {"op":"send","path":["alias"]}
+      ],
+      "expected": {
+        "trace": [
+          ["check","g",["alias"]],
+          ["delivered",["leaf"],1],
+          ["check","g",["alias"]],
+          ["check","g",["alias"]],
+          ["delivered",["leaf"],2]
+        ],
+        "partsExact": true,
+        "unchanged": true,
+        "sendOnly": true,
+        "borrowedUsable": true
       }
     }
   ]

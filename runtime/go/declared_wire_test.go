@@ -13,9 +13,20 @@ import (
 	ws "github.com/Bitspark/nightseam/runtime/go"
 )
 
-// A caller cancels through the access it called through. Declared access routes
-// that cancel to the destination which admitted the call, even after the tree is
-// rebuilt and rebound, without another admission check.
+// A caller cancels through the same captured access and path. Plain composition
+// delegates it unchanged; the destination profile owns the admitted invocation.
+type declaredCancellationGuard struct {
+	inner  bitwire.Wire
+	checks *atomic.Int32
+}
+
+func (g *declaredCancellationGuard) Send(path []string, message bitwire.Message) error {
+	if message.Frame.Kind == bitwire.ProfileRequest || message.Frame.Kind == bitwire.ProfileEvent {
+		g.checks.Add(1)
+	}
+	return g.inner.Send(path, message)
+}
+
 func TestDeclaredAccessCarriesItsCallersCancellation(t *testing.T) {
 	carriers := map[string]func(t *testing.T) (bitwire.Endpoint, bitwire.Endpoint){
 		"local pair": func(t *testing.T) (bitwire.Endpoint, bitwire.Endpoint) {
@@ -48,24 +59,28 @@ func TestDeclaredAccessCarriesItsCallersCancellation(t *testing.T) {
 				}
 			}
 			var checks atomic.Int32
-			quota := duplex.AdmissionFunc(func([]string, bitwire.Message) error { checks.Add(1); return nil })
-			node := func(own bitwire.Wire, policy duplex.AdmissionPolicy, children ...duplex.DeclaredChild) duplex.Declared {
-				declared, err := duplex.ComposeDeclared(duplex.DeclaredValue{Own: own, Policy: policy}, children)
+			node := func(origin bitwire.Wire, children ...duplex.DeclaredChild) duplex.Declared {
+				declared, err := duplex.ComposeDeclared(origin, children)
 				if err != nil {
 					t.Fatal(err)
 				}
 				return declared
 			}
 			tree := func(operation string) duplex.Declared {
-				return node(duplex.RefusingOrigin{}, quota, duplex.DeclaredChild{Key: "svc", Node: node(duplex.RefusingOrigin{}, duplex.PermitAdmission{},
-					duplex.DeclaredChild{Key: "run", Node: node(duplex.At(caller, []string{"svc", operation}), duplex.PermitAdmission{})})})
+				branch := node(duplex.RefusingOrigin{}, duplex.DeclaredChild{Key: "run", Wire: duplex.At(caller, []string{"svc", operation})})
+				// A consumer guard is complete child access; it owns its checks and
+				// passes controls through to the runtime's captured invocation.
+				guard := &declaredCancellationGuard{inner: branch.Bind(), checks: &checks}
+				return node(duplex.RefusingOrigin{}, duplex.DeclaredChild{Key: "svc", Wire: guard})
 			}
 			root := tree("held")
+			origin, children := root.Decompose()
+			rebuilt := node(origin, children...)
 			for _, access := range []struct {
 				name string
 				wire bitwire.Wire
 				path []string
-			}{{"bound", root.Bind(), []string{"svc", "run"}}, {"selected", duplex.At(root.Bind(), []string{"svc"}), []string{"run"}}} {
+			}{{"bound", root.Bind(), []string{"svc", "run"}}, {"selected", duplex.At(root.Bind(), []string{"svc"}), []string{"run"}}, {"reconstructed", rebuilt.Bind(), []string{"svc", "run"}}} {
 				ctx, cancel := context.WithCancel(context.Background())
 				result := make(chan error, 1)
 				go func() { result <- ws.CallWire(ctx, access.wire, access.path, nil, nil) }()
@@ -74,8 +89,8 @@ func TestDeclaredAccessCarriesItsCallersCancellation(t *testing.T) {
 				}
 				before := checks.Load()
 				// Rebuild from the parts and rebind the route to another handler.
-				value, children := root.Decompose()
-				if _, err := duplex.ComposeDeclared(value, children); err != nil {
+				origin, children := root.Decompose()
+				if _, err := duplex.ComposeDeclared(origin, children); err != nil {
 					t.Fatal(err)
 				}
 				root = tree("replacement")

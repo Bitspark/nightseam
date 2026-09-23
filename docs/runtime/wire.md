@@ -24,8 +24,8 @@ and an atomic replay-to-live handoff, with a bounded writer per subscriber.
 | take a receiving view of that owner | `Dispatcher.Select(path)` | `dispatcher.select(path)` |
 | select an origin, send only | `duplex.At(wire, path)` | `at(wire, path)` |
 | mount children by one segment | `duplex.Mount(map[string]bitwire.Endpoint)` | `mount(ReadonlyMap<string, Endpoint>)` |
-| construct a declaration with own behavior and child policy | `duplex.ComposeDeclared(value, children)` | `Declared.compose(value, children)` |
-| retain complete raw construction parts | `declared.Decompose()` | `declared.decompose()` |
+| compose an origin and complete child access | `duplex.ComposeDeclared(origin, children)` | `Declared.compose(origin, children)` |
+| retain the origin and complete child access | `declared.Decompose()` | `declared.decompose()` |
 | bind declared send access | `declared.Bind()` | `declared.bind()` |
 | create a bounded local pair | `runtime.NewWirePair(options)` | `wirePair(options)` |
 | use an existing peer | `peer.Wire()` | `peer.wire()` |
@@ -94,72 +94,68 @@ they belong to one reusable dispatcher composed above it.
 ## Declared composition
 
 Go and TypeScript implement Bitwire's
-[declared admission composition](https://github.com/Bitspark/bitwire/blob/671b61d4513c0ba31e8d2f1c813a0552ab0f816a/docs/decisions/0005-declared-composition-and-subtree-policy.md).
-Each immutable declaration retains an own origin, a policy and its complete
-named children. The own origin handles only the empty relative path; missing
-children refuse instead of falling back to it. `RefusingOrigin{}` /
-`refusingOrigin` supplies an explicit grouping origin, and `PermitAdmission{}` /
-`permitAdmission` is an explicit identity policy.
+[declared composites](https://github.com/Bitspark/bitwire/blob/fdc2ae99bbd4dcf1f887c5e32bbda2e315c890a1/docs/decisions/0006-declared-composites-realize-deixis-nodes.md).
+Each immutable description retains an origin and complete named child access.
+The origin is a Wire used only at the empty relative path. A nonempty path
+selects one child by its first segment and delegates the remaining path to it.
+Missing children refuse; the origin is never a fallback. `RefusingOrigin{}` /
+`refusingOrigin` supplies an explicit grouping origin.
 
 ```ts
-const child = Declared.compose({ own: childOrigin, policy: permitAdmission }, []);
-const root = Declared.compose({ own: rootOrigin, policy: sharedAdmission }, [['child', child]]);
-const selected = at(root.bind(), ['child']); // retains sharedAdmission
-const { value, children } = root.decompose();
-const rebuilt = Declared.compose(value, children); // same origins and policy state
-const extended = rebuilt.attach(['child'], 'next', anotherDeclaration);
+const child = Declared.compose(childOrigin, [['remote', remoteWire]]);
+const root = Declared.compose(rootOrigin, [['child', child.bind()]]);
+const selected = at(root.bind(), ['child']); // behaves like the complete child
+const { origin, children } = root.decompose();
+const rebuilt = Declared.compose(origin, children); // same capabilities and state
+const extended = Declared.compose(origin, [...children, ['next', anotherWire]]);
 ```
 
-Go uses `DeclaredValue{Own: origin, Policy: admission}` and a slice of
-`DeclaredChild{Key: name, Node: child}`. Both constructors copy the child
-containers and refuse duplicate keys, invalid scalar strings and missing
-required parts. `Attach(parent, key, child)` / `attach(parent, key, child)`
-requires an existing parent and an unused key, and retains every old own value
-and untouched subtree. It constructs a new tree; previous bound views and
-admitted invocations keep their old targets. Empty keys and childless nodes
+Go accepts an origin `bitwire.Wire` and a slice of
+`DeclaredChild{Key: name, Wire: childAccess}`. TypeScript uses
+`DeclaredChild = readonly [string, Wire]`; its `DeclaredParts` contains
+`origin` and `children`. Both constructors copy their input containers and
+refuse duplicate keys, invalid scalar strings and missing capabilities,
+including typed nils in Go. Decomposition returns copied containers in exact
+UTF-8 key order. Empty keys, childless nodes and distinct Unicode spellings
 remain meaningful.
 
-Go declarations are value handles to private immutable records. Replacing an
-assembler's handle cannot retarget a previously composed child or bound view.
+A child can be any Wire: an endpoint, selected view, forwarder, guard or
+another bound composite. Decomposition retains its complete access and
+identity; it neither discovers nor unwraps an opaque child's structure.
+Assemblers keep child descriptions separately when they need to rebuild
+deeper parts. They reconstruct each affected ancestor from its original
+origin and revised child entries. Previous bound views keep their original
+structure, and shared capabilities retain their state.
 
-`AdmissionPolicy.Admit` / `admit` runs once for each occurrence from root to
-destination, before child lookup or own dispatch. It sees the remaining path
-and original message and permits or refuses one unchanged delegation. Checks
-must be synchronous, bounded and nonblocking; messages must not be mutated.
-Mutable Go policies synchronize their own shared state. There is no implicit
-rollback if a later policy or destination refuses: a quota counts attempts,
-not successfully completed effects. Application handlers still run through the
-destination endpoint's asynchronous dispatch. Installing the same policy at
-two depths intentionally performs two checks.
+Descriptions belong to the assembler. Callers receive only `Bind` / `bind`
+and ordinary `At` / `at` selection. The facade exposes send only, with no
+parts, receive attachment, close or unwrapping operation. Construction and
+reconstruction borrow capabilities and acquire no endpoint ownership.
 
-Construction descriptions belong to the assembler. `Decompose` returns raw
-children and original capability/policy instances; `Declared.At` / `at`
-resolves those raw descriptions. A caller who should retain guards receives
-only `Bind` / `bind` followed by ordinary Wire selection. Reconstructing from
-selected views would repeat their ancestor checks; revealing raw descriptions
-through selected access would bypass those checks. Bound facades expose only
-Send, with no parts, receiver, closure or unwrapping operation. They borrow
-all capabilities and never close them.
+Policy is optional interception around ordinary access, outside the node's
+value. A consumer can wrap an entire bound composite or an individual child
+in a guard. Retaining that wrapper whole preserves its policy state. A
+selected view through a guarded root includes that guard, so using such views
+as children of another guarded root may repeat it. Use the assembler's
+retained parts for exact reconstruction. A guard must respect the profile's
+invocation lifecycle, including controls owed to an admitted request.
 
-This entry admits requests and events only. A reply goes to the request's own
-return capability, and a callee's controls go through the captured invocation's
-public facilities. A requester cancels as the profile says, by presenting the
-cancel where it sent the request. So a cancel at bound access is not a new
-admission: it goes once to the origin that admitted the request it names by
-return capability and identifier, with no check and no lookup. That route
-lives no longer than the capability, and a rebuild or rebind cannot retarget
-it. This is the generic control entry that Bitwire ADR0005 binds to the
-captured invocation. Any other cancel, and every response, is refused. Reconstruction
-or an exhausted quota therefore neither suppresses nor re-admits a reply or a
-cancellation already owed. Retries, rewriting,
-fanout, completion permits and transport fault transparency require their own
-contracts. The [independent acceptance suite](../../conformance/declared/README.md)
-records actual production coverage and remaining limits.
+Plain composition delegates requests, events, responses and cancels unchanged;
+the destination and profile decide whether a message is valid. It retains the
+original return capability and runtime associations and allocates no request
+ledger. A caller cancels through the same captured access and path as its
+request. Immutable composition delivers that cancel to the same child, and
+the runtime's invocation machinery reaches the admitted destination. Replies
+use the request's original return capability. Application dispatch remains
+asynchronous at the destination endpoint. The
+[independent acceptance suite](../../conformance/declared/README.md) records
+production coverage and its limits.
 
-The structural interpretation implements Bitwire ADR0005 without an additional
-package dependency or a tree codec. Production API adoption is currently Go and
-TypeScript; other language implementations remain pending. Existing pure mounts
-and the native Bitwire interface are unchanged.
+This replaces the unreleased ADR0005 policy-bearing value, raw deep lookup
+and attachment helpers. There is no compatibility wrapper or additional tree
+codec. Adoption is currently Go and TypeScript; other language implementations
+remain [pending](https://github.com/Bitspark/nightseam/issues/702). Existing
+endpoint mounts and the native Bitwire interface are unchanged.
 
 ## The dispatcher
 

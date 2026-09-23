@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 
 export function declaredInputs(fixture) {
-  assert.equal(fixture.schemaVersion, 1);
-  assert.ok(Array.isArray(fixture.nodes));
+  assert.equal(fixture.schemaVersion, 2);
+  assert.ok(Array.isArray(fixture.declarations));
   assert.ok(Array.isArray(fixture.cases) && fixture.cases.length > 0);
   const ids = new Set();
   const cases = fixture.cases.map(({ expected, ...input }) => {
@@ -12,7 +12,7 @@ export function declaredInputs(fixture) {
     ids.add(input.id);
     return input;
   });
-  return structuredClone({ nodes: fixture.nodes, cases });
+  return structuredClone({ declarations: fixture.declarations, cases });
 }
 
 export function compareDeclared(fixture, rows) {
