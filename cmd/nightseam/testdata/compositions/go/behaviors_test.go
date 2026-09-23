@@ -390,6 +390,9 @@ func TestWrongContractOwnAndForeignReferences(t *testing.T) {
 	first, second := dialWorkers(t, ctx, workers), dialWorkers(t, ctx, workers)
 
 	one, two := newRecorder(), newRecorder()
+	// Completion on the second connection must not stand in for the first.
+	one.hold()
+	t.Cleanup(one.resume)
 	referenceOne, err := first.scope.exportSink(ctx, one)
 	if err != nil {
 		t.Fatal(err)
@@ -441,6 +444,11 @@ func TestWrongContractOwnAndForeignReferences(t *testing.T) {
 	}
 	eventually(t, "the replayed number reached the second caller's own sink", func() bool {
 		_, _, ended, _ := two.snapshot()
+		return ended == "done"
+	})
+	one.resume()
+	eventually(t, "the first caller's own sink is done", func() bool {
+		_, _, ended, _ := one.snapshot()
 		return ended == "done"
 	})
 	if taken, _, _, _ := two.snapshot(); taken != 2 {
