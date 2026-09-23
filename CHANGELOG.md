@@ -27,6 +27,11 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- Go and TypeScript declared Wire composition retains own-origin behavior,
+  shared admission policy and complete raw child descriptions. Construction,
+  reconstruction, selected access and fresh-child attachment are exercised by
+  native tests and Bitwire's independent cases on local pairs and WebSockets.
+
 - A theory reference for compositional contracts and their representations,
   with a TypeScript metalanguage, checked navigation and substitution laws,
   a Nightseam interpretation, and a reproducible self-contained visual guide
