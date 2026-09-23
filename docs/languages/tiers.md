@@ -126,7 +126,14 @@ features a scenario needs, the tiers by what each requires, the lag it
 allows and what a red cell does, and each language's tier. The
 runner reads it on every run and reports a **matrix**: one row per language,
 one column per profile, each cell passed / skipped / failed with the count,
-and the language's tier beside it. The gate is a star: every language
+and the language's tier beside it. Beside it the runner records which
+scenarios each cell counts: one outcome per scenario file per language, the
+rows a table expands and both orientations collapsed into it, a failure
+with the run, pairing and step it happened at, a skip with its reason, and
+the commit and CI run the record came from. It is written as
+`conformance/results.json` only when the run held the whole suite, it gates
+nothing, and CI keeps it as the run's artifact rather than a lane committing
+it. The gate is a star: every language
 against the Go reference on both sides, which is what CI runs; the full
 matrix of every language against every other runs nightly, and a failure
 there — two non-reference languages disagreeing on something the reference

@@ -15,6 +15,7 @@ import (
 var (
 	matrixOnce      sync.Once
 	matrix          *Matrix
+	results         *Results
 	matrixProfiles  *Profiles
 	matrixRoot      string
 	matrixLanguages []string
@@ -30,11 +31,12 @@ func RemoveOut() {
 }
 
 // WriteMatrix writes the matrix of everything the run held, as
-// conformance/matrix.json, and says it on stderr — when the run was the
-// whole suite: every profile held for every language with a testee. A run
-// of some tests, or some scenarios, says its matrix and writes nothing, so
-// the file on disk is never a part of a run read as the whole. TestMain
-// calls it once the tests are done.
+// conformance/matrix.json, and its per-scenario record, as
+// conformance/results.json, and says the matrix on stderr — when the run
+// was the whole suite: every profile held for every language with a
+// testee. A run of some tests, or some scenarios, says its matrix and
+// writes neither, so no file on disk is ever a part of a run read as the
+// whole. TestMain calls it once the tests are done.
 func WriteMatrix() error {
 	if matrix == nil {
 		return nil
@@ -45,11 +47,33 @@ func WriteMatrix() error {
 			return err
 		}
 	}
-	if missing := matrix.Missing(matrixLanguages); len(missing) > 0 {
-		fmt.Fprintf(os.Stderr, "not written to matrix.json: the run did not hold %s\n", strings.Join(missing, ", "))
-		return nil
+	written, err := writeRun(matrix, results, matrixProfiles, matrixLanguages, matrixRoot, runProvenance(filepath.Dir(matrixRoot)))
+	if err != nil {
+		return err
 	}
-	return matrix.Write(matrixProfiles, filepath.Join(matrixRoot, "matrix.json"))
+	if !written {
+		fmt.Fprintf(os.Stderr, "not written to matrix.json or results.json: the run did not hold %s\n", strings.Join(matrix.Missing(matrixLanguages), ", "))
+	}
+	return nil
+}
+
+// writeRun writes a whole run's matrix and record into dir, and nothing
+// when the run left a language's profile unheld. The provenance is taken
+// before either file is written, so that writing the matrix into the tree
+// cannot make the record say the tree was dirty.
+func writeRun(m *Matrix, r *Results, p *Profiles, languages []string, dir string, run Provenance) (bool, error) {
+	if len(m.Missing(languages)) > 0 {
+		return false, nil
+	}
+	if err := m.Write(p, filepath.Join(dir, "matrix.json")); err != nil {
+		return false, err
+	}
+	if r != nil {
+		if err := r.Write(run, filepath.Join(dir, "results.json")); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // Suite is one run of the scenarios: the recipes that take part, built
@@ -63,6 +87,9 @@ type Suite struct {
 	// Placed is each scenario's profile, by layer/name.
 	Placed map[string]string
 	Matrix *Matrix
+	// Results is the per-scenario record beside the matrix; a suite a test
+	// builds by hand may leave it nil, and nothing is recorded.
+	Results *Results
 	// Observe, when set, is told every outcome as it happens, beside the
 	// matrix: what a test that asks more of a run than its counts reads.
 	Observe func(sc Scenario, a, b string, o Outcome)
@@ -126,12 +153,13 @@ func Open(t *testing.T) *Suite {
 	// writes it once they are done.
 	matrixOnce.Do(func() {
 		matrix = NewMatrix(profiles)
+		results = NewResults()
 		matrixProfiles = profiles
 		matrixRoot = root
 		matrixLanguages = languagesOf(recipes)
 		matrixOut = out
 	})
-	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: matrix, places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
+	s := &Suite{Root: root, Checkout: filepath.Dir(root), Recipes: recipes, Scenarios: scenarios, Profiles: profiles, Placed: placed, Matrix: matrix, Results: results, places: Places{Checkout: filepath.Dir(root), Out: out}, rendered: map[string]string{}}
 	t.Cleanup(func() {
 		if blocking := s.Matrix.Blocking(s.Profiles); len(blocking) > 0 {
 			t.Errorf("the tier table stops a release on: %v", blocking)
@@ -304,6 +332,9 @@ func (s *Suite) reportOutcome(t scenarioReporter, sc Scenario, a, b, held string
 		held = outcome.SkippedBy
 	}
 	s.Matrix.Record(held, s.Placed[sc.Key()], outcome)
+	if s.Results != nil {
+		s.Results.Record(held, s.Placed[sc.Key()], sc, a, b, outcome)
+	}
 	if s.Observe != nil {
 		s.Observe(sc, a, b, outcome)
 	}

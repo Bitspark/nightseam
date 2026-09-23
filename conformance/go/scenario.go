@@ -26,7 +26,11 @@ import (
 // Scenario is one scenario as the runner runs it: a foreach has been
 // expanded into one Scenario per row, the row bound under its name.
 type Scenario struct {
-	Name        string
+	Name string
+	// Title is the scenario's own name, as its file gives it, before a
+	// foreach's row or a mirror is added to Name: what a record of the file
+	// calls it.
+	Title       string
 	Layer       string
 	Replaces    string
 	Description string
@@ -225,7 +229,7 @@ func parse(root, file string, data []byte, schema *jsonschema.Schema) ([]Scenari
 		}
 		steps = append(steps, step)
 	}
-	base := Scenario{Name: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Mirror: sf.Mirror, Steps: steps, File: file}
+	base := Scenario{Name: sf.Name, Title: sf.Name, Layer: sf.Layer, Replaces: sf.Replaces, Description: sf.Description, Needs: sf.Needs, Mirror: sf.Mirror, Steps: steps, File: file}
 	if sf.Foreach == nil {
 		if err := holdDeclared(base.Needs, []Scenario{base}); err != nil {
 			return nil, err

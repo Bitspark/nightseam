@@ -230,7 +230,10 @@ jobs:
         if: always()
         with:
           name: conformance-matrix
-          path: conformance/matrix.json
+          # The matrix and, beside it, the per-scenario record the run wrote.
+          path: |
+            conformance/matrix.json
+            conformance/results.json
       # The script tests, every link in every tracked Markdown page — a
       # file, a directory, a heading, the repository's own absolute URLs the
       # package READMEs use so as to render on npm — and every documented

@@ -10,6 +10,9 @@ dist/
 */rs/NOTICE
 release-notes.md
 conformance/.out/
+# The per-scenario record a whole conformance run writes: a run artifact CI
+# keeps, never committed by a lane.
+conformance/results.json
 conformance/*/.generated/
 secrets/
 .worktrees/

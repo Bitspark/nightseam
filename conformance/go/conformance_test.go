@@ -58,6 +58,10 @@ func TestDialOnly(t *testing.T) {
 	releaseMatrix := s.Matrix
 	s.Matrix = NewMatrix(s.Profiles)
 	t.Cleanup(func() { s.Matrix = releaseMatrix })
+	// Its per-scenario outcomes are kept out of the run's record the same
+	// way: a record read beside the release matrix must not carry a testee
+	// that pretended not to listen.
+	s.Results = NewResults()
 	// The one skip allowed is a scenario that is about listening — one whose
 	// file declares listen, a WebSocket handshake say — with the dial-only
 	// testee on the side that listens; every other skip is the runner

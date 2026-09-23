@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightseam:conformance:results:1",
+  "title": "The per-scenario record of one conformance run: for each language, one outcome per scenario file, with the run it came from. The runner writes it beside matrix.json when the run held the whole suite; it is a run artifact and is not committed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run", "languages"],
+  "properties": {
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "date"],
+      "properties": {
+        "commit": {"type": "string", "minLength": 1, "description": "The commit the run held, as git names HEAD, or \"unknown\" where git could not say."},
+        "dirty": {"type": "boolean", "description": "True where a tracked file differed from the commit when the run was written; untracked files and the matrix a run writes are not counted."},
+        "url": {"type": "string", "description": "The CI run, where the environment named one."},
+        "date": {"type": "string", "format": "date-time"}
+      }
+    },
+    "languages": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9]*$"},
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {"pattern": "^scenarios/[a-z]+/[^/]+\\.json$"},
+        "additionalProperties": {"$ref": "#/$defs/entry"},
+        "description": "One entry per scenario file, keyed by its path under conformance/."
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "profile", "outcome", "passed", "skipped", "failed"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "description": "The scenario's name as its file gives it."},
+        "profile": {"type": "string", "minLength": 1, "description": "The profile the placement rule gave it."},
+        "outcome": {"enum": ["passed", "skipped", "failed"], "description": "failed when any run failed, else skipped when any run was skipped, else passed."},
+        "passed": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "skips": {"type": "array", "uniqueItems": true, "items": {"type": "string"}, "description": "Every distinct reason a run was skipped, as the runner gave it."},
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["run", "pair", "step", "op", "on", "reason"],
+            "properties": {
+              "run": {"type": "string", "description": "The run's name: the scenario's, with the row a foreach bound and a mirror marked."},
+              "pair": {"type": "string", "description": "The pairing it ran in, as a-with-b."},
+              "step": {"type": "integer", "minimum": 0},
+              "op": {"type": "string"},
+              "on": {"type": "string"},
+              "reason": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
