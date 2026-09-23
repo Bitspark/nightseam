@@ -157,7 +157,7 @@ func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 			return nil, ctx.Err()
 		}
 		state.mu.Lock()
-		value, revision := state.value, state.puts
+		value, revision, meta := state.value, state.puts, state.meta
 		state.mu.Unlock()
 		observed, err := values.observe(ctx, value)
 		if err != nil {
@@ -167,7 +167,13 @@ func wireSlotServer[T any](peer *runtime.Peer, h *wireCarrierHandle, values wire
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"revision": revision, "value": observed, "noted": note}, nil
+		result := map[string]any{"revision": revision, "value": observed, "noted": note}
+		// Only a round_trip that carried metadata reports it, so answers that
+		// predate it keep their exact shape.
+		if len(meta) > 0 {
+			result["meta"] = meta
+		}
+		return result, nil
 	}
 	wire, err := cellbinding.ToWire(func(remote cell.Client[T]) (cell.Server[T], error) {
 		state.remote = remote

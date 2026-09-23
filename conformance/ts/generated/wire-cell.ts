@@ -15,7 +15,7 @@ import { recordExercise, recordLocal, recordRead } from './record.ts';
 type Args = Record<string, unknown>;
 type Allocations = { peers: number; channels: number };
 type Counts = { exports: number; imports: number };
-interface Slot<T> {
+export interface Slot<T> {
   adapter: ValueAdapter<T>;
   retain?: boolean;
   make(add: number): T;
@@ -51,7 +51,7 @@ const nestedSlot: Slot<Nested> = {
   },
 };
 /** Slot selection belongs to fixture assembly, outside the generic model. */
-function withSlot<R>(name: unknown, run: <T>(slot: Slot<T>) => R): R {
+export function withSlot<R>(name: unknown, run: <T>(slot: Slot<T>) => R): R {
   switch (name ?? 'string') {
     case 'string': return run(stringSlot);
     case 'unary': return run(unarySlot);
@@ -65,8 +65,8 @@ function withSlot<R>(name: unknown, run: <T>(slot: Slot<T>) => R): R {
     default: throw new Error('unknown cell slot ' + String(name));
   }
 }
-const counts = (scope?: LiveScope): Counts => scope?.counts() ?? { exports: 0, imports: 0 };
-async function zero(scope: LiveScope | undefined, within: number): Promise<Counts> {
+export const counts = (scope?: LiveScope): Counts => scope?.counts() ?? { exports: 0, imports: 0 };
+export async function zero(scope: LiveScope | undefined, within: number): Promise<Counts> {
   const deadline = Date.now() + within;
   for (;;) {
     const value = counts(scope);
@@ -75,7 +75,7 @@ async function zero(scope: LiveScope | undefined, within: number): Promise<Count
     await new Promise(resolve => setTimeout(resolve, 1));
   }
 }
-interface CellState<T> {
+export interface CellState<T> {
   value: T;
   revision: number;
   factories: number;
@@ -84,13 +84,14 @@ interface CellState<T> {
   noted: Inbox<T>;
   changed: Inbox<T>;
   lastNoted?: T;
+  meta?: Readonly<Record<string, string>>;
 }
-function state<T>(value: T): CellState<T> {
+export function state<T>(value: T): CellState<T> {
   return { value, revision: 0, factories: 0, mirrors: 0, changes: 0, noted: new Inbox<T>(), changed: new Inbox<T>() };
 }
 
 /** State and effects belong to the model, which knows neither carrier nor T. */
-function model<T>(state: CellState<T>): cell.ServerModel<T> {
+export function model<T>(state: CellState<T>): cell.ServerModel<T> {
   return remote => {
     state.factories++;
     return {
@@ -98,6 +99,7 @@ function model<T>(state: CellState<T>): cell.ServerModel<T> {
         put(params) { state.value = params.value; return ++state.revision; },
         get() { return state.value; },
         async roundTrip(params, context) {
+          state.meta = context?.meta ?? {};
           const result = await remote.methods.mirror(params, context);
           await remote.events.changed({ value: result }, context);
           return result;
@@ -339,7 +341,10 @@ class WireEndpoint<T> {
     if (this.state.factories !== 1) throw new Error('wire duplicated model construction');
     const value = await this.slot.observe(this.state.value), observedNoted = await this.slot.observe(noted);
     this.checkLiveCounts();
-    return { revision: this.state.revision, value, noted: observedNoted, ...this.allocationsReport(), counts: this.counts() };
+    // Only a round_trip that carried metadata reports it, so answers that
+    // predate it keep their exact shape.
+    const meta = this.state.meta && Object.keys(this.state.meta).length ? { meta: this.state.meta } : {};
+    return { revision: this.state.revision, value, noted: observedNoted, ...meta, ...this.allocationsReport(), counts: this.counts() };
   }
   private checkLiveCounts(): void {
     const value = this.counts();

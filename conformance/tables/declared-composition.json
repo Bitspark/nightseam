@@ -1,0 +1,1301 @@
+{
+  "description": "A generated Cell model behind declared composition: root, then svc, then the model's complete generated operation domain, with a counting consumer guard around the root's access and around svc. Each row names one access (the model node itself, svc selected below the root, the same after a complete rebuild, or through a local forwarding relay), one value slot and one carrier (the model's own local pair, a WebSocket, or a prepared tunnel channel). Expected checks count one per request or event at each guard it crosses; a guard passes cancels and replies through.",
+  "rows": [
+    {
+      "name": "pair-direct-string",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "direct",
+      "slot": "string",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        },
+        "noted": "first",
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "direct"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-direct-unary",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "direct",
+      "slot": "unary",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        },
+        "noted": 6,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "direct"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-direct-factory",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "direct",
+      "slot": "factory",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        },
+        "noted": 9,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "direct"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-selected-string",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "selected",
+      "slot": "string",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": "first",
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "selected"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-selected-unary",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "selected",
+      "slot": "unary",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 6,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "selected"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-selected-factory",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "selected",
+      "slot": "factory",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 9,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "selected"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-reconstructed-string",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "reconstructed",
+      "slot": "string",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": "first",
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "reconstructed"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-reconstructed-unary",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "reconstructed",
+      "slot": "unary",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 6,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "reconstructed"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-reconstructed-factory",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "reconstructed",
+      "slot": "factory",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 9,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "reconstructed"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-forwarded-string",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "forwarded",
+      "slot": "string",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": "first",
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "forwarded"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-forwarded-unary",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "forwarded",
+      "slot": "unary",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 6,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "forwarded"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "pair-forwarded-factory",
+      "mode": "local",
+      "carrier": "pair",
+      "access": "forwarded",
+      "slot": "factory",
+      "local": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        },
+        "noted": 9,
+        "server": {
+          "revision": 2,
+          "meta": {
+            "access": "forwarded"
+          }
+        },
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-direct-string",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "direct",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-direct-unary",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "direct",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-direct-factory",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "direct",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-selected-string",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "selected",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-selected-unary",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "selected",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-selected-factory",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "selected",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-reconstructed-string",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "reconstructed",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-reconstructed-unary",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "reconstructed",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-reconstructed-factory",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "reconstructed",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-forwarded-string",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "forwarded",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-forwarded-unary",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "forwarded",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "socket-forwarded-factory",
+      "mode": "carrier",
+      "carrier": "socket",
+      "access": "forwarded",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-direct-string",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "direct",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-direct-unary",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "direct",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-direct-factory",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "direct",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 1,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-selected-string",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "selected",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-selected-unary",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "selected",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-selected-factory",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "selected",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-reconstructed-string",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "reconstructed",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-reconstructed-unary",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "reconstructed",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-reconstructed-factory",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "reconstructed",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-forwarded-string",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "forwarded",
+      "slot": "string",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": "second",
+        "reverse": "second",
+        "changed": "second",
+        "after_refusal": "second",
+        "delayed": "second",
+        "delayed_changed": "second",
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": "second",
+      "noted": "first",
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-forwarded-unary",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "forwarded",
+      "slot": "unary",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 7,
+        "reverse": 7,
+        "changed": 7,
+        "after_refusal": 7,
+        "delayed": 7,
+        "delayed_changed": 7,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 7,
+      "noted": 6,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    },
+    {
+      "name": "channel-forwarded-factory",
+      "mode": "carrier",
+      "carrier": "channel",
+      "access": "forwarded",
+      "slot": "factory",
+      "exercise": {
+        "revisions": [
+          1,
+          2
+        ],
+        "value": 10,
+        "reverse": 10,
+        "changed": 10,
+        "after_refusal": 10,
+        "delayed": 10,
+        "delayed_changed": 10,
+        "refusal": "refused",
+        "rebound": "method_not_found",
+        "cancelled": "cancelled",
+        "checks": {
+          "root": 11,
+          "svc": 11
+        }
+      },
+      "value": 10,
+      "noted": 9,
+      "close": {
+        "released_counts": {
+          "exports": 0,
+          "imports": 0
+        },
+        "borrowed": true
+      }
+    }
+  ]
+}

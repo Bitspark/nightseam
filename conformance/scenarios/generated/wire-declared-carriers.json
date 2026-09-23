@@ -1,0 +1,103 @@
+{
+  "name": "GEN-DECLARED-CARRIERS a generated model behind declared composition keeps its behavior over sockets and prepared channels",
+  "description": "One side serves the generated Cell server at the root of a WebSocket or a prepared tunnel channel; the other interprets it through declared access composed over that carrier: root, then svc, then the operation domain the generated description spells, bound directly at svc behind its guard, selected below the root, after a complete rebuild, or through a local forwarding relay in front of the carrier. The exercise holds calls, the server's callback and events both ways, one refused message that leaves everything usable, a reply delayed across a complete rebuild and a rebind of svc elsewhere, and a caller's cancellation that reaches the body, whose own callback it then cancels, so the cancel crosses the carrier both ways. The server observes the metadata the caller established. Teardown releases every binding and leaves the borrowed carrier usable for a fresh interpretation. The carriers are assumed connected, ordered and nonfaulting; a transport failure is a failed step, never a local outcome. Across the physical hop the runtime correlates each reply and cancel with its own request; it does not preserve the caller's return capability object, and nothing here asserts that it does.",
+  "layer": "generated",
+  "needs": [
+    "generated",
+    "live",
+    "tunnel"
+  ],
+  "mirror": true,
+  "foreach": {
+    "table": "tables/declared-composition.json",
+    "as": "row",
+    "where": {
+      "mode": "carrier"
+    }
+  },
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_serve",
+      "args": {
+        "carrier": "$row.carrier",
+        "presentation": "local",
+        "slot": "$row.slot"
+      },
+      "bind": {
+        "handle": "server",
+        "url": "url"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_declared_dial",
+      "args": {
+        "carrier": "$row.carrier",
+        "access": "$row.access",
+        "slot": "$row.slot",
+        "url": "$url",
+        "within_ms": 15000
+      },
+      "bind": {
+        "handle": "client"
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_declared_exercise",
+      "args": {
+        "on": "$client",
+        "within_ms": 15000
+      },
+      "expect": "$row.exercise"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_inspect",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "revision": 2,
+        "value": "$row.value",
+        "noted": "$row.noted",
+        "meta": {
+          "access": "$row.access"
+        }
+      }
+    },
+    {
+      "on": "b",
+      "op": "gen.wire_declared_close",
+      "args": {
+        "on": "$client",
+        "within_ms": 15000
+      },
+      "expect": "$row.close"
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_release",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {}
+    },
+    {
+      "on": "a",
+      "op": "gen.wire_counts",
+      "args": {
+        "on": "$server"
+      },
+      "expect": {
+        "exports": 0,
+        "imports": 0
+      },
+      "repeat": {
+        "max": 100,
+        "until": "match"
+      }
+    }
+  ]
+}
