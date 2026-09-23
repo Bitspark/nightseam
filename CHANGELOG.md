@@ -102,6 +102,7 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Fixed
 
+- Await each independent live-reference job's own completion before checking replay isolation; the witness deterministically delays the first caller until the second finishes.
 - runtime/py: publish request serials in order, refuse non-increasing incoming serials, and close before identifier exhaustion.
 - runtime/rs: serialize request reservation with publication, reject reused incoming serials, and stop before exhaustion.
 - runtime/java: reserve and publish request serials under one fair gate, reject non-increasing incoming serials, and refuse exhaustion before wrap.
