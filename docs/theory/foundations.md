@@ -43,7 +43,8 @@ interactive examples, the complete model, compile-only assertions, and all four 
 | `C = (S, B)`  | A contract                                                             |
 | `T`, `i`, `b` | A selected native realization, one of its instances, and its behavior  |
 | `O`           | The type of opaque local values                                        |
-| `K`, `L`      | Coordinate assignments                                                 |
+| `K`, `M`, `N` | Coordinate assignments; structural sections also use `L` as a coordinate |
+| `D`, `L`, `H` | Declaration, target, and generator-host languages in the semantic sections |
 | `r : R_K(S)`  | Shorthand for `Representation<S, K>`                                   |
 | `p`, `q`      | Shape paths: lists of child keys                                       |
 | `P`, `Q`      | Coordinate paths: sequences of transformation instances                |
@@ -74,7 +75,10 @@ Contracts = Σ S : Shape. { B : Behavior[S] -> Prop | B respects ≈_S }
 ```
 
 Here `Σ` forms a dependent pair. The specification depends on the shape through
-its behavior domain. `Prop` means a mathematical proposition; arbitrary behavior
+its behavior domain. This family is relative to a chosen domain and equivalence
+for each shape; changing the observations changes that interpretation. In
+[model.ts](model.ts), `Contract.domain` retains this choice explicitly.
+`Prop` means a mathematical proposition; arbitrary behavior
 satisfaction need not be decidable. A specification may be presented by laws,
 a reference model, a protocol, or a set of admitted behaviors.
 
@@ -147,28 +151,27 @@ procedure and rejects a witness attached to the wrong instance.
 Relative to a language interpretation and its required context:
 
 ```text
-Syntax[L, X] = { s : Syntax[L] | ⟦s⟧_L = X }
+Syntax[X, L] = { s : RawSyntax[L] | ⟦s⟧_L = X }
 ```
 
 This is a semantic family, not a parser implementation. The TypeScript `Syntax`
 uses `Representation<X, { form: 'syntax', language: L }>`; its `subject` asserts
 the intended denotation. An artifact can be source text or an AST.
 
-| Syntax object                   | Denotes                                                                     |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| `ModelContractSyntax[D, C]`     | The contract `C = (S, B)`                                                   |
-| `ModelTypeSyntax[L, T]`         | The selected native realization `T`                                         |
-| `ImplementationSyntax[L, T, i]` | The particular instance/configuration `i`, or an explicitly modeled factory |
-| `AdapterSyntax[L, T, U]`        | A function mapping instances of `T` to instances of `U`                     |
-| `GeneratorSyntax[H, g]`         | A generator function `g`, implemented in host language `H`                  |
+| TypeScript syntax family | Denotes |
+| ------------------------ | ------- |
+| `ModelContractSyntax<S, Beh, D>` | A contract `C = (S, B)` in the indicated domain |
+| `ModelTypeSyntax<T>` | The selected native realization `T`, in its language |
+| `ImplementationSyntax<T>` | A particular initialized instance/configuration `i : Instance[T]` |
+| `AdapterSyntax<T, U, L>` | A function mapping instances of `T` to instances of `U`, written in `L` |
+| `GeneratorSyntax<G, H>` | A generator function `g : G`, written in host language `H` |
 
-The semantic indices in this table use mathematical notation; the TypeScript
-aliases infer some indices from `T`. For example `ModelContractSyntax<S, Beh, D>`
-describes syntax for contracts in the indicated domain; `Syntax<typeof C, D>`
-retains a particular contract's type. TypeScript does not have full dependent
-types or verify an artifact's claimed denotation. The
-[notation correspondence](reference.md#objects-and-denotation) makes the
-mathematical and TypeScript parameter orders and degrees of specificity explicit.
+The table uses the actual aliases in [model.ts](model.ts). Mathematical
+`Syntax[X, L]` indexes a semantic subject; TypeScript's `Syntax<typeof C, D>`
+retains that subject's type and its `subject` field records the value.
+TypeScript does not have full dependent types or verify an artifact's claimed
+denotation. A factory has a different subject: use `Syntax<FactoryMeaning, L>`
+and an explicit initialization operation before claiming an instance meaning.
 
 Denoting `T` and representing its shape `S` are different views. The coordinate
 example interprets a Go interface through its structural view, so its fixed
@@ -180,10 +183,12 @@ An AST in an interpreter's memory has both a host-value view and a syntax view:
 
 ```text
 a : Instance[ASTModelType[H, L]]
-syntaxView(a) : Syntax[L]
-interpret_H(a) represents ⟦syntaxView(a)⟧_L
+syntaxView(a) : RawSyntax[L]
+evaluate_H,L(a) represents ⟦syntaxView(a)⟧_L
 ```
 
+The final line is an interpreter-correctness obligation, in the chosen
+environment: `evaluate_H,L` runs the interpreter for `L` hosted in `H`.
 The native value can describe an addition node; its object-language meaning can
 be a number. The host's observation of the AST and the object's interpreted
 behavior are different semantic subjects related by `syntaxView` and evaluation.
@@ -222,6 +227,10 @@ A1 does not imply A2: an adapter can replace every input with a new storing cell
 initially false. Every output satisfies the cell contract, but adapting a true
 cell changes the result of its first read. An adapter's admitted domain must be
 stated; it may include only lawful inputs or all structurally compatible ones.
+The displayed function and `AdapterSemantics<T, U>` are total on their chosen
+instance carriers. Restricting the transparency claim to a subset does not make
+that function partial; a partial adapter needs a correspondingly refined input
+carrier or an explicit failure result and its behavior.
 
 An adapter into a Wire realization uses the same equation after both sides are
 interpreted in the chosen abstract behavior domain. Transport failures, ownership,
@@ -245,31 +254,44 @@ one traversal cannot establish purity for an arbitrary supplied function.
 
 <!-- behavior-explorer -->
 
-Let `D` be the declaration language, `L` the output language, and `H` the host
-implementation language. A type generator has the dependent result:
+Let `D` be the declaration language, `L` the native/output language, and `H`
+the host implementation language. All following families range over admitted
+contracts and supported realizations in a fixed environment, with the indicated
+syntax available. They do not promise to generate every mathematical contract.
+A type generator has the dependent result:
 
 ```text
-TypeGen[D, L] : Π C.
-  Syntax[D, C] -> Σ T : NativeRealization[L, shape(C)]. Syntax[L, T]
+TypeResult[L, C] = Σ T : NativeRealization[L, shape(C)].
+  ({C} × Syntax[T, L])
+
+TypeGen[D, L] : Π admitted C. Syntax[C, D] -> TypeResult[L, C]
 ```
 
 `Π` means a family of functions, one per contract. `Σ` means that the output
-chooses a particular `T` and supplies syntax denoting it. The result is indexed
-by and retains `C`; the native declaration alone need not express `B`.
+chooses a particular `T` and supplies syntax denoting it. The singleton `{C}`
+records the input contract, matching `TypeGeneration<T, C>`; the native
+declaration alone need not express `B`. Every realization here uses `C`'s
+chosen behavior domain, not just an equal-looking shape.
 Choosing a `T` for the shape does not synthesize a lawful implementation.
 
-For a selected target realization `U` of the same shape/domain:
+For each admitted `C`, choose a target realization `U_C` in that same
+shape/domain, such as an interpreted Wire surface. Write `U_(-)` for this
+family of targets:
 
 ```text
-AdapterGen[D, L, U] : Π C. Π T : NativeRealization[L, shape(C)].
-  (Syntax[D, C] × Syntax[L, T]) -> Syntax[L, Adapter(T, U)]
+AdapterResult[L, C, T, U] =
+  {C} × Syntax[T, L] × Syntax[Adapter(T, U), L]
 
-JointResult[L, C, U] = Σ T : NativeRealization[L, shape(C)].
-  (Syntax[L, T] × Syntax[L, Adapter(T, U)])
+AdapterGen[D, L, U_(-)] : Π admitted C. Π supported T : NativeRealization[L, shape(C)].
+  (Syntax[C, D] × Syntax[T, L]) -> AdapterResult[L, C, T, U_C]
+
+JointResult[L, C, U_C] = Σ T : NativeRealization[L, shape(C)].
+  AdapterResult[L, C, T, U_C]
 ```
 
-The target `U` must be chosen compatibly for each `C`. The adapter's source is
-exactly the supplied `T`, not an unspecified realization of `C`. An adapter
+The target depends on `C`; it is not one fixed realization for every shape.
+The adapter's source is exactly the supplied `T`. Its syntax uses `T`'s native
+language `L`; the declaration and host languages remain independent. An adapter
 generator is behaviorally transparent when every admitted output denotes an
 adapter satisfying A2. `TypeGeneratorSemantics` and `AdapterGeneratorSemantics`
 model components with those choices fixed; their records retain `C` and `T`.
@@ -396,7 +418,7 @@ interface ShapeNode<O> {
 type Shape<O> = ShapeNode<O>;
 ```
 
-The map makes `at(S, key)` single-valued. A set of key/child pairs is equivalent
+The map makes `at(S, [key])` single-valued. A set of key/child pairs is equivalent
 only with a uniqueness condition on keys. Child order has no shape meaning.
 A node with neither a value nor children is a valid, present shape; it is
 different from a missing child. The semantic model assumes finite, immutable,
@@ -681,15 +703,22 @@ claiming that a generator is a representation transformation:
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Shape `S`                    | Type artifacts expose the same structural signature under their supplied interpretations.                                              |
 | Contract `C = (S, B)`        | The complete result retains shape and specification; projecting only a native interface can forget `B`.                                |
-| Instance `i` or behavior `b` | A realization change preserves the chosen observable behavior; producing some lawful instance is insufficient.                         |
+| Instance `i` | Syntax and other representations denote that same instance/configuration; an adapter generally produces a different native instance. |
+| Behavioral class `[b]_{≈_S}` | A realization change preserves the same observational behavior by A2; producing some lawful instance is insufficient. |
 | Generator function `g`       | Source and loaded function agree under host-language denotation. Its own contract is `C_g`, distinct from the contracts it transforms. |
 
 These are modeling choices, not claims about an existing Nightseam API. The
-generator signatures in section 5 connect different direct denotations: input
+[generator signatures](#5-adapters-generators-and-behavioral-preservation) connect different direct denotations: input
 syntax denotes `C`, while output syntax denotes `T` or `a`. A common-subject
 representation map requires the appropriate interpretation of those outputs,
 such as the generated package that retains `C` and the chosen `T`. Erasing `B`
 from `C` is a change of subject, not a primitive coordinate transformation.
+
+A2 equates behaviors up to `≈_S`; it does not equate native instance identities.
+To view a transparent adapter as a fixed-subject representation map, choose
+`X = [BehaviorOf_T(i)]_{≈_S}` and interpret both native realizations as
+representations of that same behavioral class. The direct function
+`i ↦ a(i)` still changes its native value and realization.
 
 An implementation generator additionally needs enough information to construct
 a lawful `i`. An unimplemented scaffold only supplies structure. A semantic
@@ -819,17 +848,17 @@ coordinates. The original fixed-subject paths remain exactly as defined.
 
 ## 18. Navigation through composed shapes
 
-**S5 — Existing paths commute with substitution.** If `p` selects an existing
-node or hole in the original template:
+**S5 — Existing paths commute with substitution.** If `at(S, p) = found(D)`
+selects an existing node or hole in the original template:
 
 ```text
-at(S[σ], p) = at(S, p)[σ]
+at(S[σ], p) = found(D[σ])
 ```
 
 An ordinary node remains at the same path. When that path ends at a hole, its
 selection after substitution is the supplied replacement shape.
 
-**S6 — Paths can continue inside an inserted shape.** If `at(S, p) = Generic(g)`:
+**S6 — Paths can continue inside an inserted shape.** If `at(S, p) = found(Generic(g))`:
 
 ```text
 at(S[σ], p ++ q) = at(σ(g), q)
@@ -957,7 +986,7 @@ produce implementations satisfying the same resulting contract.
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | One changed axis at each primitive step                          | Conditional types, for finite literal coordinates                                |
 | Matching coordinate endpoints along a path                       | A tuple of typed adjacent steps                                                  |
-| Same subject type through transformation                         | Generic input/output parameter `X`; runtime identity remains a law               |
+| Same subject type through transformation                         | Generic input/output parameter `X`; exact subject identity remains a law          |
 | Family available at sub-shapes                                   | Polymorphic call signature, plus the domain-closure requirement                  |
 | Valid shape location                                             | Explicit witness data, checked in examples                                       |
 | Faithful surfaces and navigation laws                            | Executable checks on the supplied trees and encodings                            |
@@ -987,4 +1016,8 @@ The package scripts enable Node's TypeScript stripping; no compiled model is
 published.
 
 The executable examples operate on model artifacts. They do not run Go, compile
-the illustrative source strings, or execute Nightseam's generators.
+the illustrative Go source strings, or execute Nightseam's generators.
+The behavior example interprets its adapter identifier in an explicit binding
+environment and reloads the actual JavaScript generator expression in its
+declared host environment. Those checks establish the fixture application,
+not denotation for arbitrary source.

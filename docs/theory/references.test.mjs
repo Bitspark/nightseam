@@ -1,8 +1,41 @@
+/**
+ * Hold the cross-references between prose, source comments, and rendered HTML.
+ * @see README.md — File index and evidence map
+ * @see render.mjs — Renderer
+ */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { posix } from 'node:path';
 import test from 'node:test';
-import { anchors, links } from '../../scripts/links.mjs';
+import { anchors, check as checkLinks, links } from '../../scripts/links.mjs';
+
+const root = new URL('../../', import.meta.url);
+const tracked = new Set(
+  execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean),
+);
+const theoryFiles = [...tracked].filter((path) => path.startsWith('docs/theory/'));
+const repositoryPages = new Map(
+  await Promise.all(
+    [...tracked]
+      .filter((path) => path.endsWith('.md') || (path.startsWith('docs/theory/') && /\.(ts|mjs)$/.test(path)))
+      .map(async (path) => {
+        const source = await fs.readFile(new URL(path, root), 'utf8');
+        return [
+          path,
+          path.endsWith('.md')
+            ? source
+            : source
+                .split('\n')
+                .map((line) => {
+                  const target = line.match(/@see\s+(\S+)/)?.[1];
+                  return target ? '[source backlink](' + target + ')' : '';
+                })
+                .join('\n'),
+        ];
+      }),
+  ),
+);
 
 const pageIds = new Map([
   ['foundations.md', 'foundations'],
@@ -49,25 +82,24 @@ test('the reference map covers every named law', () => {
   assert.deepEqual(documented, new Set(laws));
 });
 
-test('Markdown and source backlinks resolve to the same theory headings', async () => {
-  function check(source, target) {
-    if (/^[a-z][a-z\d+.-]*:/i.test(target)) return;
-    const [path, fragment] = target.split('#');
-    const name = path ? posix.normalize(posix.join(posix.dirname(source), path)) : source;
-    if (!pages.has(name)) return;
-    if (fragment) assert.ok(anchors(pages.get(name)).has(fragment), source + ': unknown heading ' + target);
+test('theory prose and source backlinks resolve, including Markdown fragments', () => {
+  const problems = checkLinks(repositoryPages, tracked).filter(({ page }) => page.startsWith('docs/theory/'));
+  assert.deepEqual(problems, []);
+  for (const path of theoryFiles.filter((file) => /\.(ts|mjs)$/.test(file))) {
+    assert.ok(
+      links(repositoryPages.get(path)).some(({ target }) => /\.md(?:#|$)/.test(target)),
+      path + ': missing prose backlink',
+    );
   }
-  for (const [name, markdown] of pages) {
-    for (const link of links(markdown)) check(name, link.target);
-  }
-  for (const name of sources) {
-    const references = [...(await read(name)).matchAll(/@see\s+(\S+)/g)];
-    assert.ok(references.length > 0, name + ': missing theory backlink');
-    for (const [, target] of references) {
-      const page = posix.normalize(posix.join(posix.dirname(name), target.split('#')[0]));
-      assert.ok(pages.has(page), name + ': unknown theory page ' + target);
-      check(name, target);
-    }
+});
+
+test('the theory index links every owned document, source, and configuration file', () => {
+  const indexed = new Set(
+    links(pages.get('README.md')).map(({ target }) => posix.normalize(posix.join('docs/theory', target.split('#')[0]))),
+  );
+  for (const path of theoryFiles) {
+    if (path === 'docs/theory/README.md') continue;
+    assert.ok(indexed.has(path), path + ': missing from the theory index');
   }
 });
 
@@ -76,15 +108,24 @@ test('the standalone guide has unique targets and no sibling-file dependencies',
   const identifiers = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   const ids = new Set(identifiers);
   assert.equal(ids.size, identifiers.length, 'duplicate HTML identifiers');
+  const outgoing = [];
   for (const [, href] of html.matchAll(/\bhref="([^"]+)"/g)) {
     if (href.startsWith('#')) assert.ok(ids.has(href.slice(1)), 'missing HTML target: ' + href);
-    else assert.match(href, /^https:\/\//, 'link depends on the checkout: ' + href);
+    else {
+      assert.match(href, /^https:\/\//, 'link depends on the checkout: ' + href);
+      outgoing.push('[link](' + href + ')');
+    }
   }
+  const withHtmlLinks = new Map(repositoryPages).set('docs/theory/index.html', outgoing.join('\n'));
+  assert.deepEqual(
+    checkLinks(withHtmlLinks, tracked).filter(({ page }) => page === 'docs/theory/index.html'),
+    [],
+  );
   for (const [name, markdown] of pages) {
     const pageId = pageIds.get(name);
     assert.ok(ids.has(pageId), 'missing embedded page: ' + name);
     const headings = [...anchors(markdown)];
-    for (const heading of headings.slice(1)) {
+    for (const heading of pageId === 'foundations' ? headings : headings.slice(1)) {
       const id = pageId === 'foundations' ? heading : pageId + '-' + heading;
       assert.ok(ids.has(id), 'missing embedded heading: ' + id);
     }

@@ -43,12 +43,13 @@ tree realizes today and the choices that still need a verdict.
 ## Contracts and representations — `theory/`
 
 The [theory index](theory/README.md) separates the general model from its
-Nightseam interpretation and implementation evidence. It defines coordinate
-cells and transformation paths, shapes, behavioral contracts, realizations,
-instances and satisfaction. Structural navigation and whole-shape substitution
-have commuting laws; lifting them to behavior requires further interpretation.
-It includes a TypeScript metalanguage, a concept/law cross-reference, checked
-examples, and a self-contained visual edition. These are developing definitions and laws;
+Nightseam interpretation and implementation evidence. It distinguishes shape,
+behavioral specification, actual behavior, native realizations, and satisfaction.
+It defines syntax and generator semantics, coordinate paths, shape navigation,
+whole-shape holes and substitution, and the additional obligations for behavior.
+Its [evidence map](theory/README.md#concepts-laws-and-evidence) connects the
+definitions and laws to the TypeScript metalanguage, checked examples, and a
+self-contained visual edition. These are developing definitions and laws;
 the state pages below continue to describe the implemented interfaces.
 
 ## Where it is going — `goals/`

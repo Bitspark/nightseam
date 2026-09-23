@@ -7,6 +7,9 @@
  * stipulated here; type-checking does not parse source or prove equivalence.
  * Run from the repository root: pnpm --filter @nightseam/theory test
  * @see ../reference.md#coordinates-and-paths — E1, E2, and P1.
+ * @see ../foundations.md#6-coordinates-and-cells — Coordinates and cells
+ * @see ../foundations.md#7-elementary-transformations-and-coordinate-paths — Elementary transformations and paths
+ * @see ../reference.md — Evidence map
  */
 import assert from 'node:assert/strict';
 import type {

@@ -1,3 +1,8 @@
+/**
+ * @see foundations.md — Foundations rendered here
+ * @see reference.md — Sources and evidence map
+ * @see references.test.mjs — Cross-reference checks
+ */
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { Script } from 'node:vm';
@@ -42,18 +47,23 @@ const pages = await Promise.all(
     ['README.md', 'overview'],
   ].map(async ([name, pageId]) => {
     const markdown = (await fs.readFile(`${directory}/${name}`, 'utf8')).replaceAll('\r\n', '\n');
+    const headings = marked.lexer(markdown).filter((token) => token.type === 'heading');
+    let headingIndex = 0;
     const taken = new Map();
     const targets = new Map();
     const contents = [];
     const html = marked.parse(markdown).replace(/<h([1-6])>(.*?)<\/h\1>/g, (_, level, title) => {
-      const canonical = headingSlug(title.replace(/<[^>]*>/g, ''), taken);
+      const heading = headings[headingIndex++];
+      assert.equal(heading.depth, Number(level));
+      const canonical = headingSlug(heading.text, taken);
       const id = level === '1' ? pageId : pageId === 'foundations' ? canonical : `${pageId}-${canonical}`;
       targets.set(canonical, id);
-      if (pageId === 'foundations' && level === '1') return `<a id="${id}"></a>`;
+      if (pageId === 'foundations' && level === '1') return `<a id="${id}"></a><a id="${canonical}"></a>`;
       if ((pageId === 'foundations' && level === '2') || level === '1') contents.push({ id, title });
       const depth = pageId === 'foundations' ? Number(level) : Math.min(6, Number(level) + 1);
       return `<h${depth} id="${id}">${title}</h${depth}>`;
     });
+    assert.equal(headingIndex, headings.length);
     return { name, pageId, targets, html, contents };
   }),
 );

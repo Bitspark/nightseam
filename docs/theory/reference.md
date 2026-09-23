@@ -17,15 +17,16 @@ the same type parameter does not prove runtime identity, denotation, or a law.
 | [Selected native realization](foundations.md#3-native-realizations-instances-and-satisfaction) | `ModelType`, `ModelTypeIndex`, `NativeValue`, `ActualBehavior`, `ShapeOf`, `ContractFor` | [Behavior example](examples/behavior.ts): `methodType` and `functionType` realize the same shape with different native carriers. |
 | [Instance, satisfaction, and I1](foundations.md#3-native-realizations-instances-and-satisfaction) | `ModelInstance`, `Satisfaction`, `ContractImplementation` | [Behavior example](examples/behavior.ts): `checkImplementation` checks the actual instance against its witness and rejects a mismatched witness. |
 | [Adapter laws A1 and A2](foundations.md#5-adapters-generators-and-behavioral-preservation) | `AdapterSemantics` | [Behavior example](examples/behavior.ts): forwarding preserves behavior; replacement preserves satisfaction while changing the first read. |
-| [Syntax and denotation](foundations.md#4-syntax-denotation-and-values-inside-an-interpreter) | `Syntax`, `ModelContractSyntax`, `ModelTypeSyntax`, `ImplementationSyntax`, `AdapterSyntax`, `GeneratorSyntax` | [Behavior example](examples/behavior.ts): illustrative syntax with stipulated denotations; [type assertions](model.typecheck.ts) reject mixing contract and type syntax. No parser or compiler is supplied. |
-| [Dependent generator inputs and results](foundations.md#5-adapters-generators-and-behavioral-preservation) | `TypeGeneration`, `TypeGeneratorSemantics`, `AdapterGeneration`, `AdapterGeneratorSemantics` | [Behavior example](examples/behavior.ts): `generateType` and `generateAdapter` retain the contract and selected realization; [type assertions](model.typecheck.ts) reject the wrong realization. |
+| [Syntax and denotation](foundations.md#4-syntax-denotation-and-values-inside-an-interpreter) | `Syntax`, `ModelContractSyntax`, `ModelTypeSyntax`, `ImplementationSyntax`, `AdapterSyntax`, `GeneratorSyntax` | [Behavior example](examples/behavior.ts): stipulated declaration/native-type denotations, an adapter identifier resolved in an explicit environment, and the actual JavaScript generator reloaded in its host environment; [type assertions](model.typecheck.ts) reject mixing contract and type syntax. No Go parser or compiler is supplied. |
+| [Dependent generator inputs and results](foundations.md#5-adapters-generators-and-behavioral-preservation) | `TypeGeneration`, `TypeGeneratorSemantics`, `AdapterGeneration`, `AdapterGeneratorSemantics` | [Behavior example](examples/behavior.ts): `generateType` and `generateAdapter` retain the contract and selected realization; [type assertions](model.typecheck.ts) reject the wrong realization or adapter output language. |
 
-`Syntax[L, X]` in mathematical expressions corresponds to TypeScript
-`Syntax<X, L>`: the parameter order is reversed. Similarly, the mathematical
-`ImplementationSyntax[L, T, i]` denotes a particular `i`, while the convenience
-alias `ImplementationSyntax<T>` ranges over `ModelInstance<T>`. Use
-`Syntax<typeof i, L>` when retaining that particular instance's type matters;
-even that type cannot prove exact runtime identity. `ModelContractSyntax<S, Beh, D>`
+Mathematical `Syntax[X, L]` and TypeScript `Syntax<X, L>` use the same parameter
+order. The mathematical index names a particular subject; a TypeScript type
+describes a family of values. `ImplementationSyntax<T>` ranges over
+`ModelInstance<T>`, with each artifact denoting its recorded initialized
+instance. Use `Syntax<typeof i, L>` when retaining that instance's type matters;
+even that type cannot prove exact runtime identity. A factory has a different
+subject and needs an explicit initialization operation. `ModelContractSyntax<S, Beh, D>`
 ranges over contracts in a domain; `Syntax<typeof C, D>` retains the selected
 contract's type. These are families of syntax, not proofs of denotation.
 

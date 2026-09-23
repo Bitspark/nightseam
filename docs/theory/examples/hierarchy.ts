@@ -4,6 +4,9 @@
  * Transformations consume artifacts; they do not reconstruct them from subject.
  * Run from the repository root: pnpm --filter @nightseam/theory test
  * @see ../reference.md#shapes-and-composition — N1–N2, R1–R3, T1–T3, Q1, P2–P3.
+ * @see ../foundations.md#8-giving-the-shape-a-hierarchy — Hierarchy and surfaces
+ * @see ../foundations.md#11-transformation-families-and-the-transparency-square — Transparency laws
+ * @see ../foundations.md#14-worked-example-two-routes-one-selected-subtree — Worked example and counterexamples
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';

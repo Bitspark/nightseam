@@ -229,7 +229,7 @@ who reads it:
 
 | set | for | what |
 | --- | --- | --- |
-| [docs/theory/](docs/theory/) | a designer of contracts and generators | shapes, behavioral contracts, implementations, representation paths, and structural substitution; cross-referenced laws, checked examples, and a visual guide |
+| [docs/theory/](docs/theory/) | a designer of contracts and generators | shape and behavioral specification, implementations and satisfaction, syntax and generators, representation paths, shape navigation and substitution; cross-referenced laws, checked examples, and a visual guide |
 | [docs/goals/](docs/goals/) | a reviewer, a designer | the north stars: what Nightseam is for, in eight respects, at the limit — abstract, never done, and what a review measures the tree against |
 | [docs/wire/](docs/wire/) | a runtime in any language | what crosses the wire: the profile `nightseam.duplex/1`, the tunnel's operations, and the test that says where something new on the wire belongs |
 | [docs/runtime/](docs/runtime/) | a consumer of the packages | the surface of the peer, the tunnel, the live layer and the observer, and what a consumer composes out of them, Go and TypeScript side by side |

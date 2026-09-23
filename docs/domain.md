@@ -14,25 +14,30 @@ domain; one table below maps the one onto the other. It is a model
 proposed on 2026-09-22, not a decision: the choices that change it are at
 the end, filed for a verdict as [#640](https://github.com/Bitspark/nightseam/issues/640).
 
-The [contract and representation theory](theory/README.md) develops the general
-model of coordinate cells, transformation paths, hierarchy, and substitution.
+The [contract and representation theory](theory/README.md) distinguishes shape
+`S`, specification `B`, contract `C = (S, B)`, native realization `T`, and an
+instance `i` whose actual behavior may satisfy `B`. It also develops coordinate
+paths, shape navigation and substitution, and their behavioral obligations.
 Its [Nightseam interpretation](theory/nightseam.md) relates that model to this
 domain without settling the choices below.
-In particular, the table below chooses one ModelType per contract and language;
-the theory admits several selected native realizations and separates declared
-shape from behavioral specification. The mapping therefore requires an explicit
-presentation and interpretation, as that page explains.
 
-Its nodes come in three kinds. **Definitions** have no instance: model
-contracts and wire contracts, and the model types and wire types read off
-them. **Code** realizes a definition in a language: an adapter binds a
-model type to the wire, or stubs the wire as a model type. **Instances**
+Its nodes come in three kinds. **Definitions** describe contracts and types;
+they are not themselves live instances. A model contract can have several
+selected model types in the same language. **Code** realizes a definition in a
+language: an adapter binds a model type to the wire, or stubs the wire as a model
+type. **Instances**
 exist, act and are placed: model instances, wires, entries, carriers,
 messages, references. A language is not a node — it is an opaque
 identifier, an enum value naming one syntax and semantics, carried as an
 attribute by model types, adapters and participants. Every instance node
 is typed by a definition node, and the instance graph is generated from a
 few rewrite rules whose laws are the model's commuting squares.
+
+The [realization and satisfaction definitions](theory/foundations.md#3-native-realizations-instances-and-satisfaction)
+qualify the tables below: a model type determines a structural carrier and
+behavior interpretation, while satisfaction of the full contract is a separate
+claim about an instance. A canonical declaration digest names only the content
+the declaration includes; it does not establish unspecified behavioral laws.
 
 ## Node types
 
@@ -41,19 +46,19 @@ nine instances. Contract, type and instance come in two triads —
 ModelContract, ModelType, ModelInstance in a language; WireContract,
 WireType, Wire on the wire — the triads meet at WireType, which reads a
 model contract under the wire contract, and the adapters are the code that
-joins them: `Adapter[C, wire]` binds a model type to the wire,
-`Adapter[wire, C]` stubs the wire as a model type.
+joins them: `Adapter[T, U]` binds the selected model type `T` to the wire
+realization `U`, and `Adapter[U, T]` stubs `U` as `T`.
 
 | node | what it is | identity | in Nightseam today |
 | --- | --- | --- | --- |
-| ModelContract | a statement of what a model can say, in no language: a *type* (the shape of a value) or a *protocol* (operations, events and errors per side, with generic slots) — the abstract type A | a digest of its canonical form; an application's identity is its constructor with ordered arguments | a family's tier files; the built-in families |
+| ModelContract | a language-independent shape `S` (value structure or protocol operations, events and errors, with generic slots) together with its stated behavioral specification `B` | a declaration digest covers its canonical declared content; an application's declared identity is its constructor with ordered arguments | a family's tier files and built-in families describe the declared structure; behavioral laws need an explicit interpretation |
 | WireContract | a statement of what every wire and its carrier satisfy: the *access* contract (send a message to a relative path; the selection and mounting laws) and the *invocation* contract that realizes it (request, response, event, cancel; correlation, refusal, ordering, acceptance) | a version string | Bitwire 0.2.0; `nightseam.duplex/1` |
 | Side | a role of a model contract: what one party implements and the other calls — provider and caller | contract + role | client and server |
-| ModelType | a model contract read in a language: `Model_L[A]`, the interface a model instance of one side must satisfy — an interpretation that preserves composition; one per contract and language identifier | contract + language identifier | the family in the language: its types, `ServerModel`, `ClientModel` |
+| ModelType | a selected realization `T` of a contract's shape in a language, with an interpretation of native values as behavior; several realizations can share a contract and language | contract + language do not identify `T` without a realization choice | the selected generated family in the language: its types, `ServerModel`, `ClientModel` |
 | WireType | a model contract read on the wire, under the wire contract: `Wire[A]`, the shape of the messages that reach a wire of that type, and the token an entry carries beside its wire; one per contract and profile | contract + profile | the wire schema and its digest; the frames |
-| Adapter | code in a language that binds a model type to the wire, `Adapter[C, wire]`, or stubs the wire as a model type, `Adapter[wire, C]`; rendered from the contract for each language; the two obey `Adapter[wire, C](Adapter[C, wire](X)) ≈ X` | contract + language identifier + direction | the sides' adapters: `ToWire` is the binding, `FromWire` the stub |
+| Adapter | code that binds a selected model type `T` to a selected wire realization `U`, or stubs `U` as `T`; the round trip preserves the instance's observable behavior in the chosen domain | selected realizations + direction + implementation choice | the sides' adapters: `ToWire` is the binding, `FromWire` the stub |
 | Participant | a process, in a language, that holds model instances, peers and entries; where policy lives and calls in from | address | the consumer's program |
-| ModelInstance | a value of a model type, with behavior, implementing one side; passable through a wire as an argument or a result | its binding, once exported | a `ServerModel` value; a function |
+| ModelInstance | a value of a selected model type, with relevant state/environment and actual behavior; structural compatibility makes it a candidate implementation, and satisfying `B` makes it lawful | its binding, once exported | a `ServerModel` value; a function |
 | Wire | access to a destination by relative path, typed by a wire type and satisfying the wire contract: a connection at the empty path, a channel, a selection, a mount, a forward, a model instance presented | route from an origin, plus validity | `bitwire.Endpoint`: `peer.Wire()`, `at`, `mount`, `forward`, `ToWire` |
 | Space and entry | a node mapping keys to (wire type, wire); an entry whose wire is a space again, or an end reaching a model instance | key within its node | a mount and a dispatcher's registrations; placement — which tree a mount belongs to — is a consumer's |
 | Carrier and peer | what carries frames between two ends — a connection, or a channel over one; a peer is an end speaking the wire contract's invocation part: it mints correlation ids and serials, refuses, observes | connection instance + role | `duplex.Conn`, a tunnel channel; `runtime.Peer` |
@@ -74,10 +79,10 @@ this repository's pages or by its decisions; the graph adds none.
 | extends · uses | Side → Side; ModelContract → ModelContract (a type refers to another, an import) | the digest covers reachable imported content, so identity follows the edge |
 | of | Side → ModelContract (a protocol) | a protocol has two sides, and a model instance implements exactly one |
 | presents | ModelType → ModelContract, in a language; WireType → ModelContract, under a WireContract | interpretation preserves composition |
-| binds · stubs | `Adapter[C, wire]` → ModelType C and WireType; `Adapter[wire, C]` → WireType and ModelType C | `Adapter[wire, C](Adapter[C, wire](X)) ≈ X` — wire transparency, recursively through arguments and results |
-| implements | ModelInstance → Side | a model instance's methods have the same signatures directly or through a wire |
+| binds · stubs | `Adapter[T, U]` → ModelType T and WireType U; `Adapter[U, T]` → WireType U and ModelType T | `BehaviorOf_T(stub(bind(i))) ≈ BehaviorOf_T(i)` — wire transparency in the chosen observation domain, recursively through arguments and results |
+| implements | ModelInstance → Side | structural conformance: a model instance's methods have the required signatures directly or through a wire; full contract satisfaction is a separate relation |
 | typed by | ModelInstance → ModelType; Wire, Entry, Reference → WireType; Message → ModelContract, one of its operations | a type descriptor accompanies a wire; the transport never inspects payloads |
-| satisfies | Wire → WireContract | the selection and mounting laws hold of every wire; conformance holds every realization to them |
+| satisfies | ModelInstance → ModelContract; Wire → WireContract | the instance's behavior satisfies the specified laws; the wire case includes selection and mounting, held by conformance |
 | reaches | Wire → ModelInstance (an end wire) | a model instance and its presentation through a wire are interchangeable at the model level |
 | at | Wire → Wire, with a path | `at(at(w, a), b) ≃ at(w, a ++ b)`; `at(w, []) ≃ w` |
 | holds · names | Space → Entry; Entry → Wire, under a key | forwarding is local: select the key, hand the rest of the path to its wire |
@@ -103,8 +108,8 @@ types above and yields nodes of those types and no others, which is what
 | `at(w, p)` | a wire → a wire at a relative origin | selection composes; selecting nothing changes nothing |
 | `mount({k: w})` | wires under keys → one wire forwarding by key | mount is the inverse of selection; a node needs only its own map |
 | `forward(w1, w2)` | two endpoints → each other's traffic | the existing roots keep admission and correlation |
-| `Adapter[C, wire](m)` | a model instance of type C → a wire of type `Wire[C]` | the binding |
-| `Adapter[wire, C](w)` | a wire of type `Wire[C]` → a model instance of type C | the stub; `Adapter[wire, C](Adapter[C, wire](X)) ≈ X` |
+| `Adapter[T, U](i)` | a model instance of selected type T → a wire of selected type U for the same contract | the binding |
+| `Adapter[U, T](w)` | a wire of selected type U → a model instance of selected type T | the stub; `BehaviorOf_T(stub(bind(i))) ≈ BehaviorOf_T(i)` |
 | `export(m)` | a model instance in a scope → a binding, and a reference that can cross | a model-valued position crosses as a reference |
 | `import(r)` | a reference → a model instance | it arrives as a model instance; transfer then adaptation agrees with adaptation then transfer |
 | `instantiate(B, A)` | a constructor and an argument → `B[A]` with its adapters | the adapters of `B[A]` are B's adapters supplied with A's |
@@ -152,7 +157,7 @@ below the table.
 | WireContract | Bitwire 0.2.0 for access, named directly in every language, never copied, aliased or re-exported ([the wire](runtime/wire.md)); `nightseam.duplex/1` for invocation: request, response, event, cancel, the meta header, serials, coded refusals ([the profile](wire/profile.md)) |
 | ModelType | the generated family in the language: its types, `ServerModel`, `ClientModel` ([generated code](declaration/generated.md)) |
 | WireType | the wire schema and its digest ([declaration identity](declaration/declaration-identity.md)); the frames |
-| Adapter | the sides' adapters: `<family>-binding` is `Adapter[C, wire]` (`ToWire`), `<family>-client` is `Adapter[wire, C]` (`FromWire`); the language identifier is the generator's target and the conformance matrix's row ([tiers](languages/tiers.md)) |
+| Adapter | the sides' adapters: `<family>-binding` is `Adapter[T, U]` (`ToWire`), `<family>-client` is `Adapter[U, T]` (`FromWire`), for the selected model and wire realizations; the language identifier is the generator's target and the conformance matrix's row ([tiers](languages/tiers.md)) |
 | Participant | the consumer's program: it implements a side and assembles transport, peer, layers and adapters ([the boundary](goals/boundary.md)) |
 | ModelInstance | a `ServerModel` or `ClientModel` value — records of functions |
 | Wire | `bitwire.Endpoint`: `peer.Wire()`, `at`, `mount`, `forward`, a `ToWire` endpoint, a wire pair |

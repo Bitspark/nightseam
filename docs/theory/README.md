@@ -41,6 +41,9 @@ Open it directly in a browser; it needs no server or network connection.
 | [examples/composition.ts](examples/composition.ts) | Whole-shape substitution, repeated and root holes, staged composition, and navigation and transformation through inserted trees.                                                                |
 | [examples/behavior.ts](examples/behavior.ts)       | Two native realizations, lawful and unlawful cells, satisfaction witnesses, transparent and replacing adapters, and modeled generator applications; exhaustive checks over 512 finite machines. |
 | [model.typecheck.ts](model.typecheck.ts)           | Compile-only positive and negative assertions for the model's type constraints.                                                                                                                 |
+| [render.mjs](render.mjs) | Generates the HTML from all four theory pages and the checked sources; preserves Markdown heading anchors and internal links. |
+| [references.test.mjs](references.test.mjs) | Checks source-to-theory links, the file index, and links and anchors in the generated edition. |
+| [package.json](package.json) and [tsconfig.json](tsconfig.json) | Private workspace commands and strict, no-emit type checking for the model and examples. |
 
 From the repository root, using Node 22.12 or later:
 
@@ -59,6 +62,12 @@ hold the type-to-document map, source backlinks, and HTML links together.
 Commit its output with its inputs.
 The workspace's ordinary recursive checks, build, and tests include this
 directory; the fast CI tier also runs its verification on both platforms.
+
+## Concepts, laws, and evidence
+
+The map in the reading table connects definitions and laws to
+their model types, checked examples, and production evidence. Source comments
+link back to the definitions.
 
 ## What each statement means
 

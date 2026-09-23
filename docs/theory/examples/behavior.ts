@@ -5,14 +5,19 @@
  * not merely traces up to a chosen length. No concurrency, failure or divergence
  * is admitted by this example's observation model.
  * @see ../reference.md#objects-and-denotation — B1, I1, A1, and A2.
+ * @see ../foundations.md#2-shape-specification-and-actual-behavior — Behavior and specification
+ * @see ../foundations.md#3-native-realizations-instances-and-satisfaction — Satisfaction
+ * @see ../foundations.md#5-adapters-generators-and-behavioral-preservation — Adapters and generators
  */
 import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
 import type {
   AdapterGeneratorSemantics,
   AdapterSemantics,
   BehaviorDomain,
   Contract,
   ContractImplementation,
+  GeneratorSyntax,
   ModelInstance,
   ModelType,
   ModelTypeSyntax,
@@ -225,8 +230,11 @@ const adaptedBehavior = (
   return result.modelType.behaviorOf(result.value);
 };
 
-// A loaded generator is a semantic function on syntax values. These fixtures
-// stipulate denotation; they do not parse or compile their illustrative source.
+// A loaded generator is a semantic function on syntax values. The declaration
+// and native-type fixtures stipulate denotation; no Go parser/compiler is used.
+// Adapter output is a contextual Go identifier expression. Its interpretation
+// binds BindBooleanCell to forwardingAdapter; it references an available adapter,
+// rather than supplying its implementation as a comment-only source placeholder.
 export const contractSyntax: Syntax<typeof cellContract, 'cell-declaration'> = {
   subject: cellContract,
   coordinates: { form: 'syntax', language: 'cell-declaration' },
@@ -257,17 +265,33 @@ export const generateAdapter: AdapterGeneratorSemantics<
     adapter: {
       subject: forwardingAdapter,
       coordinates: { form: 'syntax', language: 'go' },
-      artifact: '// Illustrative adapter source for the selected BooleanCell method interface.',
+      artifact: 'BindBooleanCell',
     },
   };
 };
 export const typeGeneration = generateType(contractSyntax);
 export const adapterGeneration = generateAdapter({ contract: contractSyntax, modelType: typeGeneration.modelType });
-const generatorSyntax: Syntax<typeof generateAdapter, 'go'> = {
+// Node executes the stripped TypeScript as JavaScript. This actual function
+// expression denotes g in the explicitly supplied host environment below.
+export const generatorSyntax: GeneratorSyntax<typeof generateAdapter, 'javascript'> = {
   subject: generateAdapter,
-  coordinates: { form: 'syntax', language: 'go' },
-  artifact: '// Illustrative Go source denoting the loaded adapter generator.',
+  coordinates: { form: 'syntax', language: 'javascript' },
+  artifact: generateAdapter.toString(),
 };
+const adapterBindings = new Map([['BindBooleanCell', forwardingAdapter]]);
+assert.equal(typeof adapterGeneration.adapter.artifact, 'string');
+assert.equal(adapterBindings.get(adapterGeneration.adapter.artifact as string), adapterGeneration.adapter.subject);
+assert.equal(typeof generatorSyntax.artifact, 'string');
+const loadedGenerator: typeof generateAdapter = new Script(`(${generatorSyntax.artifact})`).runInNewContext({
+  assert,
+  methodType,
+  forwardingAdapter,
+});
+const loadedResult = loadedGenerator({ contract: contractSyntax, modelType: methodSyntax });
+assert.equal(loadedResult.contract, cellContract);
+assert.equal(loadedResult.modelType, methodSyntax);
+assert.equal(loadedResult.adapter.subject, forwardingAdapter);
+assert.equal(loadedResult.adapter.artifact, adapterGeneration.adapter.artifact);
 
 assert.ok(satisfiesCell(behaviorOf(falseCell)));
 assert.ok(satisfiesCell(behaviorOf(trueCell)));

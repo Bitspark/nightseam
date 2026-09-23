@@ -3,6 +3,9 @@
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
  * @see ../reference.md#shapes-and-composition — structural laws S1–S8.
+ * @see ../foundations.md#16-whole-shape-holes — Whole-shape holes
+ * @see ../foundations.md#17-substitution-and-its-composition-laws — Substitution laws
+ * @see ../foundations.md#19-substitution-transparency-across-representations — Substitution transparency
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';

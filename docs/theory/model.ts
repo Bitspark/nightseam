@@ -176,14 +176,14 @@ export type Shape<O = unknown, G extends GenericId = never> = ShapeNode<O, G> | 
 // An existing node without a value or children is still Found, not Missing.
 export type Selection<T> = { readonly kind: 'found'; readonly value: T } | { readonly kind: 'missing' };
 
-/** Required laws: at(S, []) = S; at(S, p ++ q) = bind(at(S, p), at(_, q)). */
+/** Required laws: at(S, []) = found(S); at(S, p ++ q) = bind(at(S, p), at(_, q)). */
 export type ShapeNavigation<O, G extends GenericId = never> = (
   shape: Shape<O, G>,
   path: ShapePath,
 ) => Selection<Shape<O, G>>;
 
 /**
- * A location witnesses that selected = at(root, path). Construction must establish
+ * A location witnesses that found(selected) = at(root, path). Construction must establish
  * this equation. TypeScript relates the subject types but cannot prove the lookup.
  */
 export interface ShapeLocation<
@@ -393,6 +393,7 @@ export interface ModelTypeIndex {
   readonly behaviorOf: (value: never) => unknown;
 }
 export type NativeValue<T extends ModelTypeIndex> = Parameters<T['behaviorOf']>[0];
+/** The carrier Behavior[S], not a particular behavior b in that carrier. */
 export type ActualBehavior<T extends ModelTypeIndex> = ReturnType<T['behaviorOf']>;
 export type ShapeOf<T extends ModelTypeIndex> = T['domain']['shape'];
 export type ContractFor<T extends ModelTypeIndex> = Contract<ShapeOf<T>, ActualBehavior<T>>;
@@ -438,12 +439,13 @@ export type AdapterSemantics<T extends ModelTypeIndex, U extends ModelTypeIndex>
 
 /**
  * Syntax denotes its subject X; the artifact can be text OR a host AST value.
- * Mathematical Syntax[L, X] reverses the TypeScript parameter order.
+ * Mathematical Syntax[X, L] uses the same subject-first parameter order.
  * @see ./reference.md#objects-and-denotation
  */
 export type Syntax<X, L extends string> = Representation<X, { readonly form: 'syntax'; readonly language: L }>;
 export type ModelContractSyntax<S, Beh, D extends string> = Syntax<Contract<S, Beh>, D>;
 export type ModelTypeSyntax<T extends ModelTypeIndex> = Syntax<T, T['language']>;
+/** Denotes an initialized instance/configuration. Factory syntax has a different subject. */
 export type ImplementationSyntax<T extends ModelTypeIndex> = Syntax<ModelInstance<T>, T['language']>;
 export type AdapterSyntax<T extends ModelTypeIndex, U extends ModelTypeIndex, L extends string> = Syntax<
   AdapterSemantics<T, U>,
@@ -467,7 +469,7 @@ export type TypeGeneratorSemantics<C extends ContractFor<T>, T extends ModelType
 export interface AdapterGeneration<
   T extends ModelTypeIndex,
   U extends ModelTypeIndex,
-  L extends string,
+  L extends T['language'],
   C extends ContractFor<T> = ContractFor<T>,
 > extends TypeGeneration<T, C> {
   readonly adapter: AdapterSyntax<T, U, L>;
@@ -477,13 +479,14 @@ export interface AdapterGeneration<
  * The supplied T is the SAME T targeted by generated adapter semantics. For a
  * transparent generator, every admitted output adapter must preserve behavior;
  * retaining C and T in this record is necessary bookkeeping, not that proof.
+ * This family emits adapters in T's native language; D and the host H are separate.
  */
 export type AdapterGeneratorSemantics<
   C extends ContractFor<T>,
   T extends ModelTypeIndex,
   U extends ModelTypeIndex,
   D extends string,
-  L extends string,
+  L extends T['language'],
 > = (input: {
   readonly contract: Syntax<C, D>;
   readonly modelType: ModelTypeSyntax<T>;

@@ -1,5 +1,7 @@
 // Compile-only assertions, including intentional failures. Do not execute this file.
 // @see ./reference.md — which definitions and obligations these assertions address.
+// @see foundations.md#20-what-the-typescript-establishes — What the types establish
+// @see model.ts — Model definitions
 import type {
   ChangedAxis,
   Shape,
@@ -17,6 +19,7 @@ import type {
   Generic,
   Substitution,
   AdapterSemantics,
+  AdapterGeneratorSemantics,
   Contract,
   ContractImplementation,
   ModelInstance,
@@ -162,6 +165,14 @@ const unfinishedShape: Shape<string, 'h0'> = { kind: 'generic', id: 'h0' };
 const unfinishedClosingSubstitution: Substitution<string, 'g0', never> = () => unfinishedShape;
 
 const correctSelectedType: ModelTypeSyntax<typeof methodType> = adapterGeneration.modelType;
+type WrongAdapterLanguage = AdapterGeneratorSemantics<
+  typeof cellContract,
+  typeof methodType,
+  typeof surfaceType,
+  'cell-declaration',
+  // @ts-expect-error This generator emits the selected native type's language, not an unrelated one.
+  'typescript'
+>;
 // @ts-expect-error A function-record value is not an instance of the chosen method interface.
 const wrongNativeInstance: ModelInstance<typeof methodType> = functionCell;
 const wrongTypeSyntax: ModelTypeSyntax<typeof methodType> = {
