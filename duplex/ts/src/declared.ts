@@ -1,4 +1,4 @@
-import type { Message, Path, Wire } from '@bitspark/bitwire';
+import type { Message, Path, ReturnAddress, Wire } from '@bitspark/bitwire';
 import { encodePath, WireError } from './wire.ts';
 
 /** A bounded synchronous admission check. It must not mutate the message. */
@@ -119,19 +119,48 @@ export class Declared {
   /**
    * Send-only access, with one check per ancestor occurrence. Missing children
    * refuse after the preceding policies; own access never handles a nonempty
-   * suffix. Responses/cancellation use the admitted invocation's captured access.
-   * Destination endpoints supply asynchronous dispatch and invocation lifetime.
+   * suffix. Destination endpoints supply asynchronous dispatch and invocation
+   * lifetime.
+   *
+   * A cancel is not a new admission. This access delivers it, once and without a
+   * check or lookup, to the origin that admitted the request it names by return
+   * capability and identifier; that route lives no longer than the capability,
+   * and a rebuild or rebind cannot retarget it. Every other cancel and every
+   * response is refused: replies go to the request's own return capability.
    */
   bind(): Wire {
+    const admitted = new WeakMap<ReturnAddress, Map<string, { readonly own: Wire }>>();
+    const deliver = (own: Wire, message: Message): void => {
+      if (message.frame.kind !== 'request' || !message.return) return own.send([], message);
+      const { id } = message.frame;
+      let requests = admitted.get(message.return);
+      if (!requests) admitted.set(message.return, (requests = new Map()));
+      // Recorded before delegation, so a cancel racing the destination finds it.
+      const route = { own };
+      requests.set(id, route);
+      try {
+        own.send([], message);
+      } catch (error) {
+        if (requests.get(id) === route) requests.delete(id);
+        throw error;
+      }
+    };
     return Object.freeze({
       send: (path: Path, message: Message): void => {
         encodePath(path);
+        if (message.frame.kind === 'cancel') {
+          const requests = message.return && admitted.get(message.return);
+          const route = requests?.get(message.frame.id);
+          if (!route) throw new DeclaredError('invalid_frame');
+          requests!.delete(message.frame.id);
+          return route.own.send([], message);
+        }
         if (message.frame.kind !== 'request' && message.frame.kind !== 'event')
           throw new DeclaredError('invalid_frame');
         let current: Declared = this;
         for (let i = 0; ; i++) {
           current.#value.policy.admit(Object.freeze(path.slice(i)), message);
-          if (i === path.length) return current.#value.own.send([], message);
+          if (i === path.length) return deliver(current.#value.own, message);
           const child = current.#children.get(path[i]!);
           if (!child) throw new WireError('no_route');
           current = child;

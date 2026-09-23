@@ -34,6 +34,12 @@ are one number. Entries are in the words of the commits that landed them.
   shared admission policy and complete raw child descriptions. Construction,
   reconstruction, selected access and fresh-child attachment are exercised by
   native tests and Bitwire's independent cases on local pairs and WebSockets.
+- A caller cancels a request it sent through declared access by presenting
+  the cancel where it sent the request, as the profile says. Bound access
+  delivers the cancel once, with no check, to the origin that admitted that
+  request. The route is held no longer than the request's return capability,
+  and a rebuild or rebind cannot retarget it. Every other cancel and every
+  response still refuses.
 
 - A theory reference for compositional contracts and their representations,
   with a TypeScript metalanguage, checked navigation and substitution laws,
