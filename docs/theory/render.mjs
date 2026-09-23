@@ -1,13 +1,14 @@
 /**
- * @see [Foundations rendered here](foundations.md)
- * @see [Sources and evidence map](cross-references.md)
- * @see [Cross-reference checks](references.test.mjs)
+ * @see foundations.md — Foundations rendered here
+ * @see reference.md — Sources and evidence map
+ * @see references.test.mjs — Cross-reference checks
  */
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { Script } from 'node:vm';
+import { posix } from 'node:path';
 import { marked } from 'marked';
-import { slug as markdownSlug } from '../../scripts/links.mjs';
+import { slug as headingSlug } from '../../scripts/links.mjs';
 import * as hierarchy from './examples/hierarchy.ts';
 import * as composition from './examples/composition.ts';
 import * as behavior from './examples/behavior.ts';
@@ -38,29 +39,61 @@ const sources = await Promise.all(
     content: (await fs.readFile(`${directory}/${name}`, 'utf8')).replaceAll('\r\n', '\n'),
   })),
 );
-const markdown = (await fs.readFile(`${directory}/foundations.md`, 'utf8')).replaceAll('\r\n', '\n');
-const headings = marked.lexer(markdown).filter((token) => token.type === 'heading');
-const takenHeadings = new Map();
-let headingIndex = 0;
-let titleId;
-let document = marked.parse(markdown);
-const contents = [];
-document = document.replace(/<h([1-6])>(.*?)<\/h\1>/g, (_, depth, title) => {
-  const heading = headings[headingIndex++];
-  assert.equal(heading.depth, Number(depth));
-  const id = markdownSlug(heading.text, takenHeadings);
-  if (depth === '1') {
-    titleId = id;
-    return '';
-  }
-  if (depth === '2') contents.push({ id, title });
-  return `<h${depth} id="${id}">${title}</h${depth}>`;
-});
-assert.equal(headingIndex, headings.length);
-for (const name of files) document = document.replaceAll(`href="${name}"`, `href="#source-${slug(name)}"`);
-document = document.replaceAll('href="index.html"', 'href="#top"');
-document = document.replaceAll('href="foundations.md#', 'href="#');
-document = document.replaceAll('href="foundations.md"', 'href="#top"');
+const pages = await Promise.all(
+  [
+    ['foundations.md', 'foundations'],
+    ['reference.md', 'reference'],
+    ['nightseam.md', 'nightseam'],
+    ['README.md', 'overview'],
+  ].map(async ([name, pageId]) => {
+    const markdown = (await fs.readFile(`${directory}/${name}`, 'utf8')).replaceAll('\r\n', '\n');
+    const headings = marked.lexer(markdown).filter((token) => token.type === 'heading');
+    let headingIndex = 0;
+    const taken = new Map();
+    const targets = new Map();
+    const contents = [];
+    const html = marked.parse(markdown).replace(/<h([1-6])>(.*?)<\/h\1>/g, (_, level, title) => {
+      const heading = headings[headingIndex++];
+      assert.equal(heading.depth, Number(level));
+      const canonical = headingSlug(heading.text, taken);
+      const id = level === '1' ? pageId : pageId === 'foundations' ? canonical : `${pageId}-${canonical}`;
+      targets.set(canonical, id);
+      if (pageId === 'foundations' && level === '1') return `<a id="${id}"></a><a id="${canonical}"></a>`;
+      if ((pageId === 'foundations' && level === '2') || level === '1') contents.push({ id, title });
+      const depth = pageId === 'foundations' ? Number(level) : Math.min(6, Number(level) + 1);
+      return `<h${depth} id="${id}">${title}</h${depth}>`;
+    });
+    assert.equal(headingIndex, headings.length);
+    return { name, pageId, targets, html, contents };
+  }),
+);
+const contents = pages.flatMap((page) => page.contents);
+
+// Preserve Markdown's destinations when the guide is copied away from the repo.
+// Included pages and sources stay local; other references open their repo page.
+let document = pages
+  .map((page) =>
+    page.html.replace(/href="([^"]+)"/g, (_, href) => {
+      if (/^[a-z][a-z\d+.-]*:/i.test(href)) return `href="${href}"`;
+      const [path, fragment] = href.split('#');
+      const name = path ? posix.normalize(posix.join(posix.dirname(page.name), path)) : page.name;
+      const included = pages.find((candidate) => candidate.name === name);
+      if (included) {
+        const id = fragment ? included.targets.get(fragment) : included.pageId;
+        assert.ok(id, `${page.name}: unknown heading ${href}`);
+        return `href="#${id}"`;
+      }
+      if (name === 'index.html') return 'href="#top"';
+      if (files.includes(name)) {
+        assert.equal(fragment, undefined, `${page.name}: source fragments are not embedded`);
+        return `href="#source-${slug(name)}"`;
+      }
+      const repositoryPath = posix.normalize(posix.join('docs/theory', name));
+      assert.ok(!repositoryPath.startsWith('../'), `${page.name}: link leaves the repository`);
+      return `href="https://github.com/Bitspark/nightseam/blob/main/${repositoryPath}${fragment ? `#${fragment}` : ''}"`;
+    }),
+  )
+  .join('\n');
 document = document.replaceAll('<table>', '<div class="table-wrap"><table>').replaceAll('</table>', '</table></div>');
 
 const behaviorFigure = `<figure id="behavior-figure" class="diagram">
@@ -118,7 +151,7 @@ function drawSquare(kind, width) {
   const labels = isLaw
     ? ['F_S', 'select p', 'select p', 'F_(S|p)']
     : isComposition
-      ? ['F each', 'fill', 'fill', 'F filled shape']
+      ? ['F each', 'fill', 'fill', 'F filled']
       : ['flatten', 'reorder', 'reorder', 'flatten'];
   const route = (key, d) => `<path data-branch="${key}" class="edge" d="${d}" marker-end="url(#arrow-${kind})"/>`;
   const node = (index, nx, ny) =>
@@ -127,7 +160,7 @@ function drawSquare(kind, width) {
     `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
   return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
     <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
-    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the instantiated shape. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting shape. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
     <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
     ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
@@ -265,7 +298,7 @@ const html = `<!doctype html>
 @media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;max-height:none;overflow:visible;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
-</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1 id="${titleId}">Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="README.md">Theory index</a><a href="nightseam.md">Nightseam interpretation</a><a href="#behavior-figure">Explore behavior ↓</a><a href="#11-transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#16-whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents">${contents.map(({ id, title }) => `<a href="#${id}">${title}</a>`).join('')}<a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>${document}<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p>${appendix}<footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="#behavior-figure">Explore behavior ↓</a><a href="#11-transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#16-whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents">${contents.map(({ id, title }) => `<a href="#${id}">${title}</a>`).join('')}<a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>${document}<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p>${appendix}<footer class="footer">TypeScript as metalanguage · Generated from the four theory pages and the model sources</footer></article></div></div>
 <script>
 const samples = ${JSON.stringify(samples).replaceAll('<', '\\u003c')};
 const stages = ${JSON.stringify(stages).replaceAll('<', '\\u003c')};
@@ -321,7 +354,7 @@ document.querySelectorAll('.diagram').forEach(figure => {
     figure.dataset.route = button.dataset.routeChoice;
     figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
     if (figure === lawFigure) updateSelection();
-    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the instantiated shape.') + ' Both routes represent the same instantiated shape S[σ].';
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting shape.') + ' Both routes represent the same instantiated shape S[σ].';
     else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
   }));
 });

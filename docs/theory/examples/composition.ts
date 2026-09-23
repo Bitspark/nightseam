@@ -2,9 +2,10 @@
  * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
- * @see [Whole-shape holes](../foundations.md#16-whole-shape-holes)
- * @see [Substitution laws](../foundations.md#17-substitution-and-its-composition-laws)
- * @see [Substitution transparency](../foundations.md#19-substitution-transparency-across-representations)
+ * @see ../reference.md#shapes-and-composition — structural laws S1–S8.
+ * @see ../foundations.md#16-whole-shape-holes — Whole-shape holes
+ * @see ../foundations.md#17-substitution-and-its-composition-laws — Substitution laws
+ * @see ../foundations.md#19-substitution-transparency-across-representations — Substitution transparency
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';

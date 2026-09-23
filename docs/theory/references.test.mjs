@@ -1,76 +1,136 @@
 /**
  * Hold the cross-references between prose, source comments, and rendered HTML.
- * @see [File index and evidence map](README.md)
- * @see [Renderer](render.mjs)
+ * @see README.md — File index and evidence map
+ * @see render.mjs — Renderer
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join, posix } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
-import { anchors, check, links } from '../../scripts/links.mjs';
+import fs from 'node:fs/promises';
+import { posix } from 'node:path';
+import test from 'node:test';
+import { anchors, check as checkLinks, links } from '../../scripts/links.mjs';
 
-const root = fileURLToPath(new URL('../../', import.meta.url));
+const root = new URL('../../', import.meta.url);
 const tracked = new Set(
   execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean),
 );
 const theoryFiles = [...tracked].filter((path) => path.startsWith('docs/theory/'));
-const read = (path) => readFileSync(join(root, path), 'utf8').replaceAll('\r\n', '\n');
-const pages = new Map(
-  [...tracked]
-    .filter((path) => path.endsWith('.md') || (path.startsWith('docs/theory/') && /\.(ts|mjs)$/.test(path)))
-    .map((path) => [
-      path,
-      path.endsWith('.md')
-        ? read(path)
-        : read(path)
-            .split('\n')
-            .map((line) => (line.includes('@see ') ? line : ''))
-            .join('\n'),
-    ]),
+const repositoryPages = new Map(
+  await Promise.all(
+    [...tracked]
+      .filter((path) => path.endsWith('.md') || (path.startsWith('docs/theory/') && /\.(ts|mjs)$/.test(path)))
+      .map(async (path) => {
+        const source = await fs.readFile(new URL(path, root), 'utf8');
+        return [
+          path,
+          path.endsWith('.md')
+            ? source
+            : source
+                .split('\n')
+                .map((line) => {
+                  const target = line.match(/@see\s+(\S+)/)?.[1];
+                  return target ? '[source backlink](' + target + ')' : '';
+                })
+                .join('\n'),
+        ];
+      }),
+  ),
 );
 
-test('theory prose and source-comment links resolve, including Markdown fragments', () => {
-  const problems = check(pages, tracked).filter(({ page }) => page.startsWith('docs/theory/'));
+const pageIds = new Map([
+  ['foundations.md', 'foundations'],
+  ['reference.md', 'reference'],
+  ['nightseam.md', 'nightseam'],
+  ['README.md', 'overview'],
+]);
+const read = (name) => fs.readFile(new URL(name, import.meta.url), 'utf8');
+const pages = new Map(await Promise.all([...pageIds.keys()].map(async (name) => [name, await read(name)])));
+const sources = [
+  'model.ts',
+  'model.typecheck.ts',
+  'examples/coordinates.ts',
+  'examples/hierarchy.ts',
+  'examples/composition.ts',
+  'examples/behavior.ts',
+];
+
+test('the reference map covers exactly the exported model types', async () => {
+  const model = await read('model.ts');
+  const exported = new Set([...model.matchAll(/^export (?:type|interface) (\w+)/gm)].map((match) => match[1]));
+  const documented = new Set(
+    pages
+      .get('reference.md')
+      .split('\n')
+      .filter((line) => line.startsWith('|'))
+      .flatMap((line) => [...(line.split('|')[2] ?? '').matchAll(/`(\w+)`/g)].map((match) => match[1])),
+  );
+  assert.deepEqual(documented, exported);
+  assert.deepEqual(Object.keys(await import('./model.ts')), [], 'the model contains types only');
+});
+
+test('the reference map covers every named law', () => {
+  const laws = [...pages.get('foundations.md').matchAll(/^(?:\*\*)?([A-Z]\d+)(?: —|:)/gm)].map((match) => match[1]);
+  const expanded = pages
+    .get('reference.md')
+    .replace(/([A-Z])(\d+)–\1(\d+)/g, (_, prefix, first, last) =>
+      Array.from({ length: Number(last) - Number(first) + 1 }, (_, index) => prefix + (Number(first) + index)).join(
+        ' ',
+      ),
+    );
+  const documented = new Set([...expanded.matchAll(/\b([A-Z]\d+)\b/g)].map((match) => match[1]));
+  assert.ok(laws.length > 0);
+  assert.deepEqual(documented, new Set(laws));
+});
+
+test('theory prose and source backlinks resolve, including Markdown fragments', () => {
+  const problems = checkLinks(repositoryPages, tracked).filter(({ page }) => page.startsWith('docs/theory/'));
   assert.deepEqual(problems, []);
   for (const path of theoryFiles.filter((file) => /\.(ts|mjs)$/.test(file))) {
     assert.ok(
-      links(pages.get(path)).some(({ target }) => /\.md(?:#|$)/.test(target)),
-      path + ' needs a prose backlink',
+      links(repositoryPages.get(path)).some(({ target }) => /\.md(?:#|$)/.test(target)),
+      path + ': missing prose backlink',
     );
   }
 });
 
 test('the theory index links every owned document, source, and configuration file', () => {
   const indexed = new Set(
-    links(pages.get('docs/theory/README.md')).map(({ target }) =>
-      posix.normalize(posix.join('docs/theory', target.split('#')[0])),
-    ),
+    links(pages.get('README.md')).map(({ target }) => posix.normalize(posix.join('docs/theory', target.split('#')[0]))),
   );
   for (const path of theoryFiles) {
     if (path === 'docs/theory/README.md') continue;
-    assert.ok(indexed.has(path), path + ' is missing from the theory index');
+    assert.ok(indexed.has(path), path + ': missing from the theory index');
   }
 });
 
-test('the visual edition preserves heading anchors and resolves every navigation link', () => {
-  const html = read('docs/theory/index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
-  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
-  for (const anchor of anchors(pages.get('docs/theory/foundations.md'))) {
-    assert.ok(ids.has(anchor), 'Missing foundations heading in HTML: ' + anchor);
-  }
+test('the standalone guide has unique targets and no sibling-file dependencies', async () => {
+  const html = (await read('index.html')).replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
+  const identifiers = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  const ids = new Set(identifiers);
+  assert.equal(ids.size, identifiers.length, 'duplicate HTML identifiers');
   const outgoing = [];
-  for (const [, href] of html.matchAll(/<a\b[^>]*\bhref="([^"]+)"/g)) {
-    if (href.startsWith('#')) {
-      assert.ok(ids.has(decodeURIComponent(href.slice(1))), 'Missing HTML target: ' + href);
-    } else {
+  for (const [, href] of html.matchAll(/\bhref="([^"]+)"/g)) {
+    if (href.startsWith('#')) assert.ok(ids.has(href.slice(1)), 'missing HTML target: ' + href);
+    else {
+      assert.match(href, /^https:\/\//, 'link depends on the checkout: ' + href);
       outgoing.push('[link](' + href + ')');
     }
   }
-  const withHtmlLinks = new Map(pages).set('docs/theory/index.html', outgoing.join('\n'));
+  const withHtmlLinks = new Map(repositoryPages).set('docs/theory/index.html', outgoing.join('\n'));
   assert.deepEqual(
-    check(withHtmlLinks, tracked).filter(({ page }) => page.endsWith('/index.html')),
+    checkLinks(withHtmlLinks, tracked).filter(({ page }) => page === 'docs/theory/index.html'),
     [],
   );
+  for (const [name, markdown] of pages) {
+    const pageId = pageIds.get(name);
+    assert.ok(ids.has(pageId), 'missing embedded page: ' + name);
+    const headings = [...anchors(markdown)];
+    for (const heading of pageId === 'foundations' ? headings : headings.slice(1)) {
+      const id = pageId === 'foundations' ? heading : pageId + '-' + heading;
+      assert.ok(ids.has(id), 'missing embedded heading: ' + id);
+    }
+  }
+  for (const name of sources) {
+    assert.ok(ids.has('source-' + name.replace(/[^a-z0-9]+/g, '-')), 'missing embedded source: ' + name);
+  }
 });

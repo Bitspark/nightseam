@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- Reject patterned coordinate families in the theory type model and cross-reference
+  every exported type and law; the standalone guide includes all theory pages
+  with portable internal links.
 - Align the theory definitions, model types, evidence and cross-references,
   including generator dependencies, syntax denotation, behavioral equivalence,
   and checked navigation between the prose, sources, and visual edition.

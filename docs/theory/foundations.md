@@ -1,8 +1,9 @@
 # Contracts, implementations, and representations
 
-Start with the [theory index](README.md) and [evidence map](cross-references.md). The
-[Nightseam interpretation](nightseam.md) relates these definitions to the
-repository's domain and implementation.
+The [theory index](README.md) gives the reading order. The
+[concept/law reference](reference.md) maps definitions to model types and checked
+examples; the [Nightseam interpretation](nightseam.md) relates them to the current
+implementation and its separate design questions.
 
 ## 1. What the model describes
 
@@ -30,8 +31,8 @@ adds shape trees and executable checks of the transparency laws.
 [examples/composition.ts](examples/composition.ts) adds whole-shape holes and
 substitution. [examples/behavior.ts](examples/behavior.ts) adds realizations,
 satisfaction, adapters, generators, and an exhaustive finite behavior example.
-The [self-contained HTML edition](index.html) includes interactive examples and
-the complete model and all four examples.
+The [self-contained HTML edition](index.html) includes all four theory pages,
+interactive examples, the complete model, compile-only assertions, and all four examples.
 
 | Notation      | Meaning                                                                |
 | ------------- | ---------------------------------------------------------------------- |
@@ -245,7 +246,11 @@ and every input, deciding equality of all finite traces for each pair of total,
 deterministic machines. The example checks all 512 two-state method machines,
 rejects write-ignoring implementations, compares the two native realizations, and
 distinguishes forwarding from replacement. This is exhaustive for that finite
-domain, not a proof about arbitrary programs or Nightseam transports.
+domain, not a proof about arbitrary programs or Nightseam transports. Each `step`
+must be a pure function of its declared state and input: hidden mutable state or
+randomness would invalidate the finite-machine interpretation. The validator
+checks the finite table's state/output closure; its TypeScript function type and
+one traversal cannot establish purity for an arbitrary supplied function.
 
 <!-- behavior-explorer -->
 
@@ -330,7 +335,7 @@ Adding or removing a key therefore changes that axis.
 sets agree and all elements at matching axes agree. Equality must be reflexive,
 symmetric, and transitive. Element IDs are compared within the same axis.
 
-For a fixed `S`, the cell at `K` is the collection `R_K(S)` of its lawful
+For a fixed subject `X`, the cell at `K` is the collection `R_K(X)` of its lawful
 representations. A cell can contain many artifacts: differently formatted Go
 interfaces, for example. Coordinates identify a cell, not a unique artifact.
 Only meaningful coordinate assignments and inhabited cells need be present in
@@ -356,8 +361,14 @@ Equivalently: ∃a*. ∀a. (K[a] ≠ L[a] ⇔ a = a*)
 
 The distinguished axis is chosen once for the entire pair. A transformation
 with zero changes is not an elementary edge; neither is one changing two axes.
-The TypeScript type is `never` for either case, and for broad or union-valued
-coordinates that do not designate individual points.
+For concrete literal coordinate types, the TypeScript type is `never` for zero
+or multiple changes. It also rejects widened primitives, unions, patterned IDs
+such as `go:${string}`, and patterned axis-key sets. These describe families,
+not individual points. Static equality is unknown for such families.
+
+These checks concern the declared type indices. TypeScript's structural typing
+can hide additional runtime keys, and assertions can bypass checks. The semantic
+law still requires the actual endpoint coordinates to agree with those indices.
 
 For fixed `X`, the ordered tuple `(From, To)` determines the **transformation
 signature**. A `TransformationInstance` additionally selects an actual function.
@@ -899,9 +910,9 @@ F_(S[σ])(plug_K(r, a))
 ```mermaid
 flowchart LR
     A["Template and arguments at K"] -->|"transform each"| B["Template and arguments at L"]
-    A -->|"substitute at K"| S["Instantiated shape S[σ] at K"]
-    B -->|"substitute at L"| D["Instantiated shape S[σ] at L"]
-    S -->|"transform instantiated shape"| D
+    A -->|"substitute at K"| S["Filled shape S[σ] at K"]
+    B -->|"substitute at L"| D["Filled shape S[σ] at L"]
+    S -->|"transform filled shape"| D
 ```
 
 This is the connecting law: **fill, then transform; or transform the template
@@ -998,10 +1009,9 @@ pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 ```
 
-`verify` checks the types, runs the examples and cross-reference checks, and
-checks that the HTML edition is current. `render` regenerates it from this page
-and the embedded sources. The [evidence map](cross-references.md)
-connects each group of laws to its types and checks.
+`verify` checks the types, runs the examples and reference checks, and checks that
+the HTML edition is current. `render` regenerates it from the four theory pages
+and the embedded sources.
 The package scripts enable Node's TypeScript stripping; no compiled model is
 published.
 

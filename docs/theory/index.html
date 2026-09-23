@@ -10,10 +10,11 @@
 @media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;max-height:none;overflow:visible;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
-</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1 id="contracts-implementations-and-representations">Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="README.md">Theory index</a><a href="nightseam.md">Nightseam interpretation</a><a href="#behavior-figure">Explore behavior ↓</a><a href="#11-transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#16-whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#1-what-the-model-describes">1. What the model describes</a><a href="#2-shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</a><a href="#3-native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</a><a href="#4-syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</a><a href="#5-adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</a><a href="#6-coordinates-and-cells">6. Coordinates and cells</a><a href="#7-elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</a><a href="#8-giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</a><a href="#9-shape-navigation">9. Shape navigation</a><a href="#10-navigating-a-representation">10. Navigating a representation</a><a href="#11-transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</a><a href="#12-the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</a><a href="#13-transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</a><a href="#14-worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</a><a href="#15-interpreting-generator-roles">15. Interpreting generator roles</a><a href="#16-whole-shape-holes">16. Whole-shape holes</a><a href="#17-substitution-and-its-composition-laws">17. Substitution and its composition laws</a><a href="#18-navigation-through-composed-shapes">18. Navigation through composed shapes</a><a href="#19-substitution-transparency-across-representations">19. Substitution transparency across representations</a><a href="#20-what-the-typescript-establishes">20. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>
-<p>Start with the <a href="README.md">theory index</a> and <a href="cross-references.md">evidence map</a>. The
-<a href="nightseam.md">Nightseam interpretation</a> relates these definitions to the
-repository&#39;s domain and implementation.</p>
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="#behavior-figure">Explore behavior ↓</a><a href="#11-transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#16-whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#1-what-the-model-describes">1. What the model describes</a><a href="#2-shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</a><a href="#3-native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</a><a href="#4-syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</a><a href="#5-adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</a><a href="#6-coordinates-and-cells">6. Coordinates and cells</a><a href="#7-elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</a><a href="#8-giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</a><a href="#9-shape-navigation">9. Shape navigation</a><a href="#10-navigating-a-representation">10. Navigating a representation</a><a href="#11-transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</a><a href="#12-the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</a><a href="#13-transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</a><a href="#14-worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</a><a href="#15-interpreting-generator-roles">15. Interpreting generator roles</a><a href="#16-whole-shape-holes">16. Whole-shape holes</a><a href="#17-substitution-and-its-composition-laws">17. Substitution and its composition laws</a><a href="#18-navigation-through-composed-shapes">18. Navigation through composed shapes</a><a href="#19-substitution-transparency-across-representations">19. Substitution transparency across representations</a><a href="#20-what-the-typescript-establishes">20. What the TypeScript establishes</a><a href="#reference">Concepts, laws, and evidence</a><a href="#nightseam">Interpreting the model in Nightseam</a><a href="#overview">Contracts, implementations, and representations</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article><a id="foundations"></a><a id="contracts-implementations-and-representations"></a>
+<p>The <a href="#overview">theory index</a> gives the reading order. The
+<a href="#reference">concept/law reference</a> maps definitions to model types and checked
+examples; the <a href="#nightseam">Nightseam interpretation</a> relates them to the current
+implementation and its separate design questions.</p>
 <h2 id="1-what-the-model-describes">1. What the model describes</h2>
 <p>The model distinguishes a contract&#39;s shape <code>S</code>, its behavioral specification
 <code>B</code>, and an implementation&#39;s actual behavior <code>b</code>. A contract is <code>C = (S, B)</code>.
@@ -36,8 +37,8 @@ adds shape trees and executable checks of the transparency laws.
 <a href="#source-examples-composition-ts">examples/composition.ts</a> adds whole-shape holes and
 substitution. <a href="#source-examples-behavior-ts">examples/behavior.ts</a> adds realizations,
 satisfaction, adapters, generators, and an exhaustive finite behavior example.
-The <a href="#top">self-contained HTML edition</a> includes interactive examples and
-the complete model and all four examples.</p>
+The <a href="#top">self-contained HTML edition</a> includes all four theory pages,
+interactive examples, the complete model, compile-only assertions, and all four examples.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -294,7 +295,11 @@ and every input, deciding equality of all finite traces for each pair of total,
 deterministic machines. The example checks all 512 two-state method machines,
 rejects write-ignoring implementations, compares the two native realizations, and
 distinguishes forwarding from replacement. This is exhaustive for that finite
-domain, not a proof about arbitrary programs or Nightseam transports.</p>
+domain, not a proof about arbitrary programs or Nightseam transports. Each <code>step</code>
+must be a pure function of its declared state and input: hidden mutable state or
+randomness would invalidate the finite-machine interpretation. The validator
+checks the finite table&#39;s state/output closure; its TypeScript function type and
+one traversal cannot establish purity for an arbitrary supplied function.</p>
 <figure id="behavior-figure" class="diagram">
   <figcaption><span class="figure-number">BEHAVIOR EXPLORER</span><strong>Lawful does not mean the same behavior.</strong></figcaption>
   <p>Compare a storing cell initially true with one of the checked implementations. A replacing adapter returns a lawful cell, but changes the first read.</p>
@@ -376,7 +381,7 @@ Adding or removing a key therefore changes that axis.</p>
 <p><strong>E1 — Coordinate equality.</strong> Two coordinates are equal exactly when their key
 sets agree and all elements at matching axes agree. Equality must be reflexive,
 symmetric, and transitive. Element IDs are compared within the same axis.</p>
-<p>For a fixed <code>S</code>, the cell at <code>K</code> is the collection <code>R_K(S)</code> of its lawful
+<p>For a fixed subject <code>X</code>, the cell at <code>K</code> is the collection <code>R_K(X)</code> of its lawful
 representations. A cell can contain many artifacts: differently formatted Go
 interfaces, for example. Coordinates identify a cell, not a unique artifact.
 Only meaningful coordinate assignments and inhabited cells need be present in
@@ -395,8 +400,13 @@ Equivalently: ∃a*. ∀a. (K[a] ≠ L[a] ⇔ a = a*)
 </code></pre>
 <p>The distinguished axis is chosen once for the entire pair. A transformation
 with zero changes is not an elementary edge; neither is one changing two axes.
-The TypeScript type is <code>never</code> for either case, and for broad or union-valued
-coordinates that do not designate individual points.</p>
+For concrete literal coordinate types, the TypeScript type is <code>never</code> for zero
+or multiple changes. It also rejects widened primitives, unions, patterned IDs
+such as <code>go:${string}</code>, and patterned axis-key sets. These describe families,
+not individual points. Static equality is unknown for such families.</p>
+<p>These checks concern the declared type indices. TypeScript&#39;s structural typing
+can hide additional runtime keys, and assertions can bypass checks. The semantic
+law still requires the actual endpoint coordinates to agree with those indices.</p>
 <p>For fixed <code>X</code>, the ordered tuple <code>(From, To)</code> determines the <strong>transformation
 signature</strong>. A <code>TransformationInstance</code> additionally selects an actual function.
 Two generators may have the same signature and produce different lawful
@@ -859,7 +869,7 @@ defined for the open template, its arguments, and its instantiated shape. Then:<
   </div>
   <div class="square" data-square="composition"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-composition desc-composition">
     <title id="title-composition">Substitution commutes with transformation</title>
-    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the instantiated shape. Both routes represent S with the same substituted arguments at the target coordinate.</desc>
+    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the resulting shape. Both routes represent S with the same substituted arguments at the target coordinate.</desc>
     <defs><marker id="arrow-composition" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-composition)"/>
     <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-composition)"/>
@@ -867,7 +877,7 @@ defined for the open template, its arguments, and its instantiated shape. Then:<
     <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-composition)"/>
     <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Open at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">r, a(g)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Open at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">F(r), F(a)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Filled at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(S[σ])</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Filled at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(S[σ])</text></g>
     <text class="edge-label" x="350" y="52" text-anchor="middle">F each</text>
-    <text class="edge-label" x="350" y="305" text-anchor="middle">F filled shape</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">F filled</text>
     <text class="edge-label" x="550" y="174" text-anchor="middle">fill</text>
     <text class="edge-label" x="150" y="174" text-anchor="middle">fill</text>
     <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
@@ -1006,10 +1016,9 @@ produce implementations satisfying the same resulting contract.</p>
 <pre><code class="language-sh">pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 </code></pre>
-<p><code>verify</code> checks the types, runs the examples and cross-reference checks, and
-checks that the HTML edition is current. <code>render</code> regenerates it from this page
-and the embedded sources. The <a href="cross-references.md">evidence map</a>
-connects each group of laws to its types and checks.
+<p><code>verify</code> checks the types, runs the examples and reference checks, and checks that
+the HTML edition is current. <code>render</code> regenerates it from the four theory pages
+and the embedded sources.
 The package scripts enable Node&#39;s TypeScript stripping; no compiled model is
 published.</p>
 <p>The executable examples operate on model artifacts. They do not run Go, compile
@@ -1018,7 +1027,537 @@ The behavior example interprets its adapter identifier in an explicit binding
 environment and reloads the actual JavaScript generator expression in its
 declared host environment. Those checks establish the fixture application,
 not denotation for arbitrary source.</p>
-<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">488 lines · embedded source</span></summary><pre><code>/**
+
+<h2 id="reference">Concepts, laws, and evidence</h2>
+<p>This map connects the <a href="#foundations">foundations</a>, <a href="#source-model-ts">type model</a>,
+and executable examples. The <a href="#nightseam">Nightseam interpretation</a> identifies
+production evidence and the limits of that mapping. The <a href="#overview">theory index</a>
+contains the reading order and verification commands.</p>
+<p>The tables cover every exported model type. Mathematical indices name individual
+objects; a TypeScript type usually describes a set of possible objects. Keeping
+the same type parameter does not prove runtime identity, denotation, or a law.</p>
+<h3 id="reference-objects-and-denotation">Objects and denotation</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concepts and laws</th>
+<th>Types in model.ts</th>
+<th>Executable evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#2-shape-specification-and-actual-behavior">Contract, behavior domain, and B1</a></td>
+<td><code>Proposition</code>, <code>BehaviorDomain</code>, <code>BehaviorSpecification</code>, <code>Contract</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: <code>cellDomain</code>, <code>cellContract</code>, and <code>satisfiesCell</code>; the predicate admits the two reference behaviors&#39; equivalence classes.</td>
+</tr>
+<tr>
+<td><a href="#3-native-realizations-instances-and-satisfaction">Selected native realization</a></td>
+<td><code>ModelType</code>, <code>ModelTypeIndex</code>, <code>NativeValue</code>, <code>ActualBehavior</code>, <code>ShapeOf</code>, <code>ContractFor</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: <code>methodType</code> and <code>functionType</code> realize the same shape with different native carriers.</td>
+</tr>
+<tr>
+<td><a href="#3-native-realizations-instances-and-satisfaction">Instance, satisfaction, and I1</a></td>
+<td><code>ModelInstance</code>, <code>Satisfaction</code>, <code>ContractImplementation</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: <code>checkImplementation</code> checks the actual instance against its witness and rejects a mismatched witness.</td>
+</tr>
+<tr>
+<td><a href="#5-adapters-generators-and-behavioral-preservation">Adapter laws A1 and A2</a></td>
+<td><code>AdapterSemantics</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: forwarding preserves behavior; replacement preserves satisfaction while changing the first read.</td>
+</tr>
+<tr>
+<td><a href="#4-syntax-denotation-and-values-inside-an-interpreter">Syntax and denotation</a></td>
+<td><code>Syntax</code>, <code>ModelContractSyntax</code>, <code>ModelTypeSyntax</code>, <code>ImplementationSyntax</code>, <code>AdapterSyntax</code>, <code>GeneratorSyntax</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: stipulated declaration/native-type denotations, an adapter identifier resolved in an explicit environment, and the actual JavaScript generator reloaded in its host environment; <a href="#source-model-typecheck-ts">type assertions</a> reject mixing contract and type syntax. No Go parser or compiler is supplied.</td>
+</tr>
+<tr>
+<td><a href="#5-adapters-generators-and-behavioral-preservation">Dependent generator inputs and results</a></td>
+<td><code>TypeGeneration</code>, <code>TypeGeneratorSemantics</code>, <code>AdapterGeneration</code>, <code>AdapterGeneratorSemantics</code></td>
+<td><a href="#source-examples-behavior-ts">Behavior example</a>: <code>generateType</code> and <code>generateAdapter</code> retain the contract and selected realization; <a href="#source-model-typecheck-ts">type assertions</a> reject the wrong realization or adapter output language.</td>
+</tr>
+</tbody></table></div>
+<p>Mathematical <code>Syntax[X, L]</code> and TypeScript <code>Syntax&lt;X, L&gt;</code> use the same parameter
+order. The mathematical index names a particular subject; a TypeScript type
+describes a family of values. <code>ImplementationSyntax&lt;T&gt;</code> ranges over
+<code>ModelInstance&lt;T&gt;</code>, with each artifact denoting its recorded initialized
+instance. Use <code>Syntax&lt;typeof i, L&gt;</code> when retaining that instance&#39;s type matters;
+even that type cannot prove exact runtime identity. A factory has a different
+subject and needs an explicit initialization operation. <code>ModelContractSyntax&lt;S, Beh, D&gt;</code>
+ranges over contracts in a domain; <code>Syntax&lt;typeof C, D&gt;</code> retains the selected
+contract&#39;s type. These are families of syntax, not proofs of denotation.</p>
+<h3 id="reference-coordinates-and-paths">Coordinates and paths</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concepts and laws</th>
+<th>Types in model.ts</th>
+<th>Executable evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#6-coordinates-and-cells">Coordinate schema and E1</a></td>
+<td><code>AxisId</code>, <code>AxisElementId</code>, <code>EmptyCoordinate</code>, <code>CoordinateValue</code>, <code>Coordinates</code>, <code>AxisElementEquality</code>, <code>CoordinateEquality</code>, <code>CoordinatesEqual</code></td>
+<td><a href="#source-examples-coordinates-ts">Coordinate example</a>: equality of key sets and axis values, including missing versus explicit empty slots.</td>
+</tr>
+<tr>
+<td><a href="#7-elementary-transformations-and-coordinate-paths">Exactly one changed axis, E2</a></td>
+<td><code>DifferingAxes</code>, <code>ChangedAxis</code>, <code>Transformation</code>, <code>TransformationSignature</code>, <code>TransformationInstance</code></td>
+<td><a href="#source-model-typecheck-ts">Type assertions</a>: zero/multiple changes and non-singleton coordinates are refused; <a href="#source-examples-coordinates-ts">coordinate example</a>: two functions share a signature.</td>
+</tr>
+<tr>
+<td><a href="#7-elementary-transformations-and-coordinate-paths">Fixed subject and P1</a></td>
+<td><code>Representation</code>, <code>RepresentationMap</code>, <code>Stops</code>, <code>PathSteps</code>, <code>Path</code>, <code>PathMeaning</code></td>
+<td><a href="#source-examples-coordinates-ts">Coordinate example</a>: identity and two composed routes; <a href="#source-model-typecheck-ts">type assertions</a>: mismatched steps and subject types are refused.</td>
+</tr>
+</tbody></table></div>
+<p>The coordinate and behavior examples use two explicit schemas: ranked keys
+such as <code>0:form</code> in one, and the minimal <code>{ form, language }</code> of <code>Syntax</code> in the
+other. The axes are opaque, so these schemas are not interchangeable or
+implicitly equal. A schema translation and a common subject would be needed
+to connect their representation graphs.</p>
+<h3 id="reference-shapes-and-composition">Shapes and composition</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concepts and laws</th>
+<th>Types in model.ts</th>
+<th>Executable evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#8-giving-the-shape-a-hierarchy">Shape trees</a> and <a href="#16-whole-shape-holes">whole-shape holes</a></td>
+<td><code>ShapeKey</code>, <code>ShapePath</code>, <code>GenericId</code>, <code>Generic</code>, <code>ShapeNode</code>, <code>Shape</code></td>
+<td><a href="#source-examples-hierarchy-ts">Hierarchy example</a>: nine-node BooleanCell and an empty shape; <a href="#source-examples-composition-ts">composition example</a>: repeated, root, and distinct holes.</td>
+</tr>
+<tr>
+<td><a href="#9-shape-navigation">Partial navigation, N1 and N2</a></td>
+<td><code>Selection</code>, <code>ShapeNavigation</code>, <code>ShapeLocation</code></td>
+<td><a href="#source-examples-hierarchy-ts">Hierarchy example</a>: <code>shapeAt</code>, <code>locate</code>, valid splits and missing prefixes.</td>
+</tr>
+<tr>
+<td><a href="#10-navigating-a-representation">Represented navigation and faithfulness, R1–R3</a></td>
+<td><code>RepresentationNavigation</code>, <code>ShapeNodeSurface</code>, <code>ShapeSurface</code>, <code>RepresentationObservation</code></td>
+<td><a href="#source-examples-hierarchy-ts">Hierarchy example</a>: local surfaces and path splits; dropping descendants or replacing values is rejected.</td>
+</tr>
+<tr>
+<td><a href="#11-transformation-families-and-the-transparency-square">Preservation and transparency, T1–T2 and Q1</a></td>
+<td><code>RepresentationEquivalence</code>, <code>ShapeRepresentationMap</code>, <code>TransformationFamily</code>, <code>NavigationTransparency</code></td>
+<td><a href="#source-examples-hierarchy-ts">Hierarchy example</a>: <code>checkTransparency</code> checks all four primitive families.</td>
+</tr>
+<tr>
+<td><a href="#12-the-prefix-law-and-arbitrary-coordinate-paths">Prefix transparency T3 and composed paths P2</a>; <a href="#13-transparency-does-not-force-a-unique-coordinate-path">optional coherence P3</a></td>
+<td><code>FamilyPathSteps</code>, <code>FamilyPath</code>, <code>FamilyPathMeaning</code></td>
+<td><a href="#source-examples-hierarchy-ts">Hierarchy example</a>: <code>layoutFirst</code>, <code>orderFirst</code>, and every prefix split; equality of these two routes is specific evidence, not uniqueness of all paths.</td>
+</tr>
+<tr>
+<td><a href="#17-substitution-and-its-composition-laws">Simultaneous substitution, S1–S4</a></td>
+<td><code>Substitution</code>, <code>ShapeSubstitution</code>, <code>SubstitutionApplication</code></td>
+<td><a href="#source-examples-composition-ts">Composition example</a>: <code>substitute</code>, <code>identity</code>, <code>compose</code>, and checked result witnesses.</td>
+</tr>
+<tr>
+<td><a href="#18-navigation-through-composed-shapes">Navigation through replacements, S5–S6</a></td>
+<td><code>ShapeNavigation</code></td>
+<td><a href="#source-examples-composition-ts">Composition example</a>: selection at a hole and paths entering inserted shapes.</td>
+</tr>
+<tr>
+<td><a href="#19-substitution-transparency-across-representations">Represented substitution and transparency, S7–S8</a></td>
+<td><code>RepresentedSubstitution</code>, <code>RepresentationSubstitution</code>, <code>SubstitutionTransparency</code></td>
+<td><a href="#source-examples-composition-ts">Composition example</a>: represented identity/composition and <code>checkSubstitutionTransparency</code> in nested and flat encodings.</td>
+</tr>
+</tbody></table></div>
+<p>Whole-shape instantiation produces a shape <code>S[σ]</code>, not a native <code>ModelInstance&lt;T&gt;</code>.
+The <a href="#lifting-structural-operations-to-contracts-and-implementations">behavioral lifting requirements</a>
+explain what is still needed for whole-contract substitution and implementation
+composition. The structural examples supply neither the resulting specification
+<code>B_σ</code> nor an implementation constructor.</p>
+<h3 id="reference-reading-the-evidence">Reading the evidence</h3>
+<p>The <a href="#20-what-the-typescript-establishes">limits of TypeScript checking</a>
+apply to every row. The structural examples use opaque string values and concrete
+finite trees. The behavioral example uses finite, pure, deterministic, total
+state machines and an exact product exploration for that domain. Its 512-machine
+enumeration checks forwarding and replacement for each two-state method machine;
+it does not enumerate arbitrary programs or prove a production transport correct.</p>
+<p><code>Proposition</code> describes a statement. <code>Satisfaction</code> and the location/substitution
+witnesses describe evidence obligations. Their records can be fabricated, so
+TypeScript acceptance alone establishes none of those obligations.</p>
+<h3 id="reference-documentation-tooling">Documentation tooling</h3>
+<p><a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/render.mjs">render.mjs</a> generates <a href="#top">index.html</a> from the four Markdown
+pages and the six primary TypeScript sources, with internal links to the included
+pages and sources. References outside this document remain repository or external
+links. <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/references.test.mjs">references.test.mjs</a> checks exported-type coverage,
+source backlinks, and the rendered document&#39;s links and identifiers.
+The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/package.json">package scripts</a> run it with the examples; <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/tsconfig.json">tsconfig.json</a>
+checks the model, compile-only assertions, and example types. Regenerate the HTML
+after editing any included page or source.</p>
+
+<h2 id="nightseam">Interpreting the model in Nightseam</h2>
+<p>The theory distinguishes a contract <code>C = (S, B)</code>, a native realization <code>T</code>, an
+instance <code>i</code>, and its actual behavior <code>b</code>. An interpretation chooses the behavior
+domain and observations, how declarations describe <code>S</code> and any <code>B</code>, and how
+native and Wire values realize them. This page connects those objects to the
+representation calculus and names existing evidence. It does not introduce a
+generator API or claim a production implementation of the complete theory.</p>
+<p>The <a href="#foundations">foundations</a> define these objects and laws; the
+<a href="#reference">concept/law reference</a> maps them to the type model and examples.
+Return to the <a href="#overview">theory index</a> for the complete reading order.</p>
+<h3 id="nightseam-choose-the-subject-before-choosing-its-coordinates">Choose the subject before choosing its coordinates</h3>
+<p><code>S</code> describes a declared interface and its parts: operations, arguments, result
+types, and their relationships. <code>B : Behavior[S] -&gt; Prop</code> states the admitted
+behavior. A native type <code>T</code> realizes the structure; a value <code>i : Instance[T]</code>
+implements the full contract exactly when <code>B(BehaviorOf_T(i))</code> holds. A method
+signature does not establish that predicate for every value implementing it.</p>
+<p>Two lawful BooleanCells can disagree on an initial read when the contract leaves
+initialization unspecified. A write-ignoring cell has compatible method signatures
+and violates the storing-cell specification. The
+<a href="#source-examples-behavior-ts">finite behavior example</a> exhibits both distinctions and
+two possible Go realizations. It models their semantics in TypeScript; it neither
+runs Go nor claims these illustrative declarations are production Nightseam syntax.</p>
+<p>The finite <code>Shape&lt;O, G&gt;</code> trees in <a href="#source-model-ts">model.ts</a> give one abstract basis for
+hierarchy and substitution. Nightseam&#39;s
+<a href="https://github.com/Bitspark/nightseam/blob/main/internal/model/family.go">declaration model</a> and
+<a href="https://github.com/Bitspark/nightseam/blob/main/docs/declaration/declaration-identity.md">canonical declaration graph</a> carry
+additional structure, including named references. An interpretation must
+explain which information is an opaque local value, which becomes children,
+and how references and generic contexts are represented. The examples do not
+claim to encode the entire production declaration graph as a finite tree.</p>
+<p>The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/domain.md">domain graph</a> distinguishes ModelContract, ModelType, and
+ModelInstance as <code>C</code>, selected realizations <code>T</code>, and instances <code>i</code>, with
+satisfaction as a separate relation. Several realizations can share a contract
+and language. A declaration digest identifies specified declaration content,
+not an arbitrary behavioral predicate <code>B</code>; applying the theory still requires
+an explicit contract interpretation. This does not settle the graph&#39;s open
+design choices. The Wire side likewise needs a realization and an
+interpretation of its actual interaction behavior. Runtime participants, carriers,
+and events are not automatically representations of one interface contract.
+A model type is an object; a coordinate cell can contain several artifacts
+representing an object. These are different roles in the model.</p>
+<h3 id="nightseam-choose-an-interpretation-of-the-axes">Choose an interpretation of the axes</h3>
+<p>The following assignments illustrate cells; their labels are not built into
+the general model.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Form</th>
+<th>Language</th>
+<th>What an artifact can represent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Contract</td>
+<td>Syntax</td>
+<td>Declaration language</td>
+<td>A declaration denoting <code>C</code>, if its interpretation includes <code>B</code>; otherwise a shape <code>S</code>.</td>
+</tr>
+<tr>
+<td>Contract</td>
+<td>Semantics</td>
+<td>Empty, when language-independent</td>
+<td>The pair <code>(S, B)</code> in its selected behavior domain.</td>
+</tr>
+<tr>
+<td>Model type</td>
+<td>Syntax</td>
+<td>Go or TypeScript</td>
+<td>A declaration denoting <code>T</code>, also viewable as a representation of <code>S</code>.</td>
+</tr>
+<tr>
+<td>Model type</td>
+<td>Semantics</td>
+<td>Go or TypeScript</td>
+<td>The native carrier with its correspondence to the abstract shape and behavior domain.</td>
+</tr>
+<tr>
+<td>Adapter</td>
+<td>Syntax or semantics</td>
+<td>A target language</td>
+<td>Code denoting, or a loaded function implementing, an adapter for the particular <code>T</code>.</td>
+</tr>
+<tr>
+<td>Implementation</td>
+<td>Syntax or semantics</td>
+<td>A target language/runtime</td>
+<td>Source denoting an instance or factory, or an actual native instance <code>i</code>; satisfaction is a separate relation.</td>
+</tr>
+<tr>
+<td>Interaction</td>
+<td>Runtime syntax</td>
+<td>A native or Wire surface</td>
+<td>An operation/request and its response, interpreted as effects against an instance.</td>
+</tr>
+</tbody></table></div>
+<p>A transformation changing form alone can be an elementary edge when it preserves
+the same subject. Rows in this table do not automatically share a subject. A
+contract-indexed generation result can retain <code>C</code> alongside syntax denoting <code>T</code>;
+a bare native interface generally retains only structural information. A generator
+changing both language and role can be an unrestricted representation map when
+that common interpretation is supplied, or a path through suitable intermediate
+cells. Optional ranked axes
+make absent context explicit; they do not manufacture a missing intermediate
+representation or guarantee reachability.</p>
+<h3 id="nightseam-generators-are-semantic-functions-and-can-also-be-represented">Generators are semantic functions, and can also be represented</h3>
+<p>A loaded Go generator implementation is an executable semantic function. Its
+input and output can both be syntax. The language used to implement the
+generator is separate from the languages of the artifacts it consumes and
+produces.</p>
+<p>The <a href="#5-adapters-generators-and-behavioral-preservation">semantic signatures</a>
+expose the selected realization. Using the result packages defined there:</p>
+<pre><code class="language-text">TypeGen[D, L] : Π admitted C. Syntax[C, D] -&gt; TypeResult[L, C]
+
+AdapterGen[D, L, U_(-)] : Π admitted C. Π supported T : NativeRealization[L, shape(C)].
+  (Syntax[C, D] × Syntax[T, L]) -&gt; AdapterResult[L, C, T, U_C]
+</code></pre>
+<p><code>U_C</code> is the target chosen for each <code>C</code>, such as an interpreted Wire surface,
+in that contract&#39;s shape/behavior domain. The complete generated result retains
+<code>C</code> and the selected <code>T</code>. Adapter syntax uses <code>T</code>&#39;s language <code>L</code>; the admitted
+domain states which contracts and realizations the generator supports.
+An environment <code>E</code> can fix naming, binding, target, or strategy.
+After fixing those choices and supplying the common-subject interpretation,
+one can obtain <code>F_E,C : R_K(C) -&gt; R_M(C)</code>. The unary map is a view of this richer
+generation operation, not a reason to erase its dependencies.</p>
+<p><code>C</code> alone does not select a native realization. A generator emitting methods
+does not establish satisfaction by arbitrary consumers. An implementation
+generator must have enough specification or supplied behavior to construct a
+lawful instance; a scaffold of unimplemented methods satisfies a weaker claim.</p>
+<p>There are distinct objects at the generator level too: its shape/signature
+<code>S_g</code>, behavioral specification <code>B_g</code>, and actual semantic function <code>g</code>.
+The function implements <code>(S_g, B_g)</code> when its behavior satisfies the preservation
+laws for every admitted input. <code>GeneratorSyntax&lt;G, H&gt;</code> describes syntax denoting
+a function <code>g : G</code> in host language <code>H</code>. A generator loaded in Go can consume declaration syntax and
+produce TypeScript syntax. Hosting, input language, and output language are
+independent choices; the acted-upon contract <code>C</code> is not the generator&#39;s contract.</p>
+<p>An ordinary program function is also a semantic function, but it belongs to a
+fixed-subject transformation graph only when it preserves that subject and
+satisfies the coordinate and observation laws. Function composition alone
+does not imply preservation of <code>C</code>.</p>
+<h3 id="nightseam-what-adapter-transparency-means">What adapter transparency means</h3>
+<p>Let a selected binding map <code>i : Instance[T]</code> to a Wire realization <code>bind(i)</code>.
+The behavior domain and environment must make the two sides comparable:</p>
+<pre><code class="language-text">BehaviorOf_Wire(bind(i)) ≈_S BehaviorOf_T(i)
+BehaviorOf_T(stub(bind(i))) ≈_S BehaviorOf_T(i)
+</code></pre>
+<p>These are claims about that instance&#39;s behavior. The weaker implication
+<code>i ⊨ C =&gt; bind(i) ⊨ C</code> permits replacing a true cell with a fresh false cell when
+both initial values satisfy <code>C</code>. The finite example&#39;s forwarding adapter preserves
+behavior; its replacing adapter preserves satisfaction and fails transparency.
+This is observational equivalence, not equality of native instances. The
+<a href="#15-interpreting-generator-roles">fixed-subject interpretation</a>
+uses the common behavioral equivalence class when relating different realizations.</p>
+<p>A production interpretation must account for the profile&#39;s observable failures,
+lifecycle, ownership and concurrency, or state the environmental assumptions
+under which they are abstracted away. The finite example deliberately has only
+sequential, total read/write interactions. It supplies no evidence about transport
+or invocation semantics. A Wire surface is an interaction language; a particular
+request&#39;s interpretation acts on a particular instance.</p>
+<p>Syntax held in a generator process is also a native host value, typically an AST
+instance. Its host-level structure and its object-language denotation are two
+views connected by an interpretation. Neither the runtime location of the AST
+nor a <code>syntax</code> coordinate changes this relationship.</p>
+<h3 id="nightseam-what-the-current-pipeline-establishes">What the current pipeline establishes</h3>
+<p>The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/declaration/pipeline.md">pipeline</a> loads and analyzes declarations,
+checks them, constructs a render view, and invokes targets. The code exposes
+these concrete points of comparison:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Theory concept</th>
+<th>Current code and evidence</th>
+<th>Limit of the comparison</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Selected generator implementation</td>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/internal/compose/compose.go">Composition root</a> and the <a href="https://github.com/Bitspark/nightseam/blob/main/internal/spi/spi.go">Target interface</a>.</td>
+<td>The SPI declares consumed concerns and output ownership and supplies <code>Check</code> and <code>Render</code>; it does not expose the complete coordinate signatures or law witnesses in this theory.</td>
+</tr>
+<tr>
+<td>Syntax output for a contract</td>
+<td><code>Target.Render</code> takes a render family and returns source files.</td>
+<td>One target invocation may produce several roles and files; its full output is not automatically one primitive coordinate edge.</td>
+</tr>
+<tr>
+<td>Implementation scaffolding</td>
+<td><code>Scaffolder.Scaffold</code> in the same SPI.</td>
+<td>It emits stubs for the consumer to fill. It does not synthesize arbitrary contract behavior.</td>
+</tr>
+<tr>
+<td>Generic instantiation</td>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/docs/declaration/generics.md">Generic declarations and applications</a>.</td>
+<td>Parameters have type and family sorts, associated-type requirements, and declaration contexts. These restrictions must be supplied by an interpretation of opaque holes.</td>
+</tr>
+<tr>
+<td>Generate/instantiate interchange</td>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/cmd/nightseam/generic_composition_acceptance_test.go">TestGenericCompositionIndependentRoutes</a> and the <a href="https://github.com/Bitspark/nightseam/blob/main/internal/oracle/oracle.go">independent substitution oracle</a>.</td>
+<td>These compare concrete routes through generated Go and TypeScript programs. They are evidence for those cases, not a universal proof for every coordinate or contract.</td>
+</tr>
+<tr>
+<td>Contract identity across targets</td>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/docs/declaration/declaration-identity.md">Canonical declaration identity</a>.</td>
+<td>A digest identifies the specified declaration content. Equal digests alone do not prove artifact faithfulness, behavioral equivalence, or interoperability.</td>
+</tr>
+</tbody></table></div>
+<p>The generic composition test renders a generic consumer and independently
+specialized source routes, then compiles and exercises generated Go and
+TypeScript programs. The oracle substitutes the model before rendering; the
+generator does not depend on that oracle. This is a concrete instance of the
+two-route question expressed by substitution transparency.</p>
+<p>The abstract substitution model allows an unused ID in the permitted hole
+context. Nightseam refuses unused declared parameters. Its type parameters
+and family parameters also accept different sorts of arguments. Adapting the
+general laws to declarations therefore requires an explicitly restricted
+domain; treating every opaque hole as interchangeable would erase meaning.</p>
+<p>The executable tree navigation and substitution laws concern shapes. To extend
+them to <code>C = (S, B)</code>, define how laws restrict to a selected part, how contextual
+laws are retained, and how substitution constructs a new specification <code>B_σ</code>.
+A law linking <code>read</code> and <code>write</code> cannot be recovered from an isolated <code>read</code>
+method signature. The <a href="#lifting-structural-operations-to-contracts-and-implementations">behavioral lifting requirements</a>
+state these missing operations. Composing implementations additionally needs a constructor
+that preserves satisfaction, and behavioral equivalence for routes claiming to
+preserve particular instances. Tree substitution or equal declaration digests
+do not supply these arguments. The
+<a href="#lifting-structural-operations-to-contracts-and-implementations">behavioral lifting obligations</a>
+state what must be supplied beyond the structural laws.</p>
+<h3 id="nightseam-where-the-remaining-decisions-belong">Where the remaining decisions belong</h3>
+<p>The general theory records what preservation and composition mean. A concrete
+coordinate schema, decoding/observation rules, admissible generator inputs,
+and evidence for each law would make a Nightseam interpretation precise.
+Those choices must account for both navigation and substitution; naming
+endpoint cells is only the signature of a transformation, not its proof.</p>
+<p>The existing questions remain in
+<a href="https://github.com/Bitspark/nightseam/issues/636">type-model extraction #636</a>,
+<a href="https://github.com/Bitspark/nightseam/issues/637">generator composition and SPI #637</a>,
+and <a href="https://github.com/Bitspark/nightseam/issues/640">domain-graph choices #640</a>.
+The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/languages/tiers.md">language tiers</a> continue to define what each
+implementation promises; this interpretation adds no new runtime promise.</p>
+
+<h2 id="overview">Contracts, implementations, and representations</h2>
+<p>This is the home of the theory behind contracts, their implementations, and
+their representations. A contract pairs shape <code>S</code> with a behavioral specification
+<code>B</code>; an instance has actual behavior <code>b</code> that may satisfy <code>B</code>. Representing a
+contract and satisfying it are separate relations. Adapters preserving a
+particular instance&#39;s behavior make a stronger promise than producing some
+lawful implementation.</p>
+<p>The representation model describes what stays fixed across languages and forms.
+Paths compose transformations; structural navigation and substitution have their
+own commuting laws. Lifting those laws to behavior requires explicit observation,
+restriction, and composition rules.</p>
+<p>The theory belongs to Nightseam&#39;s language-independent foundation. Its subjects,
+keys, axes, and local values are supplied by an interpretation; it introduces
+no consumer policy or new runtime primitive. TypeScript is used as a
+<strong>metalanguage</strong> to make the definitions inspectable and their examples
+checkable. This directory is a private documentation workspace, with no
+published API.</p>
+<h3 id="overview-read-the-theory">Read the theory</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#foundations">Foundations</a></td>
+<td>Shape/specification/behavior, native realizations and satisfaction, syntax and denotation, adapters and generators, representation paths, structural navigation, and substitution.</td>
+</tr>
+<tr>
+<td><a href="#nightseam">Nightseam interpretation</a></td>
+<td>How to apply that vocabulary to declarations, generators, native types, adapters, and generic composition; links to implementation evidence and unresolved choices.</td>
+</tr>
+<tr>
+<td><a href="#reference">Concepts, laws, and evidence</a></td>
+<td>Cross-reference from every model type to its definitions, laws, examples, and limits; notation and coordinate-schema correspondences.</td>
+</tr>
+</tbody></table></div>
+<p>The <a href="#top">self-contained visual edition</a> includes these pages with an
+interactive BooleanCell, commuting squares, substitution stages, and embedded model sources.
+Open it directly in a browser; it needs no server or network connection.</p>
+<h3 id="overview-inspect-and-run-the-model">Inspect and run the model</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="#source-model-ts">model.ts</a></td>
+<td>Semantic and representation types, including realizations, instances, satisfaction, and generator dependencies; no production API.</td>
+</tr>
+<tr>
+<td><a href="#source-examples-coordinates-ts">examples/coordinates.ts</a></td>
+<td>A shape at language/form/role coordinates, named transformations, two routes, and an identity path.</td>
+</tr>
+<tr>
+<td><a href="#source-examples-hierarchy-ts">examples/hierarchy.ts</a></td>
+<td>Nested and flat encodings, navigation, surface faithfulness, transparency, and counterexamples.</td>
+</tr>
+<tr>
+<td><a href="#source-examples-composition-ts">examples/composition.ts</a></td>
+<td>Whole-shape substitution, repeated and root holes, staged composition, and navigation and transformation through inserted trees.</td>
+</tr>
+<tr>
+<td><a href="#source-examples-behavior-ts">examples/behavior.ts</a></td>
+<td>Two native realizations, lawful and unlawful cells, satisfaction witnesses, transparent and replacing adapters, and modeled generator applications; exhaustive checks over 512 finite machines.</td>
+</tr>
+<tr>
+<td><a href="#source-model-typecheck-ts">model.typecheck.ts</a></td>
+<td>Compile-only positive and negative assertions for the model&#39;s type constraints.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/render.mjs">render.mjs</a></td>
+<td>Generates the HTML from all four theory pages and the checked sources; preserves Markdown heading anchors and internal links.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/references.test.mjs">references.test.mjs</a></td>
+<td>Checks source-to-theory links, the file index, and links and anchors in the generated edition.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/package.json">package.json</a> and <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/tsconfig.json">tsconfig.json</a></td>
+<td>Private workspace commands and strict, no-emit type checking for the model and examples.</td>
+</tr>
+</tbody></table></div>
+<p>From the repository root, using Node 22.12 or later:</p>
+<pre><code class="language-sh">pnpm install
+pnpm --filter @nightseam/theory verify
+pnpm --filter @nightseam/theory render
+</code></pre>
+<p><code>verify</code> checks types, runs the examples and reference checks, and refuses a stale
+visual edition. <code>render</code> regenerates it after changing any theory page or source.
+The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/render.mjs">renderer</a> derives the diagrams&#39; examples from the checked
+artifacts and embeds the four Markdown pages, the model, its compile-only
+assertions, and all four examples. The <a href="https://github.com/Bitspark/nightseam/blob/main/docs/theory/references.test.mjs">reference checks</a>
+hold the type-to-document map, source backlinks, and HTML links together.
+Commit its output with its inputs.
+The workspace&#39;s ordinary recursive checks, build, and tests include this
+directory; the fast CI tier also runs its verification on both platforms.</p>
+<h3 id="overview-concepts-laws-and-evidence">Concepts, laws, and evidence</h3>
+<p>The map in the reading table connects definitions and laws to
+their model types, checked examples, and production evidence. Source comments
+link back to the definitions.</p>
+<h3 id="overview-what-each-statement-means">What each statement means</h3>
+<ul>
+<li><strong>Definitions and required laws</strong> state which objects and operations the
+theory admits. Opaque IDs and TypeScript signatures do not prove them.</li>
+<li><strong>Derived laws</strong> explain consequences of those requirements, such as
+transparency of a composed coordinate path.</li>
+<li><strong>Executable examples</strong> establish the stated equations for particular
+encodings and fixtures. Counterexamples distinguish independent requirements.
+The behavior example decides all finite interaction traces of its finite,
+deterministic, total machines; it does not infer behavior of arbitrary programs.</li>
+<li><strong>Implementation evidence</strong> names existing code and tests. A proposed
+interpretation is not a claim that Nightseam already implements the entire
+theory or exposes these TypeScript types.</li>
+</ul>
+<p>The documentation home was accepted in
+<a href="https://github.com/Bitspark/nightseam/issues/635#issuecomment-5787314807">#635</a>
+and integrated by <a href="https://github.com/Bitspark/nightseam/issues/673">#673</a>.
+The implementation/behavior extension follows the operator&#39;s
+<a href="https://github.com/Bitspark/nightseam/issues/635#issuecomment-5788001881">verdict</a>
+and <a href="https://github.com/Bitspark/nightseam/issues/675">#675</a>.
+Package extraction, a new generator SPI, and the outstanding domain-graph
+choices remain their own design questions. This directory can develop the
+theory without silently settling them.</p>
+<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">497 lines · embedded source</span></summary><pre><code>/**
  * A metamodel, expressed entirely as types. X and the meanings of the axes
  * are supplied by an interpretation. The coordinate core assigns no role names;
  * the semantic layer distinguishes contracts, realizations and implementations.
@@ -1026,8 +1565,8 @@ not denotation for arbitrary source.</p>
  * Representation&lt;X, K&gt; means a representation OF X, not merely one tagged X.
  * Preserving X (including any chosen behavioral laws) is a semantic obligation.
  * TypeScript checks the indices and adjacency, not the meaning of an artifact.
- * @see [Concepts and evidence](cross-references.md)
- * @see [Definitions and laws](foundations.md)
+ * @see ./reference.md — definitions, laws, and evidence for every exported type.
+ * @see ./foundations.md#7-elementary-transformations-and-coordinate-paths
  */
 
 // IDs are opaque: the core compares identity without interpreting their meaning.
@@ -1062,20 +1601,22 @@ type Equal&lt;A, B&gt; = [A] extends [B] ? ([B] extends [A] ? true : false) : fa
 type IsUnion&lt;T, Whole = T&gt; = T extends Whole ? ([Whole] extends [T] ? false : true) : never;
 type At&lt;K, Axis extends PropertyKey&gt; = Axis extends keyof K ? K[Axis] : never;
 
-// Broad or union-valued coordinates describe families, not individual points.
+// Broad, patterned, branded or union-valued coordinates can describe families.
+// A singleton string/number makes a REQUIRED Record key; an index domain admits
+// the empty record. This also rejects `go:${string}` and patterned axis keys.
 type IsLiteral&lt;T&gt; = [T] extends [never]
   ? false
-  : [T] extends [CoordinateValue]
-    ? string extends T
-      ? false
-      : number extends T
+  : true extends IsUnion&lt;T&gt;
+    ? false
+    : T extends string | number
+      ? {} extends Record&lt;T, unknown&gt;
         ? false
-        : boolean extends T
-          ? false
-          : true extends IsUnion&lt;T&gt;
-            ? false
-            : true
-    : false;
+        : true
+      : Equal&lt;T, true&gt; extends true
+        ? true
+        : Equal&lt;T, false&gt; extends true
+          ? true
+          : Equal&lt;T, null&gt;;
 
 type IsPoint&lt;K extends Coordinates&gt; =
   true extends IsUnion&lt;K&gt;
@@ -1083,7 +1624,9 @@ type IsPoint&lt;K extends Coordinates&gt; =
     : [keyof K] extends [AxisId]
       ? string extends keyof K
         ? false
-        : false extends { [Axis in keyof K]-?: IsLiteral&lt;K[Axis]&gt; }[keyof K]
+        : false extends {
+              [Axis in keyof K]-?: IsLiteral&lt;Axis&gt; extends true ? IsLiteral&lt;K[Axis]&gt; : false;
+            }[keyof K]
           ? false
           : true
       : false;
@@ -1360,6 +1903,7 @@ export interface SubstitutionTransparency&lt;O, From extends Coordinates, To ext
 }
 
 // Implementation semantics. S is now SHAPE; X above is an arbitrary subject.
+// @see ./foundations.md#3-native-realizations-instances-and-satisfaction
 // The tree Shape&lt;O, G&gt; is one choice of S, not a mandatory encoding of every
 // native type. A behavior domain fixes environments, effects and observations.
 
@@ -1452,7 +1996,11 @@ export type AdapterSemantics&lt;T extends ModelTypeIndex, U extends ModelTypeInd
       : never
     : never;
 
-/** Syntax denotes its subject X; the artifact can be text OR a host AST value. */
+/**
+ * Syntax denotes its subject X; the artifact can be text OR a host AST value.
+ * Mathematical Syntax[X, L] uses the same subject-first parameter order.
+ * @see ./reference.md#objects-and-denotation
+ */
 export type Syntax&lt;X, L extends string&gt; = Representation&lt;X, { readonly form: &#39;syntax&#39;; readonly language: L }&gt;;
 export type ModelContractSyntax&lt;S, Beh, D extends string&gt; = Syntax&lt;Contract&lt;S, Beh&gt;, D&gt;;
 export type ModelTypeSyntax&lt;T extends ModelTypeIndex&gt; = Syntax&lt;T, T[&#39;language&#39;]&gt;;
@@ -1506,9 +2054,10 @@ export type AdapterGeneratorSemantics&lt;
 /** Loaded generators are semantic functions; their source uses a separate host H. */
 export type GeneratorSyntax&lt;G, H extends string&gt; = Syntax&lt;G, H&gt;;
 </code></pre></details>
-<details class="source" id="source-model-typecheck-ts"><summary><span>model.typecheck.ts</span><span class="source-note">204 lines · embedded source</span></summary><pre><code>// Compile-only assertions, including intentional failures. Do not execute this file.
-// @see [What the types establish](foundations.md#20-what-the-typescript-establishes)
-// @see [Model definitions](model.ts)
+<details class="source" id="source-model-typecheck-ts"><summary><span>model.typecheck.ts</span><span class="source-note">213 lines · embedded source</span></summary><pre><code>// Compile-only assertions, including intentional failures. Do not execute this file.
+// @see ./reference.md — which definitions and obligations these assertions address.
+// @see foundations.md#20-what-the-typescript-establishes — What the types establish
+// @see model.ts — Model definitions
 import type {
   ChangedAxis,
   Shape,
@@ -1574,6 +2123,14 @@ type NoChange = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: true }, { x: true }&gt;, 
 type Two = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39;; y: 0 }, { x: &#39;b&#39;; y: 1 }&gt;, never&gt;&gt;;
 type Three = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39;; y: 0; z: true }, { x: &#39;b&#39;; y: 1; z: false }&gt;, never&gt;&gt;;
 type BroadValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: string }, { x: &#39;a&#39; }&gt;, never&gt;&gt;;
+type PatternValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: `go:${string}` }, { x: &#39;go:cell&#39; }&gt;, never&gt;&gt;;
+type NumericPatternValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: `${number}` }, { x: &#39;1&#39; }&gt;, never&gt;&gt;;
+type BrandedValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: string &amp; { readonly brand: &#39;id&#39; } }, { x: &#39;a&#39; }&gt;, never&gt;&gt;;
+type PatternAxis = Assert&lt;Equal&lt;ChangedAxis&lt;Record&lt;`axis:${string}`, &#39;a&#39;&gt;, { &#39;axis:x&#39;: &#39;b&#39; }&gt;, never&gt;&gt;;
+type MixedPatternAxis = Assert&lt;
+  Equal&lt;ChangedAxis&lt;{ fixed: null } &amp; Record&lt;`axis:${string}`, &#39;a&#39;&gt;, { fixed: null; &#39;axis:x&#39;: &#39;b&#39; }&gt;, never&gt;
+&gt;;
+type UnknownPatternEquality = Assert&lt;Equal&lt;CoordinatesEqual&lt;{ x: `go:${string}` }, { x: &#39;go:cell&#39; }&gt;, boolean&gt;&gt;;
 type UnionValue = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39; | &#39;b&#39; }, { x: &#39;a&#39; }&gt;, never&gt;&gt;;
 type UnionPoint = Assert&lt;Equal&lt;ChangedAxis&lt;{ x: &#39;a&#39; } | { y: &#39;b&#39; }, { x: &#39;c&#39; }&gt;, never&gt;&gt;;
 type BroadAxis = Assert&lt;Equal&lt;ChangedAxis&lt;Record&lt;string, &#39;a&#39;&gt;, Record&lt;string, &#39;b&#39;&gt;&gt;, never&gt;&gt;;
@@ -1710,7 +2267,7 @@ const missingSatisfaction: ContractImplementation&lt;typeof methodType&gt; = {
   instance: trueCell,
 };
 </code></pre></details>
-<details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">228 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">229 lines · embedded source</span></summary><pre><code>/**
  * Instances of the opaque coordinate model. TypeScript is the metalanguage.
  * The strings below describe Go/TypeScript artifacts; the functions map these
  * example descriptions. They are finite examples, not Nightseam generators.
@@ -1718,9 +2275,10 @@ const missingSatisfaction: ContractImplementation&lt;typeof methodType&gt; = {
  * This example takes S to be SHAPE ONLY. Its artifact interpretations are
  * stipulated here; type-checking does not parse source or prove equivalence.
  * Run from the repository root: pnpm --filter @nightseam/theory test
- * @see [Coordinates and cells](../foundations.md#6-coordinates-and-cells)
- * @see [Elementary transformations and paths](../foundations.md#7-elementary-transformations-and-coordinate-paths)
- * @see [Evidence map](../cross-references.md)
+ * @see ../reference.md#coordinates-and-paths — E1, E2, and P1.
+ * @see ../foundations.md#6-coordinates-and-cells — Coordinates and cells
+ * @see ../foundations.md#7-elementary-transformations-and-coordinate-paths — Elementary transformations and paths
+ * @see ../reference.md — Evidence map
  */
 import assert from &#39;node:assert/strict&#39;;
 import type {
@@ -1938,14 +2496,15 @@ console.log({
   bothPathsProduce: resultThroughGo.artifact,
 });
 </code></pre></details>
-<details class="source" id="source-examples-hierarchy-ts"><summary><span>examples/hierarchy.ts</span><span class="source-note">437 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-hierarchy-ts"><summary><span>examples/hierarchy.ts</span><span class="source-note">438 lines · embedded source</span></summary><pre><code>/**
  * Hierarchical instances of the coordinate model; TypeScript is the metalanguage.
  * Opaque value/key IDs are preserved between nested and flat tree encodings.
  * Transformations consume artifacts; they do not reconstruct them from subject.
  * Run from the repository root: pnpm --filter @nightseam/theory test
- * @see [Hierarchy and surfaces](../foundations.md#8-giving-the-shape-a-hierarchy)
- * @see [Transparency laws](../foundations.md#11-transformation-families-and-the-transparency-square)
- * @see [Worked example and counterexamples](../foundations.md#14-worked-example-two-routes-one-selected-subtree)
+ * @see ../reference.md#shapes-and-composition — N1–N2, R1–R3, T1–T3, Q1, P2–P3.
+ * @see ../foundations.md#8-giving-the-shape-a-hierarchy — Hierarchy and surfaces
+ * @see ../foundations.md#11-transformation-families-and-the-transparency-square — Transparency laws
+ * @see ../foundations.md#14-worked-example-two-routes-one-selected-subtree — Worked example and counterexamples
  */
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
@@ -2299,7 +2858,7 @@ for (const shape of [booleanCellTree, emptyShape]) {
       const first = shapeAt(shape, path.slice(0, split));
       assert.equal(first.kind, &#39;found&#39;);
       if (first.kind === &#39;found&#39;) assert.deepEqual(shapeAt(first.value, path.slice(split)), direct);
-      // The user&#39;s prefix law, exercised for the composite coordinate path:
+      // T3, the prefix law, exercised for the composite coordinate path:
       // P(at(r, p ++ q)) = at(P(at(r, p)), q).
       const prefix = requireLocation(shape, path.slice(0, split));
       const suffix = requireLocation(prefix.selected, path.slice(split));
@@ -2375,13 +2934,14 @@ console.log({
   invalidTransformAndLocation: &#39;rejected by the law checks&#39;,
 });
 </code></pre></details>
-<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">359 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">360 lines · embedded source</span></summary><pre><code>/**
  * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
- * @see [Whole-shape holes](../foundations.md#16-whole-shape-holes)
- * @see [Substitution laws](../foundations.md#17-substitution-and-its-composition-laws)
- * @see [Substitution transparency](../foundations.md#19-substitution-transparency-across-representations)
+ * @see ../reference.md#shapes-and-composition — structural laws S1–S8.
+ * @see ../foundations.md#16-whole-shape-holes — Whole-shape holes
+ * @see ../foundations.md#17-substitution-and-its-composition-laws — Substitution laws
+ * @see ../foundations.md#19-substitution-transparency-across-representations — Substitution transparency
  */
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
@@ -2734,15 +3294,16 @@ console.log({
   transformationTransparency: &#39;fill then flatten = flatten then fill&#39;,
 });
 </code></pre></details>
-<details class="source" id="source-examples-behavior-ts"><summary><span>examples/behavior.ts</span><span class="source-note">363 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-behavior-ts"><summary><span>examples/behavior.ts</span><span class="source-note">365 lines · embedded source</span></summary><pre><code>/**
  * Finite, deterministic, total BooleanCell semantics. TypeScript models native
  * realizations; it does not execute Go or infer behavior from arbitrary code.
  * Product exploration checks all finite interaction traces of each given pair,
  * not merely traces up to a chosen length. No concurrency, failure or divergence
  * is admitted by this example&#39;s observation model.
- * @see [Behavior and specification](../foundations.md#2-shape-specification-and-actual-behavior)
- * @see [Satisfaction](../foundations.md#3-native-realizations-instances-and-satisfaction)
- * @see [Adapters and generators](../foundations.md#5-adapters-generators-and-behavioral-preservation)
+ * @see ../reference.md#objects-and-denotation — B1, I1, A1, and A2.
+ * @see ../foundations.md#2-shape-specification-and-actual-behavior — Behavior and specification
+ * @see ../foundations.md#3-native-realizations-instances-and-satisfaction — Satisfaction
+ * @see ../foundations.md#5-adapters-generators-and-behavioral-preservation — Adapters and generators
  */
 import assert from &#39;node:assert/strict&#39;;
 import { Script } from &#39;node:vm&#39;;
@@ -2775,7 +3336,8 @@ export const inputs: readonly CellInput[] = [
   { kind: &#39;write&#39;, value: true },
 ];
 
-// Validate the finite domain before using its total-transition reasoning.
+// Check closure in the finite state/output domain. Purity and determinism of
+// step are assumptions; one traversal cannot establish them for arbitrary JS.
 export function validate(machine: CellMachine): void {
   assert.equal(new Set(machine.states).size, machine.states.length);
   assert.ok(machine.states.includes(machine.initial));
@@ -3096,7 +3658,7 @@ console.log({
   behaviorMachines: checkedMachines,
   cases: cases.map(({ name, lawful, sameAsTrueCell }) =&gt; ({ name, lawful, sameAsTrueCell })),
 });
-</code></pre></details><footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
+</code></pre></details><footer class="footer">TypeScript as metalanguage · Generated from the four theory pages and the model sources</footer></article></div></div>
 <script>
 const samples = [{"path":[],"label":"[] — whole shape","nested":{"kind":"nested","root":{"value":"BooleanCell","children":[["operations",{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}]]}},"flat":{"kind":"flat","nodes":[{"value":"BooleanCell","path":[]},{"path":["operations"]},{"value":"operation","path":["operations","read"]},{"path":["operations","read","arguments"]},{"value":"Bool","path":["operations","read","result"]},{"value":"operation","path":["operations","write"]},{"path":["operations","write","arguments"]},{"value":"Bool","path":["operations","write","arguments","value"]},{"value":"Unit","path":["operations","write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"BooleanCell"},{"path":["operations"]},{"path":["operations","write"],"value":"operation"},{"path":["operations","write","result"],"value":"Unit"},{"path":["operations","write","arguments"]},{"path":["operations","write","arguments","value"],"value":"Bool"},{"path":["operations","read"],"value":"operation"},{"path":["operations","read","result"],"value":"Bool"},{"path":["operations","read","arguments"]}]}},{"path":["operations"],"label":"operations","nested":{"kind":"nested","root":{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"operation","path":["read"]},{"path":["read","arguments"]},{"value":"Bool","path":["read","result"]},{"value":"operation","path":["write"]},{"path":["write","arguments"]},{"value":"Bool","path":["write","arguments","value"]},{"value":"Unit","path":["write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["write"],"value":"operation"},{"path":["write","result"],"value":"Unit"},{"path":["write","arguments"]},{"path":["write","arguments","value"],"value":"Bool"},{"path":["read"],"value":"operation"},{"path":["read","result"],"value":"Bool"},{"path":["read","arguments"]}]}},{"path":["operations","read"],"label":"operations / read","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Bool"},{"path":["arguments"]}]}},{"path":["operations","read","arguments"],"label":"operations / read / arguments","nested":{"kind":"nested","root":{"children":[]}},"flat":{"kind":"flat","nodes":[{"path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]}]}},{"path":["operations","read","result"],"label":"operations / read / result","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write"],"label":"operations / write","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["arguments","value"]},{"value":"Unit","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Unit"},{"path":["arguments"]},{"path":["arguments","value"],"value":"Bool"}]}},{"path":["operations","write","arguments"],"label":"operations / write / arguments","nested":{"kind":"nested","root":{"children":[["value",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"Bool","path":["value"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["value"],"value":"Bool"}]}},{"path":["operations","write","arguments","value"],"label":"operations / write / arguments / value","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write","result"],"label":"operations / write / result","nested":{"kind":"nested","root":{"value":"Unit","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Unit","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Unit"}]}}];
 const stages = [{"title":"Template","tree":"Pair\n├─ first → ?g0\n└─ second → ?g0","description":"Pair[g0]: the same parameter occurs at first and second."},{"title":"Insert List","tree":"Pair\n├─ first → List\n│  └─ element → ?h0\n└─ second → List\n   └─ element → ?h0","description":"g0 := List[h0]: both holes receive an entire List shape, including its element child."},{"title":"Insert Bool","tree":"Pair\n├─ first → List\n│  └─ element → Bool\n└─ second → List\n   └─ element → Bool","description":"h0 := Bool: both lists are now closed shapes."}];
@@ -3172,7 +3734,7 @@ const drawSquare = function drawSquare(kind, width) {
   const labels = isLaw
     ? ['F_S', 'select p', 'select p', 'F_(S|p)']
     : isComposition
-      ? ['F each', 'fill', 'fill', 'F filled shape']
+      ? ['F each', 'fill', 'fill', 'F filled']
       : ['flatten', 'reorder', 'reorder', 'flatten'];
   const route = (key, d) => `<path data-branch="${key}" class="edge" d="${d}" marker-end="url(#arrow-${kind})"/>`;
   const node = (index, nx, ny) =>
@@ -3181,7 +3743,7 @@ const drawSquare = function drawSquare(kind, width) {
     `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
   return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
     <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
-    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the instantiated shape. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting shape. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
     <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
     ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
@@ -3211,7 +3773,7 @@ document.querySelectorAll('.diagram').forEach(figure => {
     figure.dataset.route = button.dataset.routeChoice;
     figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
     if (figure === lawFigure) updateSelection();
-    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the instantiated shape.') + ' Both routes represent the same instantiated shape S[σ].';
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting shape.') + ' Both routes represent the same instantiated shape S[σ].';
     else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
   }));
 });

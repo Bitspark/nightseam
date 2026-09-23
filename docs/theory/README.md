@@ -25,9 +25,10 @@ published API.
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Foundations](foundations.md)            | Shape/specification/behavior, native realizations and satisfaction, syntax and denotation, adapters and generators, representation paths, structural navigation, and substitution. |
 | [Nightseam interpretation](nightseam.md) | How to apply that vocabulary to declarations, generators, native types, adapters, and generic composition; links to implementation evidence and unresolved choices.                |
+| [Concepts, laws, and evidence](reference.md) | Cross-reference from every model type to its definitions, laws, examples, and limits; notation and coordinate-schema correspondences. |
 
-The [self-contained visual edition](index.html) renders the foundations with
-an interactive BooleanCell, commuting squares, substitution stages, and embedded model sources.
+The [self-contained visual edition](index.html) includes these pages with an
+interactive BooleanCell, commuting squares, substitution stages, and embedded model sources.
 Open it directly in a browser; it needs no server or network connection.
 
 ## Inspect and run the model
@@ -40,7 +41,7 @@ Open it directly in a browser; it needs no server or network connection.
 | [examples/composition.ts](examples/composition.ts) | Whole-shape substitution, repeated and root holes, staged composition, and navigation and transformation through inserted trees.                                                                |
 | [examples/behavior.ts](examples/behavior.ts)       | Two native realizations, lawful and unlawful cells, satisfaction witnesses, transparent and replacing adapters, and modeled generator applications; exhaustive checks over 512 finite machines. |
 | [model.typecheck.ts](model.typecheck.ts)           | Compile-only positive and negative assertions for the model's type constraints.                                                                                                                 |
-| [render.mjs](render.mjs) | Generates the HTML, diagrams, and embedded sources from the foundations and checked examples; preserves Markdown heading anchors. |
+| [render.mjs](render.mjs) | Generates the HTML from all four theory pages and the checked sources; preserves Markdown heading anchors and internal links. |
 | [references.test.mjs](references.test.mjs) | Checks source-to-theory links, the file index, and links and anchors in the generated edition. |
 | [package.json](package.json) and [tsconfig.json](tsconfig.json) | Private workspace commands and strict, no-emit type checking for the model and examples. |
 
@@ -52,18 +53,19 @@ pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 ```
 
-`verify` checks types, runs the examples and cross-reference checks, and refuses
-a stale visual edition.
-`render` regenerates that edition after changing the foundations or sources.
+`verify` checks types, runs the examples and reference checks, and refuses a stale
+visual edition. `render` regenerates it after changing any theory page or source.
 The [renderer](render.mjs) derives the diagrams' examples from the checked
-artifacts and embeds the model, its compile-only assertions, and all four examples.
+artifacts and embeds the four Markdown pages, the model, its compile-only
+assertions, and all four examples. The [reference checks](references.test.mjs)
+hold the type-to-document map, source backlinks, and HTML links together.
 Commit its output with its inputs.
 The workspace's ordinary recursive checks, build, and tests include this
 directory; the fast CI tier also runs its verification on both platforms.
 
 ## Concepts, laws, and evidence
 
-The [cross-reference map](cross-references.md) connects definitions and laws to
+The map in the reading table connects definitions and laws to
 their model types, checked examples, and production evidence. Source comments
 link back to the definitions.
 
