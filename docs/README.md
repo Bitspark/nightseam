@@ -40,6 +40,16 @@ tree realizes today and the choices that still need a verdict.
 | --- | --- |
 | [domain.md](domain.md) | the graph: ModelContract → ModelType → ModelInstance and WireContract → WireType → Wire, adapters as code with their law, the edges and the law behind each, the rewrite rules that close the instance graph, the five identities as graph elements, the mapping onto the tree, the open choices |
 
+## Contracts and representations — `theory/`
+
+The [theory index](theory/README.md) separates the general model from its
+Nightseam interpretation and implementation evidence. It defines coordinate
+cells and transformation paths, hierarchical contracts and navigation,
+whole-contract holes and substitution, and the laws that make these operations
+commute. It includes a TypeScript metalanguage, checked examples, and a
+self-contained visual edition. These are developing definitions and laws;
+the state pages below continue to describe the implemented interfaces.
+
 ## Where it is going — `goals/`
 
 The north stars, abstract and never done: what Nightseam is for, in one

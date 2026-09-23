@@ -244,6 +244,18 @@ importers:
         specifier: ^8.18.0
         version: 8.21.3
 
+  docs/theory:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.1
+        version: 26.6.1
+      marked:
+        specifier: 17.0.5
+        version: 17.0.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   duplex/ts:
     dependencies:
       '@bitspark/bitwire':
@@ -513,6 +525,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  marked@17.0.5:
+    resolution: {integrity: sha512-6hLvc0/JEbRjRgzI6wnT2P1XuM1/RrrDEX0kPt0N7jGm1133g6X7DlxFasUIx+72aKAr904GTxhSLDrd5DIlZg==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
   prettier@3.9.8:
     resolution: {integrity: sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==}
     engines: {node: '>=14'}
@@ -658,6 +675,8 @@ snapshots:
 
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
+
+  marked@17.0.5: {}
 
   prettier@3.9.8: {}
 

@@ -45,6 +45,8 @@ jobs:
             test -f "$script" || { echo "::error::$script is named by a workflow and is not in the tree" >&2; exit 1; }
           done
       - run: pnpm install --frozen-lockfile
+      - name: Verify the theory model, examples and visual edition
+        run: pnpm --filter @nightseam/theory verify
       - run: node --test 'scripts/*.test.mjs'
       - run: node scripts/matrix-table.mjs --check
       - run: node scripts/links.mjs

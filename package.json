@@ -14,8 +14,8 @@
     "build": "pnpm --recursive --if-present build",
     "check": "pnpm --recursive --if-present check",
     "test": "pnpm --recursive --if-present test",
-    "format": "prettier --write \"*/ts/src/**/*.ts\"",
-    "format:check": "prettier --check \"*/ts/src/**/*.ts\""
+    "format": "prettier --write \"*/ts/src/**/*.ts\" \"docs/theory/**/*.ts\" \"docs/theory/*.mjs\"",
+    "format:check": "prettier --check \"*/ts/src/**/*.ts\" \"docs/theory/**/*.ts\" \"docs/theory/*.mjs\""
   },
   "devDependencies": {
     "@nightseam/duplex": "workspace:*",

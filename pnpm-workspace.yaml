@@ -1,5 +1,6 @@
 packages:
   - "*/ts"
+  - "docs/theory"
 minimumReleaseAgeExclude:
   # The adopted public release is pinned and independently checked by the
   # contract conformance and installed-consumer gates.

@@ -1,0 +1,20 @@
+{
+  "name": "@nightseam/theory",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "node --experimental-strip-types render.mjs --check",
+    "test": "node --experimental-strip-types --test examples/coordinates.ts examples/hierarchy.ts examples/composition.ts",
+    "render": "node --experimental-strip-types render.mjs",
+    "verify": "pnpm run check && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "marked": "17.0.5",
+    "typescript": "^7.0.2"
+  }
+}

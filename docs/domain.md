@@ -14,6 +14,11 @@ domain; one table below maps the one onto the other. It is a model
 proposed on 2026-09-22, not a decision: the choices that change it are at
 the end, filed for a verdict as [#640](https://github.com/Bitspark/nightseam/issues/640).
 
+The [contract and representation theory](theory/README.md) develops the general
+model of coordinate cells, transformation paths, hierarchy, and substitution.
+Its [Nightseam interpretation](theory/nightseam.md) relates that model to this
+domain without settling the choices below.
+
 Its nodes come in three kinds. **Definitions** have no instance: model
 contracts and wire contracts, and the model types and wire types read off
 them. **Code** realizes a definition in a language: an adapter binds a
