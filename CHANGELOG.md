@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- Align the theory definitions, model types, evidence and cross-references,
+  including generator dependencies, syntax denotation, behavioral equivalence,
+  and checked navigation between the prose, sources, and visual edition.
 - Document contract implementations, behavior, satisfaction, and adapter
   transparency alongside the representation theory, with checked finite
   behavior examples and an updated visual reference (`docs/theory/`).
