@@ -20,6 +20,7 @@ type wireCell[T any] struct {
 	mu     sync.Mutex
 	value  T
 	puts   int64
+	meta   runtime.Meta
 	remote cell.Client[T]
 	noted  chan T
 }
@@ -37,6 +38,9 @@ func (c *wireCell[T]) Get(context.Context) (T, error) {
 	return c.value, nil
 }
 func (c *wireCell[T]) RoundTrip(ctx context.Context, params cell.PutParams[T]) (T, error) {
+	c.mu.Lock()
+	c.meta = runtime.MetaFrom(ctx)
+	c.mu.Unlock()
 	value, err := c.remote.Methods.Mirror(ctx, params)
 	if err == nil {
 		err = c.remote.Events.Changed(ctx, cell.PutParams[T]{Value: value})
@@ -319,6 +323,8 @@ func (t *testee) wireDispatch(op string, raw map[string]json.RawMessage) (any, e
 		return t.wireBridgeDispatch(op, raw)
 	case "gen.wire_local":
 		return wireScalar(ctx, str(raw, "presentation"), str(raw, "slot"))
+	case "gen.wire_declared", "gen.wire_declared_dial", "gen.wire_declared_exercise", "gen.wire_declared_close":
+		return t.wireDeclaredDispatch(op, raw)
 	}
 	return t.wireCarrierDispatch(op, raw)
 }

@@ -12,6 +12,7 @@ import { forwardingOps, resetForwarding, ForwardingFailure } from './forwarding.
 import { ownersOps, resetOwners, OwnerFailure } from './owners.ts';
 import { publicationOps, resetPublication, PublicationFailure } from './publication.ts';
 import { wireCellOps, resetWireCells } from './wire-cell.ts';
+import { wireDeclaredOps, resetWireDeclared } from './wire-declared.ts';
 import { createInterface } from 'node:readline';
 import * as probe from './api/ts/probe-client/src/index.ts';
 import { DuplexError, errors, validateWire, type Payload, type Seen } from './api/ts/probe-client/src/index.ts';
@@ -70,6 +71,7 @@ const reset = () => {
   resetOwners();
   resetPublication();
   resetWireCells();
+  resetWireDeclared();
   for (const d of handles.values()) d.shutdown();
   handles.clear();
   for (const s of servers.values()) s.served.shutdown();
@@ -122,6 +124,7 @@ const ops: Record<string, (args: Args) => Promise<unknown> | unknown> = {
   ...ownersOps,
   ...publicationOps,
   ...wireCellOps,
+  ...wireDeclaredOps,
   // The generated layer, and the runtimes the rendered packages and the
   // Wire-construction fixture link: a generated scenario that converts
   // callables needs live, one that carries a Cell over a prepared channel

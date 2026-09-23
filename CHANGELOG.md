@@ -41,6 +41,12 @@ are one number. Entries are in the words of the commits that landed them.
   access reaches the original runtime invocation after assembler rebinding.
   Optional consumer guards own their checks and preserve admitted controls;
   composition borrows capabilities without acquiring lifecycle authority.
+- Generated models behind declared composition keep calls, callbacks, events,
+  live references, a reply delayed across rebuild and rebind, a caller's
+  cancellation across the carrier, established metadata and teardown. This
+  holds over local pairs, WebSockets and prepared tunnel channels, for Go and
+  TypeScript in every pairing, and is held by the `wire-declared-*` generated
+  scenarios.
 - Every generated side describes access to its model as a declared
   composition of its complete operation domain, `Declared(access)` /
   `declared(access)`. `duplex.Through` / `through` presents declared send

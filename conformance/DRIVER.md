@@ -723,12 +723,16 @@ Allocation counters observe cumulative runtime `ConnectionOpened` and tunnel
 | `gen.wire_serve` | **`slot`**, **`carrier`**: `socket` or `channel`, **`presentation`** | `{"handle","url"}` — one Cell implementation serves the selected value slot through its generated adapter. A channel is acquired as a prepared Wire once. |
 | `gen.wire_dial` | **`url`**, **`slot`**, **`carrier`**, **`presentation`** | `{"handle"}` — the opposite model supplies a typed mirror operation and changed-event receiver. |
 | `gen.wire_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","setup_allocations","view_allocations","use_allocations","counts"}` — two state changes followed by a read, a reverse call, both events, and invocation of any returned callable values. |
-| `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open. |
+| `gen.wire_inspect` | **`on`**, `within_ms` | `{"revision":2,"value","noted","meta","setup_allocations","view_allocations","use_allocations","counts"}` — waits for the noted event and observes the retained value and event value while the scope remains open; `meta`, present only when the last `round_trip` carried metadata, is what it carried. |
 | `gen.wire_release` | **`on`**, `within_ms` | `{}` — releases the handle's explicit root owner; the carrier stays open. |
 | `gen.wire_counts` | **`on`**, `within_ms` | `{"exports":0,"imports":0}` once the released scope and its retained child lifetimes reach zero, or timeout. |
 | `gen.wire_bridge` | **`origin`** URL, **`slot`**: `factory` or a generic composition slot, **`presentation`**: `mounted` or `forwarded` | `{"handle","url"}` — derives a model with generated FromWire on the origin scope and passes that same model directly to generated ToWire on an independent destination scope. |
 | `gen.wire_bridge_counts` | **`on`**, `within_ms` | `{"origin":{"exports","imports"},"destination":{"exports","imports"},"setup_allocations","view_allocations","use_allocations"}` — both middle scopes before or after explicit release, without teardown. |
 | `gen.wire_bridge_release` | **`on`**, `within_ms` | `{}` — releases both middle root owners while both physical connections remain open. |
+| `gen.wire_declared` | **`access`**: `direct`, `selected`, `reconstructed` or `forwarded`; **`slot`**: `string`, `unary` or `factory`; `within_ms` | The exercise's answer below, plus `"noted"`, `"server":{"revision":2,"meta"}` and the close's answer. The caller interprets a Cell server over the model's own local pair through declared access, and the server is read directly. |
+| `gen.wire_declared_dial` | **`url`**, **`carrier`**: `socket` or `channel`, **`access`**, **`slot`**, `within_ms` | `{"handle"}`. It interprets the served Cell through declared access composed over the carrier, prepared before the carrier's reads start. |
+| `gen.wire_declared_exercise` | **`on`**, `within_ms` | `{"revisions":[1,2],"value","reverse","changed","after_refusal","delayed","delayed_changed","refusal","rebound","cancelled","checks":{"root","svc"}}`, as detailed below the table. |
+| `gen.wire_declared_close` | **`on`**, `within_ms` | `{"released_counts":{"exports","imports"},"borrowed"}`. It releases the caller's bindings until they reach zero, detaches the interpretation, and reports whether a fresh interpretation completes over the borrowed carrier. |
 | `gen.record_local` | **`presentation`**: `local`, `mounted`, or `forwarded`; `within_ms` | `{"follower_head":1,"head":2,"original":["first","second"],"replayed":["first","second"]}` — typed Cell<string> events use generated record/follow across the chosen Wire presentation. |
 | `gen.record_exercise` | **`on`**: a string-slot wire client; `within_ms` | `{"follower_head":1,"head":2,"original":["first","second"]}` — creates local typed history, follows its existing prepared carrier at zero, and appends the second event after the atomic handoff. |
 | `gen.record_read` | **`on`**: the corresponding wire server; `within_ms` | `["first","second"]` — waits for the historical and live events in order through the server's existing generated receiver. |
@@ -764,3 +768,37 @@ The table covers local, socket, channel and two-connection bridge construction,
 and source-alias versus supplied-argument identity in both endpoint orders.
 Each row names exact allocations and retained binding counts; explicit release
 must reach zero while the physical carriers remain open.
+
+The [declared composition table](tables/declared-composition.json) puts the
+same Cell server behind a caller's declared composition. The tree is a root,
+then `svc`, then the operation domain the generated `Declared` / `declared`
+spells for the server side. A counting consumer guard wraps the root's access,
+and another wraps `svc`. The caller holds one of four accesses:
+
+- `direct`: the `svc` node itself, behind its guard;
+- `selected`: `svc` selected below the root;
+- `reconstructed`: the same after rebuilding every node from its own parts;
+- `forwarded`: the same through a local forwarding relay in front of the carrier.
+
+`gen.wire_declared_exercise`, and the same run inside `gen.wire_declared`,
+performs these steps in order:
+
+1. Two puts, a get, a `round_trip` whose server calls the caller's `mirror`,
+   and a `noted` event.
+2. One put refused by the `svc` guard (`"refusal":"refused"`), then a get
+   that still answers (`after_refusal`).
+3. A `round_trip` whose `mirror` is held. Meanwhile the tree is rebuilt at
+   every depth and `svc` is rebound to an `elsewhere` prefix. A get through
+   the rebound tree is `method_not_found`. Then `mirror` is released, and the
+   held call answers late (`delayed`, `delayed_changed`).
+4. A `round_trip` whose `mirror` is held again, and whose caller then cancels.
+   The cancel travels unchanged through the access that sent the request to
+   the body, and the body's cancellation reaches the held `mirror`
+   (`"cancelled":"cancelled"`).
+
+Both held `round_trip` calls carry metadata `{"access": access}`, which
+`gen.wire_inspect` now reports as the server's `meta`. The expected `checks`
+count one per request or event at each guard it crosses. A guard passes
+cancels and replies through unchecked, as Bitwire ADR 0006 describes. The carriers are assumed connected, ordered and
+nonfaulting. A physical hop correlates each reply and cancel with its own
+request; only the local pair keeps the caller's return capability object.
