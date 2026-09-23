@@ -1,4 +1,5 @@
 // Compile-only assertions, including intentional failures. Do not execute this file.
+// @see ./reference.md — which definitions and obligations these assertions address.
 import type {
   ChangedAxis,
   Shape,
@@ -63,6 +64,14 @@ type NoChange = Assert<Equal<ChangedAxis<{ x: true }, { x: true }>, never>>;
 type Two = Assert<Equal<ChangedAxis<{ x: 'a'; y: 0 }, { x: 'b'; y: 1 }>, never>>;
 type Three = Assert<Equal<ChangedAxis<{ x: 'a'; y: 0; z: true }, { x: 'b'; y: 1; z: false }>, never>>;
 type BroadValue = Assert<Equal<ChangedAxis<{ x: string }, { x: 'a' }>, never>>;
+type PatternValue = Assert<Equal<ChangedAxis<{ x: `go:${string}` }, { x: 'go:cell' }>, never>>;
+type NumericPatternValue = Assert<Equal<ChangedAxis<{ x: `${number}` }, { x: '1' }>, never>>;
+type BrandedValue = Assert<Equal<ChangedAxis<{ x: string & { readonly brand: 'id' } }, { x: 'a' }>, never>>;
+type PatternAxis = Assert<Equal<ChangedAxis<Record<`axis:${string}`, 'a'>, { 'axis:x': 'b' }>, never>>;
+type MixedPatternAxis = Assert<
+  Equal<ChangedAxis<{ fixed: null } & Record<`axis:${string}`, 'a'>, { fixed: null; 'axis:x': 'b' }>, never>
+>;
+type UnknownPatternEquality = Assert<Equal<CoordinatesEqual<{ x: `go:${string}` }, { x: 'go:cell' }>, boolean>>;
 type UnionValue = Assert<Equal<ChangedAxis<{ x: 'a' | 'b' }, { x: 'a' }>, never>>;
 type UnionPoint = Assert<Equal<ChangedAxis<{ x: 'a' } | { y: 'b' }, { x: 'c' }>, never>>;
 type BroadAxis = Assert<Equal<ChangedAxis<Record<string, 'a'>, Record<string, 'b'>>, never>>;
@@ -119,7 +128,7 @@ declare const arbitraryShape: Shape<string>;
 const subjectReplacingFamily: ShapeRepresentationMap<string, KA, KB> = (input) => ({
   ...input,
   coordinates: { form: 'flat', order: 'ascending' } as const,
-  // @ts-expect-error A family must preserve the particular C, not replace it with any Shape.
+  // @ts-expect-error A family must preserve the particular S, not replace it with any Shape.
   subject: arbitraryShape,
 });
 // @ts-expect-error Navigation returns Selected, not Root, even though both are shapes.

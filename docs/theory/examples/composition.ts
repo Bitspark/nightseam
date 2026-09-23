@@ -2,6 +2,7 @@
  * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
+ * @see ../reference.md#shapes-and-composition — structural laws S1–S8.
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';

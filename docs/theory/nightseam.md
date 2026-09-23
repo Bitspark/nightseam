@@ -7,6 +7,10 @@ native and Wire values realize them. This page connects those objects to the
 representation calculus and names existing evidence. It does not introduce a
 generator API or claim a production implementation of the complete theory.
 
+The [foundations](foundations.md) define these objects and laws; the
+[concept/law reference](reference.md) maps them to the type model and examples.
+Return to the [theory index](README.md) for the complete reading order.
+
 ## Choose the subject before choosing its coordinates
 
 `S` describes a declared interface and its parts: operations, arguments, result
@@ -32,8 +36,15 @@ and how references and generic contexts are represented. The examples do not
 claim to encode the entire production declaration graph as a finite tree.
 
 The [domain graph](../domain.md) distinguishes ModelContract, ModelType, and
-ModelInstance. Here they correspond to `C`, `T`, and `i`, with satisfaction as
-an explicit relation. The Wire side likewise needs a realization and an
+ModelInstance. They have candidate counterparts `C`, `T`, and `i`, with important
+scope differences. That proposed graph identifies ModelType by contract and
+language, selecting one presentation; this theory permits several selected
+realizations `T` for the same shape or contract in one language. Its declaration
+digest identifies specified declaration content, not an arbitrary behavioral
+predicate `B`. Reading the graph as an application of this theory therefore
+requires an explicit choice of presentation and contract interpretation, rather
+than equating the definitions verbatim. This does not settle the graph's open
+design choices. The Wire side likewise needs a realization and an
 interpretation of its actual interaction behavior. Runtime participants, carriers,
 and events are not automatically representations of one interface contract.
 A model type is an object; a coordinate cell can contain several artifacts
@@ -164,7 +175,8 @@ The executable tree navigation and substitution laws concern shapes. To extend
 them to `C = (S, B)`, define how laws restrict to a selected part, how contextual
 laws are retained, and how substitution constructs a new specification `B_σ`.
 A law linking `read` and `write` cannot be recovered from an isolated `read`
-method signature. Composing implementations additionally needs a constructor
+method signature. The [behavioral lifting requirements](foundations.md#lifting-structural-operations-to-contracts-and-implementations)
+state these missing operations. Composing implementations additionally needs a constructor
 that preserves satisfaction, and behavioral equivalence for routes claiming to
 preserve particular instances. Tree substitution or equal declaration digests
 do not supply these arguments.

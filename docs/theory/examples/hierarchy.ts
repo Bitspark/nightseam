@@ -3,6 +3,7 @@
  * Opaque value/key IDs are preserved between nested and flat tree encodings.
  * Transformations consume artifacts; they do not reconstruct them from subject.
  * Run from the repository root: pnpm --filter @nightseam/theory test
+ * @see ../reference.md#shapes-and-composition — N1–N2, R1–R3, T1–T3, Q1, P2–P3.
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
@@ -356,7 +357,7 @@ for (const shape of [booleanCellTree, emptyShape]) {
       const first = shapeAt(shape, path.slice(0, split));
       assert.equal(first.kind, 'found');
       if (first.kind === 'found') assert.deepEqual(shapeAt(first.value, path.slice(split)), direct);
-      // The user's prefix law, exercised for the composite coordinate path:
+      // T3, the prefix law, exercised for the composite coordinate path:
       // P(at(r, p ++ q)) = at(P(at(r, p)), q).
       const prefix = requireLocation(shape, path.slice(0, split));
       const suffix = requireLocation(prefix.selected, path.slice(split));

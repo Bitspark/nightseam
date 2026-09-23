@@ -44,10 +44,11 @@ tree realizes today and the choices that still need a verdict.
 
 The [theory index](theory/README.md) separates the general model from its
 Nightseam interpretation and implementation evidence. It defines coordinate
-cells and transformation paths, hierarchical contracts and navigation,
-whole-contract holes and substitution, and the laws that make these operations
-commute. It includes a TypeScript metalanguage, checked examples, and a
-self-contained visual edition. These are developing definitions and laws;
+cells and transformation paths, shapes, behavioral contracts, realizations,
+instances and satisfaction. Structural navigation and whole-shape substitution
+have commuting laws; lifting them to behavior requires further interpretation.
+It includes a TypeScript metalanguage, a concept/law cross-reference, checked
+examples, and a self-contained visual edition. These are developing definitions and laws;
 the state pages below continue to describe the implemented interfaces.
 
 ## Where it is going — `goals/`

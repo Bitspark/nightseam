@@ -8,6 +8,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- The theory's definitions, laws, type model and examples are cross-referenced;
+  its coordinate checks refuse patterned families, and its native realizations
+  and behavioral obligations are distinguished from the proposed domain graph.
 - Document contract implementations, behavior, satisfaction, and adapter
   transparency alongside the representation theory, with checked finite
   behavior examples and an updated visual reference (`docs/theory/`).

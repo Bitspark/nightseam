@@ -18,6 +18,10 @@ The [contract and representation theory](theory/README.md) develops the general
 model of coordinate cells, transformation paths, hierarchy, and substitution.
 Its [Nightseam interpretation](theory/nightseam.md) relates that model to this
 domain without settling the choices below.
+In particular, the table below chooses one ModelType per contract and language;
+the theory admits several selected native realizations and separates declared
+shape from behavioral specification. The mapping therefore requires an explicit
+presentation and interpretation, as that page explains.
 
 Its nodes come in three kinds. **Definitions** have no instance: model
 contracts and wire contracts, and the model types and wire types read off

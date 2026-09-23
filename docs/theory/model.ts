@@ -6,6 +6,8 @@
  * Representation<X, K> means a representation OF X, not merely one tagged X.
  * Preserving X (including any chosen behavioral laws) is a semantic obligation.
  * TypeScript checks the indices and adjacency, not the meaning of an artifact.
+ * @see ./reference.md — definitions, laws, and evidence for every exported type.
+ * @see ./foundations.md#7-elementary-transformations-and-coordinate-paths
  */
 
 // IDs are opaque: the core compares identity without interpreting their meaning.
@@ -40,20 +42,22 @@ type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type IsUnion<T, Whole = T> = T extends Whole ? ([Whole] extends [T] ? false : true) : never;
 type At<K, Axis extends PropertyKey> = Axis extends keyof K ? K[Axis] : never;
 
-// Broad or union-valued coordinates describe families, not individual points.
+// Broad, patterned, branded or union-valued coordinates can describe families.
+// A singleton string/number makes a REQUIRED Record key; an index domain admits
+// the empty record. This also rejects `go:${string}` and patterned axis keys.
 type IsLiteral<T> = [T] extends [never]
   ? false
-  : [T] extends [CoordinateValue]
-    ? string extends T
-      ? false
-      : number extends T
+  : true extends IsUnion<T>
+    ? false
+    : T extends string | number
+      ? {} extends Record<T, unknown>
         ? false
-        : boolean extends T
-          ? false
-          : true extends IsUnion<T>
-            ? false
-            : true
-    : false;
+        : true
+      : Equal<T, true> extends true
+        ? true
+        : Equal<T, false> extends true
+          ? true
+          : Equal<T, null>;
 
 type IsPoint<K extends Coordinates> =
   true extends IsUnion<K>
@@ -61,7 +65,9 @@ type IsPoint<K extends Coordinates> =
     : [keyof K] extends [AxisId]
       ? string extends keyof K
         ? false
-        : false extends { [Axis in keyof K]-?: IsLiteral<K[Axis]> }[keyof K]
+        : false extends {
+              [Axis in keyof K]-?: IsLiteral<Axis> extends true ? IsLiteral<K[Axis]> : false;
+            }[keyof K]
           ? false
           : true
       : false;
@@ -338,6 +344,7 @@ export interface SubstitutionTransparency<O, From extends Coordinates, To extend
 }
 
 // Implementation semantics. S is now SHAPE; X above is an arbitrary subject.
+// @see ./foundations.md#3-native-realizations-instances-and-satisfaction
 // The tree Shape<O, G> is one choice of S, not a mandatory encoding of every
 // native type. A behavior domain fixes environments, effects and observations.
 
@@ -429,7 +436,11 @@ export type AdapterSemantics<T extends ModelTypeIndex, U extends ModelTypeIndex>
       : never
     : never;
 
-/** Syntax denotes its subject X; the artifact can be text OR a host AST value. */
+/**
+ * Syntax denotes its subject X; the artifact can be text OR a host AST value.
+ * Mathematical Syntax[L, X] reverses the TypeScript parameter order.
+ * @see ./reference.md#objects-and-denotation
+ */
 export type Syntax<X, L extends string> = Representation<X, { readonly form: 'syntax'; readonly language: L }>;
 export type ModelContractSyntax<S, Beh, D extends string> = Syntax<Contract<S, Beh>, D>;
 export type ModelTypeSyntax<T extends ModelTypeIndex> = Syntax<T, T['language']>;

@@ -25,9 +25,10 @@ published API.
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Foundations](foundations.md)            | Shape/specification/behavior, native realizations and satisfaction, syntax and denotation, adapters and generators, representation paths, structural navigation, and substitution. |
 | [Nightseam interpretation](nightseam.md) | How to apply that vocabulary to declarations, generators, native types, adapters, and generic composition; links to implementation evidence and unresolved choices.                |
+| [Concepts, laws, and evidence](reference.md) | Cross-reference from every model type to its definitions, laws, examples, and limits; notation and coordinate-schema correspondences. |
 
-The [self-contained visual edition](index.html) renders the foundations with
-an interactive BooleanCell, commuting squares, substitution stages, and embedded model sources.
+The [self-contained visual edition](index.html) includes these pages with an
+interactive BooleanCell, commuting squares, substitution stages, and embedded model sources.
 Open it directly in a browser; it needs no server or network connection.
 
 ## Inspect and run the model
@@ -49,10 +50,12 @@ pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 ```
 
-`verify` checks types, runs the examples, and refuses a stale visual edition.
-`render` regenerates that edition after changing the foundations or sources.
+`verify` checks types, runs the examples and reference checks, and refuses a stale
+visual edition. `render` regenerates it after changing any theory page or source.
 The [renderer](render.mjs) derives the diagrams' examples from the checked
-artifacts and embeds the model, its compile-only assertions, and all four examples.
+artifacts and embeds the four Markdown pages, the model, its compile-only
+assertions, and all four examples. The [reference checks](references.test.mjs)
+hold the type-to-document map, source backlinks, and HTML links together.
 Commit its output with its inputs.
 The workspace's ordinary recursive checks, build, and tests include this
 directory; the fast CI tier also runs its verification on both platforms.

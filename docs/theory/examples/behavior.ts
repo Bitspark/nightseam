@@ -4,6 +4,7 @@
  * Product exploration checks all finite interaction traces of each given pair,
  * not merely traces up to a chosen length. No concurrency, failure or divergence
  * is admitted by this example's observation model.
+ * @see ../reference.md#objects-and-denotation — B1, I1, A1, and A2.
  */
 import assert from 'node:assert/strict';
 import type {
@@ -34,7 +35,8 @@ export const inputs: readonly CellInput[] = [
   { kind: 'write', value: true },
 ];
 
-// Validate the finite domain before using its total-transition reasoning.
+// Check closure in the finite state/output domain. Purity and determinism of
+// step are assumptions; one traversal cannot establish them for arbitrary JS.
 export function validate(machine: CellMachine): void {
   assert.equal(new Set(machine.states).size, machine.states.length);
   assert.ok(machine.states.includes(machine.initial));
