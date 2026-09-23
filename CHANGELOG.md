@@ -21,6 +21,10 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- A theory reference for compositional contracts and their representations,
+  with a TypeScript metalanguage, checked navigation and substitution laws,
+  a Nightseam interpretation, and a reproducible self-contained visual guide
+  (`docs/theory/`).
 - The conformance runner records one outcome per scenario per language,
   with the commit and CI run it came from, beside the matrix's per-profile
   counts: the rows a table expands and both orientations collapse into one

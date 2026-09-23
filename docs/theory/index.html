@@ -1,0 +1,2135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>One contract, many representations</title>
+<style>
+:root{color-scheme:light dark;--paper:#f6f5f0;--surface:#fffefb;--ink:#203337;--muted:#536a6c;--line:#d3ddda;--accent:#167263;--wash:#e9f3ed;--code:#edf1ed;--focus:#3158a9;--shadow:rgba(22,51,45,.05)}
+@media(prefers-color-scheme:dark){:root{--paper:#111c1f;--surface:#18272b;--ink:#e5eeeb;--muted:#b3c7c4;--line:#3a5155;--accent:#82d2bf;--wash:#203b38;--code:#213337;--focus:#b5c5fa;--shadow:rgba(0,0,0,.1)}}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:26px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 'Segoe UI',system-ui,sans-serif}a{color:var(--accent);text-underline-offset:3px}a:hover{text-decoration-thickness:2px}a:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}button,select{font:inherit;color:inherit}button{cursor:pointer}p{margin:1em 0}strong{font-weight:600}h1,h2,h3{font-weight:600;line-height:1.22;letter-spacing:-.02em}h1{font-size:clamp(36px,5vw,62px);margin:14px 0 20px;max-width:850px}h2{font-size:27px;margin:70px 0 22px;padding-top:24px;border-top:1px solid var(--line)}h3{font-size:17px;margin:18px 0 12px}code,pre{font-family:Consolas,'Cascadia Code',monospace}code{font-size:.9em;background:var(--code);padding:.12em .28em;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--code);padding:18px 20px;border-radius:9px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}pre code{font:inherit;background:none;padding:0;border-radius:0}blockquote{margin:24px 0;border-left:3px solid var(--accent);padding:2px 20px;color:var(--muted)}
+.shell{max-width:1220px;margin:auto;padding:48px 40px 64px}.hero{padding:0 0 34px;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:600;letter-spacing:.13em;color:var(--muted)}.subtitle{font-size:20px;line-height:1.55;max-width:700px;color:var(--muted)}.hero-links{display:flex;gap:22px;flex-wrap:wrap;margin-top:24px;font-size:14px}.layout{display:grid;grid-template-columns:225px minmax(0,1fr);gap:48px}aside{padding-top:44px}.toc{position:sticky;top:28px;font-size:13px;line-height:1.45}.toc summary{font-weight:600;margin-bottom:14px}.toc nav{display:grid;gap:4px}.toc a{color:var(--muted);text-decoration:none;padding:7px 0}.toc a:hover{color:var(--accent)}article{min-width:0}article>h2:first-child{margin-top:22px;border-top:0}.table-wrap{width:100%;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;table-layout:fixed}th{text-align:left;font-weight:600;border-bottom:2px solid var(--line);padding:12px 10px}td{padding:12px 10px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th:first-child,td:first-child{width:36%;padding-left:0}th:last-child,td:last-child{padding-right:0}ol,ul{padding-left:24px}
+.diagram{margin:30px 0;padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 20px var(--shadow)}figcaption{display:flex;flex-direction:column;gap:6px;line-height:1.4;margin-bottom:22px}figcaption strong{font-size:20px}.figure-number{font-size:11px;letter-spacing:.13em;color:var(--muted);font-weight:600}.path-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}select{width:100%;max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;font-size:14px;min-height:44px}.route-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}.route-controls button{border:1px solid var(--line);background:var(--surface);padding:8px 12px;border-radius:6px;font-size:13px;min-height:40px}.route-controls button[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}.square{width:100%;min-width:0}.square svg{display:block;width:100%;height:auto;overflow:visible}.graph-node rect{fill:var(--wash);stroke:var(--line);stroke-width:1}.square text{fill:var(--ink);font:14px 'Segoe UI',system-ui,sans-serif}.square .node-title{font-weight:600}.square .node-detail{font:13px Consolas,monospace;fill:var(--muted)}.square .edge{stroke:var(--line);stroke-width:2;fill:none}.square .edge-label{font-size:12px;paint-order:stroke;stroke:var(--surface);stroke-width:7px;stroke-linejoin:round}.square .equivalence{font-size:30px;fill:var(--muted)}.diagram[data-route=first] [data-branch=first],.diagram[data-route=second] [data-branch=second]{stroke:var(--accent);stroke-width:3}.figure-result{font-size:14px;border-top:1px solid var(--line);padding-top:16px;margin:10px 0 0}.artifact-details{margin-top:18px}.artifact-details summary{font-size:14px}.artifact-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.artifact-grid pre{font-size:12px;padding:12px;line-height:1.55}.artifact-grid h3{font-size:14px}.artifact-grid>div{min-width:0}details summary{cursor:pointer}.source{margin:16px 0;padding:18px 0;border-bottom:1px solid var(--line)}.source summary{font-size:15px;font-weight:600}.source-note{font-size:12px;color:var(--muted);font-weight:400;display:block;padding-left:18px;margin-top:4px}.source pre{font-size:12px}.footer{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+@media(max-width:900px){.shell{padding:32px 24px 48px}.layout{grid-template-columns:180px minmax(0,1fr);gap:28px}.diagram{padding:18px}h2{font-size:24px}.toc{font-size:12px}}
+@media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>One contract,<br>many representations.</h1><p class="subtitle">A contract can travel across languages and forms while its parts remain addressable.</p><div class="hero-links"><a href="#transformation-families-and-the-transparency-square">Explore the transparency law ↓</a><a href="#whole-contract-holes">Compose contracts ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#what-the-model-describes">1. What the model describes</a><a href="#coordinates-and-cells">2. Coordinates and cells</a><a href="#elementary-transformations-and-coordinate-paths">3. Elementary transformations and coordinate paths</a><a href="#giving-the-contract-a-hierarchy">4. Giving the contract a hierarchy</a><a href="#contract-navigation">5. Contract navigation</a><a href="#navigating-a-representation">6. Navigating a representation</a><a href="#transformation-families-and-the-transparency-square">7. Transformation families and the transparency square</a><a href="#the-prefix-law-and-arbitrary-coordinate-paths">8. The prefix law and arbitrary coordinate paths</a><a href="#transparency-does-not-force-a-unique-coordinate-path">9. Transparency does not force a unique coordinate path</a><a href="#worked-example-two-routes-one-selected-subtree">10. Worked example: two routes, one selected subtree</a><a href="#interpreting-generator-roles">11. Interpreting generator roles</a><a href="#whole-contract-holes">12. Whole-contract holes</a><a href="#substitution-and-its-composition-laws">13. Substitution and its composition laws</a><a href="#navigation-through-composed-contracts">14. Navigation through composed contracts</a><a href="#substitution-transparency-across-representations">15. Substitution transparency across representations</a><a href="#what-the-typescript-establishes">16. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article><h2 id="what-the-model-describes">1. What the model describes</h2>
+<p>The subject stays fixed while its representation changes. We write
+<code>Representation&lt;C, K&gt;</code> for a representation of contract <code>C</code> at coordinates <code>K</code>.
+A coordinate path describes a sequence of transformations of that same <code>C</code>.
+Contract navigation describes a different operation: selecting a part of <code>C</code>.
+Contract substitution fills whole sub-contract holes and forms a new subject
+<code>C[σ]</code>. Representation transformations must also commute with that composition
+when they support both open templates and their instances.
+<strong>Path transparency connects these two directions: select a part, then
+transform it; or transform the whole, then select the same part.</strong></p>
+<p>TypeScript is the <strong>metalanguage</strong> of this model. Its interfaces describe the
+model; the Go and TypeScript artifacts in the examples are objects within that
+model. These definitions state a developing theory; the examples supply finite
+evidence for its laws. They do not change Nightseam&#39;s runtime or generator API.</p>
+<p>The core is in <a href="#source-model-ts">model.ts</a>, which contains only
+types and interfaces. <a href="#source-examples-coordinates-ts">examples/coordinates.ts</a> shows
+language and role coordinates. <a href="#source-examples-hierarchy-ts">examples/hierarchy.ts</a>
+adds contract trees and executable checks of the transparency laws. The
+<a href="#source-examples-composition-ts">composition examples</a> add whole-contract holes and
+substitution. The
+<a href="#top">self-contained HTML edition</a> includes diagrams and all
+four sources.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Notation</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>S</code></td>
+<td>An arbitrary semantic subject in the general model</td>
+</tr>
+<tr>
+<td><code>C</code></td>
+<td>A particular subject with contract-tree structure</td>
+</tr>
+<tr>
+<td><code>O</code></td>
+<td>The type of opaque local values</td>
+</tr>
+<tr>
+<td><code>K</code>, <code>L</code></td>
+<td>Coordinate assignments</td>
+</tr>
+<tr>
+<td><code>r : R_K(C)</code></td>
+<td>Shorthand for <code>Representation&lt;C, K&gt;</code></td>
+</tr>
+<tr>
+<td><code>p</code>, <code>q</code></td>
+<td>Contract paths: lists of child keys</td>
+</tr>
+<tr>
+<td><code>P</code>, <code>Q</code></td>
+<td>Coordinate paths: sequences of transformation instances</td>
+</tr>
+<tr>
+<td><code>C|p</code></td>
+<td>The sub-contract selected by a valid path <code>p</code></td>
+</tr>
+<tr>
+<td><code>≈_K</code></td>
+<td>The chosen equivalence of representations at <code>K</code>, for the same subject</td>
+</tr>
+</tbody></table></div>
+<h2 id="coordinates-and-cells">2. Coordinates and cells</h2>
+<p>An axis is an opaque ID. Each axis has opaque element IDs and may admit an
+explicit empty value. The core needs equality of IDs, not an interpretation of
+their names. The interpretation still belongs to the model: choosing an axis
+for language, role, or syntax/semantics gives that coordinate a meaning.</p>
+<pre><code class="language-typescript">type Coordinates = Readonly&lt;Record&lt;string, string | number | boolean | null&gt;&gt;;
+
+const goTypeSyntax = {
+  &#39;0:role&#39;: &#39;model-type&#39;,
+  &#39;0:form&#39;: &#39;syntax&#39;,
+  &#39;1:language&#39;: &#39;go&#39;,
+  &#39;2:execution&#39;: null,
+} as const;
+</code></pre>
+<p>Ranked addresses such as <code>&quot;1:language&quot;</code> encode position and key in one opaque
+axis ID. The core does not parse the rank or impose dependencies between ranks.
+Those are rules of a chosen coordinate schema. In this model, <code>null</code> is an
+explicit empty slot; <strong>an omitted key differs from a key present with <code>null</code></strong>.
+Adding or removing a key therefore changes that axis.</p>
+<p><strong>E1 — Coordinate equality.</strong> Two coordinates are equal exactly when their key
+sets agree and all elements at matching axes agree. Equality must be reflexive,
+symmetric, and transitive. Element IDs are compared within the same axis.</p>
+<p>For a fixed <code>C</code>, the cell at <code>K</code> is the collection <code>R_K(C)</code> of its lawful
+representations. A cell can contain many artifacts: differently formatted Go
+interfaces, for example. Coordinates identify a cell, not a unique artifact.
+Only meaningful coordinate assignments and inhabited cells need be present in
+the graph. Optional higher ranks avoid inventing dummy values, but do not by
+themselves prove that every possible combination has a representation.</p>
+<h2 id="elementary-transformations-and-coordinate-paths">3. Elementary transformations and coordinate paths</h2>
+<pre><code class="language-typescript">type RepresentationMap&lt;S, From, To&gt; = (input: Representation&lt;S, From&gt;) =&gt; Representation&lt;S, To&gt;;
+</code></pre>
+<p>This is mathematical shorthand; the source file supplies the coordinate
+constraints. An elementary <code>Transformation&lt;S, From, To&gt;</code> admits such a function
+only when exactly one axis differs:</p>
+<pre><code class="language-text">Diff(K, L) = { a | K[a] and L[a] differ, including absence }
+E2:  |Diff(K, L)| = 1
+
+Equivalently: ∃a*. ∀a. (K[a] ≠ L[a] ⇔ a = a*)
+</code></pre>
+<p>The distinguished axis is chosen once for the entire pair. A transformation
+with zero changes is not an elementary edge; neither is one changing two axes.
+The TypeScript type is <code>never</code> for either case, and for broad or union-valued
+coordinates that do not designate individual points.</p>
+<p>For fixed <code>S</code>, the ordered tuple <code>(From, To)</code> determines the <strong>transformation
+signature</strong>. A <code>TransformationInstance</code> additionally selects an actual function.
+Two generators may have the same signature and produce different lawful
+artifacts. Endpoint equality does not determine an algorithm.</p>
+<p>A coordinate path <code>P</code> consists of adjacent steps and matching intermediate
+coordinates. Its meaning <code>⟦P⟧</code> is their composition. The same <code>S</code> is carried
+through every step. A composite may differ at several axes, return to its
+starting coordinate, or do both along the way. A change involving several axes
+can be decomposed only if the required intermediate representations and maps
+exist; the model does not conjure them into existence.</p>
+<p><strong>P1 — Path interpretation.</strong> An empty path at <code>K</code> has one coordinate stop and
+zero steps. It means identity. Writing <code>P ; Q</code> for doing <code>P</code> then <code>Q</code>:</p>
+<pre><code class="language-text">⟦empty_K⟧ = id
+⟦P ; Q⟧ = ⟦Q⟧ ∘ ⟦P⟧
+⟦(P ; Q) ; R⟧ = ⟦P ; (Q ; R)⟧
+</code></pre>
+<p>These are equations for mathematical maps. If an implementation models effects,
+the effects must be included in its meaning and equivalence. A loop need not
+mean identity. A same-coordinate normalization can be an unrestricted
+<code>RepresentationMap</code>; it is not an elementary transformation under E2.</p>
+<h2 id="giving-the-contract-a-hierarchy">4. Giving the contract a hierarchy</h2>
+<p>The recursive type of finite <strong>closed</strong> contracts is:</p>
+<pre><code class="language-text">Contracts(O) = μX. Option(O) × FiniteMap(Key, X)
+</code></pre>
+<p>A particular <code>C</code> is an inhabitant of that type. Each node has an optional opaque
+value and zero or more uniquely keyed children:</p>
+<pre><code class="language-typescript">interface ContractNode&lt;O&gt; {
+  readonly kind: &#39;node&#39;;
+  readonly value?: O;
+  readonly children: ReadonlyMap&lt;string, Contract&lt;O&gt;&gt;;
+}
+
+// Closed case; section 12 adds whole-contract holes.
+type Contract&lt;O&gt; = ContractNode&lt;O&gt;;
+</code></pre>
+<p>The map makes <code>at(C, key)</code> single-valued. A set of key/child pairs is equivalent
+only with a uniqueness condition on keys. Child order has no contract meaning.
+A node with neither a value nor children is a valid, present contract; it is
+different from a missing child. The semantic model assumes finite, immutable,
+acyclic trees. A TypeScript <code>ReadonlyMap</code> expresses a read-only view, not a proof
+of those assumptions.</p>
+<p>The hierarchical example represents this shape:</p>
+<pre><code class="language-text">BooleanCell
+└─ operations                 (no local value)
+   ├─ read: operation
+   │  ├─ arguments            (present, empty node)
+   │  └─ result: Bool
+   └─ write: operation
+      ├─ arguments
+      │  └─ value: Bool
+      └─ result: Unit
+</code></pre>
+<p>The strings used as values and keys are opaque IDs to the machinery. <code>Bool</code>
+appearing twice does not merge its two occurrences: their contract paths
+distinguish them. This example states shape only. If <code>O</code> refers to behavioral
+specifications, their interpretation and preservation are additional semantic
+obligations; storing a law&#39;s name does not establish that a program satisfies it.</p>
+<h2 id="contract-navigation">5. Contract navigation</h2>
+<p>A contract path is a list of child keys; <code>++</code> concatenates lists and <code>[]</code> is
+the empty path. Navigation can fail, so the executable model returns
+<code>Selection&lt;Contract&lt;O&gt;&gt;</code>, a <code>found</code>/<code>missing</code> union.</p>
+<p><strong>N1 — Root.</strong></p>
+<pre><code class="language-text">at(C, []) = found(C)
+</code></pre>
+<p><strong>N2 — Concatenation, including missing paths.</strong></p>
+<pre><code class="language-text">at(C, p ++ q) = bind(at(C, p), D ↦ at(D, q))
+</code></pre>
+<p>Here <code>bind(found(D), f) = f(D)</code> and <code>bind(missing, f) = missing</code>. Thus a missing
+prefix stays missing. For valid paths, suppressing <code>found</code> gives the original
+equation:</p>
+<pre><code class="language-text">at(C, p ++ q) = at(at(C, p), q)
+</code></pre>
+<p>Contract paths and coordinate paths must remain distinct. A contract path moves
+from a subject to a sub-contract. A coordinate path changes the representation
+of one fixed subject. They are the two directions in the transparency square.</p>
+<h2 id="navigating-a-representation">6. Navigating a representation</h2>
+<p>For every admitted coordinate, representation navigation must expose the same
+abstract children:</p>
+<pre><code class="language-text">at_K : (r : R_K(C), p : ValidPath(C)) → R_K(C|p)
+</code></pre>
+<p>The result keeps <code>K</code> and changes the subject from <code>C</code> to <code>C|p</code>. In the TypeScript
+model, a <code>ContractLocation</code> records <code>root</code>, <code>path</code>, and <code>selected</code>; construction
+must establish <code>selected = root|path</code>. It is a witness obligation, not a theorem
+proved by that interface. The examples check it at runtime.</p>
+<p>Abstract contract keys need not be native source names: Go <code>Read</code> and TypeScript
+<code>read</code> can expose the same key. Selection need not mean cutting out text. A
+selected representation may retain imports, an environment, or a reference to
+the containing artifact so that the fragment has its intended meaning.</p>
+<p><strong>R1 — Navigation domain and subject.</strong> Every valid contract path has a
+corresponding represented selection with subject <code>C|p</code>, at the same <code>K</code>. Invalid
+paths cannot designate extra contract children. The example API accepts only
+valid locations; its <code>locate</code> operation handles failure first.</p>
+<p><strong>R2 — Representation navigation composes.</strong> For valid paths:</p>
+<pre><code class="language-text">at_K(r, []) ≈_K r
+at_K(r, p ++ q) ≈_K at_K(at_K(r, p), q)
+</code></pre>
+<p><strong>R3 — Faithful local surfaces.</strong> Let <code>surface(C)</code> be its optional local value
+and set of immediate child keys. Let <code>observe_K</code> inspect that surface in the
+represented artifact, as modeled by <code>RepresentationObservation</code>:</p>
+<pre><code class="language-text">observe_K(at_K(r, p)) = surface(C|p)
+</code></pre>
+<p>Equality includes value presence, the opaque value when present, and precisely
+the child-key set. It must be computed from the artifact&#39;s interpretation, not
+inferred merely by reading <code>r.subject</code>. Together with navigation, this law gives
+a value- and key-preserving isomorphism of the finite <strong>exposed contract tree</strong>
+with <code>C</code>. Raw syntax may contain additional representation details.</p>
+<p>This is where preserving the whole contract becomes more than retaining an ID.
+The generic <code>C</code> parameter expresses the obligation, but TypeScript&#39;s structural
+type system cannot prove artifact faithfulness or identity of runtime values.</p>
+<p>If a coordinate cannot support a sub-contract, the navigation requirement is
+not satisfied there. Supply a representation with sufficient context, or choose
+a domain and coordinate schema that are closed under this navigation.</p>
+<h2 id="transformation-families-and-the-transparency-square">7. Transformation families and the transparency square</h2>
+<p>A function for just one fixed <code>C</code> cannot be applied to <code>C|p</code> by assumption. We
+therefore introduce a family with a component for every contract in the chosen
+domain:</p>
+<pre><code class="language-text">F : ∏ C. (R_K(C) → R_L(C))
+F_C : R_K(C) → R_L(C)
+</code></pre>
+<pre><code class="language-typescript">interface ContractRepresentationMap&lt;O, From extends Coordinates, To extends Coordinates&gt; {
+  &lt;C extends Contract&lt;O&gt;&gt;(input: Representation&lt;C, From&gt;): Representation&lt;C, To&gt;;
+}
+</code></pre>
+<p><code>TransformationFamily</code> adds the one-axis requirement. <code>FamilyPath</code> composes such
+families, so the same coordinate route can be followed at the root or at any
+sub-contract. The admitted domain must be closed under selection. In this model
+the contract domain is finite <code>Contract&lt;O&gt;</code> trees, with lawful representations
+as inputs.</p>
+<p><strong>T1 — Preservation.</strong> <code>F_C</code> maps a lawful representation of <code>C</code> to a lawful
+representation of that same <code>C</code>, preserving its chosen observations and any
+included behavioral laws. This is required in addition to its type signature.</p>
+<p><strong>T2 — Navigation transparency.</strong> For every lawful <code>r</code> and valid <code>p</code>:</p>
+<pre><code class="language-text">at_L(F_C(r), p) ≈_L F_(C|p)(at_K(r, p))
+</code></pre>
+<figure id="transparency-figure" class="diagram" data-route="first">
+  <figcaption><span class="figure-number">FIGURE 1</span><strong>One selected part. Two routes.</strong></figcaption>
+  <label class="path-label" for="contract-path">Contract path <code>p</code></label>
+  <select id="contract-path"><option value="0">[] — whole contract</option><option value="1">operations</option><option value="2">operations / read</option><option value="3">operations / read / arguments</option><option value="4">operations / read / result</option><option value="5">operations / write</option><option value="6" selected>operations / write / arguments</option><option value="7">operations / write / arguments / value</option><option value="8">operations / write / result</option></select>
+  <div class="route-controls" role="group" aria-label="Route through the transparency square">
+    <button type="button" data-route-choice="first" aria-pressed="true">Transform → select</button>
+    <button type="button" data-route-choice="second" aria-pressed="false">Select → transform</button>
+  </div>
+  <div class="square" data-square="transparency"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-transparency desc-transparency">
+    <title id="title-transparency">Navigation commutes with transformation</title>
+    <desc id="desc-transparency">Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-contract.</desc>
+    <defs><marker id="arrow-transparency" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
+    <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-transparency)"/>
+    <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-transparency)"/>
+    <path data-branch="second" class="edge" d="M 150 112 V 208" marker-end="url(#arrow-transparency)"/>
+    <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-transparency)"/>
+    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Root at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">R_K(C)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Root at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">R_L(C)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Part at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(C|p)</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Part at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(C|p)</text></g>
+    <text class="edge-label" x="350" y="52" text-anchor="middle">F_C</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">F_(C|p)</text>
+    <text class="edge-label" x="550" y="174" text-anchor="middle">select p</text>
+    <text class="edge-label" x="150" y="174" text-anchor="middle">select p</text>
+    <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
+  </svg></div>
+  <p id="selection-result" class="figure-result" aria-live="polite">The selected subtree is preserved along both routes.</p>
+  <details class="artifact-details"><summary>Inspect the selected artifacts</summary><div class="artifact-grid"><div><h3>Nested at K</h3><pre id="nested-artifact"></pre></div><div><h3>Flat at L · either route</h3><pre id="flat-artifact"></pre></div></div></details>
+</figure>
+<p>The square commutes up to the chosen equivalence. The <code>NavigationTransparency</code>
+interface packages the map, both navigation operations, and that equivalence.
+It specifies a law to satisfy; a value of the interface is not a proof.</p>
+<p><strong>Q1 — Equivalence and congruence.</strong> <code>≈_K</code> must be an equivalence relation, and
+equivalent representations must have the same chosen observations. Navigation
+and transformations must respect equivalence:</p>
+<pre><code class="language-text">r ≈_K s  ⇒  at_K(r, p) ≈_K at_K(s, p)
+r ≈_K s  ⇒  F_C(r) ≈_L F_C(s)
+</code></pre>
+<p>Choose the observations explicitly. Exact artifact equality works in the
+canonical tree example. Other applications may ignore formatting or compare
+behavior. Equivalence must be fine enough to preserve everything counted as
+part of <code>C</code>.</p>
+<p>T2 alone is insufficient for T1: uniformly replacing every opaque value with a
+different value could commute with navigation while changing the contract.
+Faithful surfaces and behavioral preservation rule this out.</p>
+<h2 id="the-prefix-law-and-arbitrary-coordinate-paths">8. The prefix law and arbitrary coordinate paths</h2>
+<p>The prefix form of the law becomes well-typed by applying the appropriate component
+of the family at each selected subject:</p>
+<p><strong>T3 — Prefix transparency.</strong></p>
+<pre><code class="language-text">F_(C|p++q)(at_K(r, p ++ q))
+  ≈_L at_L(F_(C|p)(at_K(r, p)), q)
+</code></pre>
+<p>Read <code>C|p++q</code> as <code>C|(p ++ q)</code>. Using R2, this is T2 applied to the representation
+already selected at <code>p</code>. Conversely, setting <code>p = []</code> recovers T2, using the root
+law and congruence. Thus the two formulations express the same transparency
+requirement.</p>
+<p><strong>P2 — Transparency of composite paths.</strong> If every step of <code>P : K → L</code> obeys
+T2 and Q1, so does its composite:</p>
+<pre><code class="language-text">at_L(⟦P⟧_C(r), p) ≈_L ⟦P⟧_(C|p)(at_K(r, p))
+</code></pre>
+<p>For two consecutive steps <code>F : K → L</code> and <code>G : L → M</code>, the derivation is:</p>
+<pre><code class="language-text">at_M(G_C(F_C(r)), p)
+  ≈_M G_(C|p)(at_L(F_C(r), p))        by transparency of G
+  ≈_M G_(C|p)(F_(C|p)(at_K(r, p)))    by transparency of F and congruence of G
+</code></pre>
+<p>Identity is immediate; induction extends the argument to every finite path.
+Replacing <code>F</code> by <code>⟦P⟧</code> in T3 also yields the mixed law for any coordinate route
+and any contract-path split <code>p ++ q</code>. The example checks that equation directly
+at every split of every valid path.</p>
+<p>Mathematically, contract occurrences and their selections form a path category.
+At each coordinate, lawful representations modulo <code>≈</code> and selection maps give
+a set-valued functor. T2 makes the transformation family a natural
+transformation between these functors. This interpretation assumes R1–R2 and
+Q1; the TypeScript signature alone does not establish it. See Fong and Spivak,
+<a href="https://ocw.mit.edu/courses/18-s097-applied-category-theory-january-iap-2019/a4175d61479a35340d6307ae5e48ef5a_18-s097iap19textbook.pdf">An Invitation to Applied Category Theory, §3.3.4</a>.</p>
+<h2 id="transparency-does-not-force-a-unique-coordinate-path">9. Transparency does not force a unique coordinate path</h2>
+<p>Several routes can connect the same cells, and several transformation instances
+can connect the same pair. Navigation transparency says that <strong>each route
+commutes with selection</strong>. It does not say that any two routes produce identical
+artifacts.</p>
+<p><strong>P3 — Parallel-path coherence, when required.</strong> A stronger, separately chosen
+law is:</p>
+<pre><code class="language-text">P, Q : K → L  ⇒  ⟦P⟧_C(r) ≈_L ⟦Q⟧_C(r)
+</code></pre>
+<p>If <code>≈</code> observes only the preserved contract, T1 already gives agreement at that
+level. If it also observes formatting, implementation strategy, or other
+representation details, coherence needs an additional argument. A chosen
+isomorphism from each exposed contract to <code>C</code> determines the induced contract
+correspondence between representations. It does not choose a unique generator,
+artifact, or coordinate route.</p>
+<p>Likewise, abstract contract isomorphism does not provide an executable inverse
+generator. To require a round trip, supply a reverse map <code>G</code> and require
+<code>G_C(F_C(r)) ≈ r</code> (and the other direction for a two-sided inverse). This is an
+extra law, not a consequence of having the same subject parameter.</p>
+<h2 id="worked-example-two-routes-one-selected-subtree">10. Worked example: two routes, one selected subtree</h2>
+<p>The hierarchy example has independent <code>layout</code> and <code>order</code> axes. Every artifact
+encodes the same nine-node BooleanCell tree. Nested encodings store child pairs;
+flat encodings store one row for <strong>every node</strong>, with its relative path and
+optional value. Keeping rows for empty nodes is essential.</p>
+<figure id="coordinate-figure" class="diagram" data-route="first">
+  <figcaption><span class="figure-number">FIGURE 2</span><strong>Two coordinate paths</strong></figcaption>
+  <div class="route-controls" role="group" aria-label="Order of coordinate transformations">
+    <button type="button" data-route-choice="first" aria-pressed="true">Layout first</button>
+    <button type="button" data-route-choice="second" aria-pressed="false">Order first</button>
+  </div>
+  <div class="square" data-square="coordinates"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-coordinates desc-coordinates">
+    <title id="title-coordinates">Two coordinate routes to the same representation</title>
+    <desc id="desc-coordinates">Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.</desc>
+    <defs><marker id="arrow-coordinates" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
+    <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-coordinates)"/>
+    <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-coordinates)"/>
+    <path data-branch="second" class="edge" d="M 150 112 V 208" marker-end="url(#arrow-coordinates)"/>
+    <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-coordinates)"/>
+    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Nested</text><text class="node-detail" x="150" y="85" text-anchor="middle">ascending</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Flat</text><text class="node-detail" x="550" y="85" text-anchor="middle">ascending</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Nested</text><text class="node-detail" x="150" y="267" text-anchor="middle">descending</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Flat</text><text class="node-detail" x="550" y="267" text-anchor="middle">descending</text></g>
+    <text class="edge-label" x="350" y="52" text-anchor="middle">flatten</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">flatten</text>
+    <text class="edge-label" x="550" y="174" text-anchor="middle">reorder</text>
+    <text class="edge-label" x="150" y="174" text-anchor="middle">reorder</text>
+    <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
+  </svg></div>
+  <p class="figure-result" aria-live="polite">Flatten → reorder. The other route produces the same canonical artifact in this example.</p>
+</figure>
+<p>Each arrow changes one axis. The two routes change two axes in total. They
+produce exactly equal canonical artifacts here, so this particular square also
+satisfies P3. Nested selection follows child keys. Flat selection filters rows
+by a prefix and removes that prefix from the selected rows. Both expose the
+same selected contract and commute with the transformations.</p>
+<p>The checks cover root and concatenation laws, missing paths, every local
+surface, all four elementary families, their composition, and the original
+prefix equation. They also cover the entirely empty contract. A deliberately
+bad, correctly typed generator keeps only the flat root and drops descendants;
+the law checker rejects it. A fabricated location naming the wrong selected
+contract is rejected as well. A second bad generator replaces every local value:
+it passes the commuting-square checks, but the faithful-surface check rejects it.</p>
+<h2 id="interpreting-generator-roles">11. Interpreting generator roles</h2>
+<p>The core reserves no role names. A concrete domain model can choose coordinates
+such as the following, with preservation judged against the same chosen <code>C</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Possible representation change</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Type generator</td>
+<td>Contract declaration syntax → native model-type syntax</td>
+</tr>
+<tr>
+<td>Adapter generator</td>
+<td>A description of <code>C</code> and its selected binding → adapter syntax exposing <code>C</code></td>
+</tr>
+<tr>
+<td>Implementation generator</td>
+<td>A description of <code>C</code> → implementation syntax realizing <code>C</code></td>
+</tr>
+<tr>
+<td>Interpretation or loading</td>
+<td>Syntax → its semantic realization, with language/runtime coordinates as needed</td>
+</tr>
+<tr>
+<td>Ordinary program function</td>
+<td>A function between values; it is a representation transformation only when it also preserves the chosen subject and fits the coordinate rules</td>
+</tr>
+</tbody></table></div>
+<p>These are modeling choices, not claims about an existing Nightseam API. An
+adapter or implementation generator may need a selected native type, strategy,
+or other inputs. Include those in its specified environment or input model;
+they cannot be inferred from the identity of <code>C</code> alone. If several axes change,
+use a lawful path where one exists, or an unrestricted map outside the primitive
+edge type. A behaviorally rich contract also needs more than a generated method
+signature to establish preservation.</p>
+<h2 id="whole-contract-holes">12. Whole-contract holes</h2>
+<p>A generic stands for a complete sub-contract, including its value and children.
+The union therefore surrounds the entire node constructor:</p>
+<pre><code class="language-text">Contracts(O, G) = μX. Generic(G) + (Option(O) × FiniteMap(Key, X))
+</code></pre>
+<p><code>G</code> is a context of allowed opaque generic IDs. A template may use an ID more
+than once, or not use every ID in its context. All occurrences of one ID denote
+the same parameter. The core now expresses both open and closed contracts:</p>
+<pre><code class="language-typescript">type Generic&lt;G extends string&gt; = [G] extends [never] ? never : { readonly kind: &#39;generic&#39;; readonly id: G };
+
+interface ContractNode&lt;O, G extends string = never&gt; {
+  readonly kind: &#39;node&#39;;
+  readonly value?: O;
+  readonly children: ReadonlyMap&lt;string, Contract&lt;O, G&gt;&gt;;
+}
+
+type Contract&lt;O, G extends string = never&gt; = ContractNode&lt;O, G&gt; | Generic&lt;G&gt;;
+</code></pre>
+<p><code>Contract&lt;O, never&gt;</code> has no holes and recovers the previous closed-tree model.
+A hole has neither a value nor children. An ordinary node without a value or
+children remains a complete, empty contract and is never implicitly a hole.
+At open contracts, faithful representation additionally preserves the node/hole
+distinction and the identity of each generic.</p>
+<p>For example, <code>Pair[g0]</code> can contain two occurrences of <code>g0</code>:</p>
+<figure id="composition-stages" class="diagram"><figcaption><span class="figure-number">FIGURE 3</span><strong>A whole contract at each hole</strong></figcaption><div class="route-controls" role="group" aria-label="Substitution stage"><button type="button" data-stage-choice="0" aria-pressed="true">Template</button><button type="button" data-stage-choice="1" aria-pressed="false">Insert List</button><button type="button" data-stage-choice="2" aria-pressed="false">Insert Bool</button></div><pre id="composition-tree">Pair
+├─ first → ?g0
+└─ second → ?g0</pre><p id="composition-stage-result" class="figure-result" aria-live="polite">Pair[g0]: the same parameter occurs at first and second.</p></figure>
+<p>The inserted contract supplies the whole structure at each occurrence. Filling
+a hole need not close the template: the replacement can itself have holes.
+Hole IDs belong to a chosen context. When combining independently named
+templates, consistently rename IDs if they are intended to remain distinct.
+The current language has no binders; introducing binders later would require
+additional scoping and capture-avoidance rules.</p>
+<h2 id="substitution-and-its-composition-laws">13. Substitution and its composition laws</h2>
+<p>A substitution assigns a contract to every generic in its source context:</p>
+<pre><code class="language-text">σ : G → Contracts(O, H)
+C : Contracts(O, G)
+C[σ] : Contracts(O, H)
+</code></pre>
+<p>This is the <code>Substitution&lt;O, G, H&gt;</code> type. An assignment to closed contracts has
+<code>H = never</code>. Partial instantiation is expressed by mapping each unfilled
+parameter to a generic in the target context. Bindings are total and consistent;
+every repeated occurrence of a parameter receives the same contract.</p>
+<p><strong>S1 — A hole is replaced by its entire argument.</strong></p>
+<pre><code class="language-text">Generic(g)[σ] = σ(g)
+</code></pre>
+<p><strong>S2 — Substitution distributes through ordinary nodes.</strong></p>
+<pre><code class="language-text">Node(v, children)[σ] = Node(v, { k ↦ children(k)[σ] })
+</code></pre>
+<p>These definitions preserve every existing ordinary node&#39;s optional value and
+child keys. Only a hole occurrence is replaced. Substitution is simultaneous:
+the replacement <code>σ(g)</code> is returned as supplied; the same <code>σ</code> is not recursively
+applied inside it. For example, substituting <code>g0 := Box[g0]</code> once into <code>g0</code>
+produces <code>Box[g0]</code>, rather than expanding forever.</p>
+<p><strong>S3 — Identity.</strong> The identity substitution sends each generic to itself:</p>
+<pre><code class="language-text">η_G(g) = Generic(g)
+C[η_G] = C
+</code></pre>
+<p><strong>S4 — Staged substitution equals composed substitution.</strong> For
+<code>σ : G → Contracts(O, H)</code> and <code>τ : H → Contracts(O, I)</code>, define:</p>
+<pre><code class="language-text">(σ ⋆ τ)(g) = σ(g)[τ]
+(C[σ])[τ] = C[σ ⋆ τ]
+
+η_G ⋆ σ = σ
+σ ⋆ η_H = σ
+(σ ⋆ τ) ⋆ υ = σ ⋆ (τ ⋆ υ)
+</code></pre>
+<p>The last three equations are pointwise equations on bindings; the contexts
+must match. Induction on the template proves the substitution laws from S1–S2.
+Equality here is equality of abstract contract expressions, including opaque
+values, keyed structure, and generic IDs. A particular allocation or amount of
+heap sharing is not part of that equality.</p>
+<p>Substitution forms the subject <code>C[σ]</code>. It is <strong>not</strong> an elementary
+<code>Transformation&lt;C, K, L&gt;</code>: it changes the subject and can keep coordinates
+unchanged. The enlarged model therefore has two distinct operations:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Subject</th>
+<th>Coordinates</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Representation transformation</td>
+<td>Preserves <code>C</code></td>
+<td>Changes exactly one axis per primitive step</td>
+</tr>
+<tr>
+<td>Contract instantiation</td>
+<td>Forms <code>C[σ]</code> from <code>C</code> and arguments</td>
+<td>May take place at the same <code>K</code></td>
+</tr>
+</tbody></table></div>
+<p>A path mixing these operations must track its subject as well as its
+coordinates. The original fixed-subject paths remain exactly as defined.</p>
+<h2 id="navigation-through-composed-contracts">14. Navigation through composed contracts</h2>
+<p><strong>S5 — Existing paths commute with substitution.</strong> If <code>p</code> selects an existing
+node or hole in the original template:</p>
+<pre><code class="language-text">at(C[σ], p) = at(C, p)[σ]
+</code></pre>
+<p>An ordinary node remains at the same path. When that path ends at a hole, its
+selection after substitution is the supplied replacement contract.</p>
+<p><strong>S6 — Paths can continue inside an inserted contract.</strong> If <code>at(C, p) = Generic(g)</code>:</p>
+<pre><code class="language-text">at(C[σ], p ++ q) = at(σ(g), q)
+</code></pre>
+<p>The right side may still be partial. It can select another hole if the
+replacement remains open. These two laws explain how a contract path crosses
+from the original template into an argument.</p>
+<p>The validity condition in S5 matters. Before filling <code>Pair[g0]</code>, the path
+<code>first / element</code> cannot be resolved. After <code>g0 := List[h0]</code>, it selects <code>h0</code>;
+after <code>h0 := Bool</code>, it selects <code>Bool</code>. A missing child of a known ordinary node
+stays missing, but an unresolved path continuing through a hole may become
+valid. Thus a blanket equation propagating every failed template lookup through
+substitution would be incorrect.</p>
+<h2 id="substitution-transparency-across-representations">15. Substitution transparency across representations</h2>
+<p>At each admitted coordinate <code>K</code>, represent both the template and its arguments:</p>
+<pre><code class="language-text">r : R_K(C)
+a(g) : R_K(σ(g))
+plug_K(r, a) : R_K(C[σ])
+</code></pre>
+<p><code>RepresentedSubstitution</code> associates each semantic argument with its represented
+argument. <code>SubstitutionApplication</code> witnesses the particular resulting subject
+<code>D = C[σ]</code>. <code>RepresentationSubstitution</code> returns a representation of that <code>D</code>
+at the same coordinate. The witness and artifact faithfulness are semantic
+obligations, checked in the examples; merely constructing their records is
+insufficient.</p>
+<p><strong>S7 — Representation substitution respects identity and composition.</strong>
+Represented holes act as identities. Filling represented arguments in stages
+agrees, up to the chosen equivalence, with first composing the represented
+arguments and then filling once. Plugging must also respect equivalence of the
+template and pointwise equivalence of its arguments. These are the represented
+counterparts of S3–S4, including their congruence requirement.</p>
+<p><strong>S8 — Transformation commutes with substitution.</strong> Let <code>F : K → L</code> be a family
+defined for the open template, its arguments, and its instance. Then:</p>
+<pre><code class="language-text">F_(C[σ])(plug_K(r, a))
+  ≈_L plug_L(F_C(r), g ↦ F_(σ(g))(a(g)))
+</code></pre>
+<figure id="composition-figure" class="diagram" data-route="first">
+  <figcaption><span class="figure-number">FIGURE 4</span><strong>Filling commutes with transformation</strong></figcaption>
+  <div class="route-controls" role="group" aria-label="Route through the substitution square">
+    <button type="button" data-route-choice="first" aria-pressed="true">Transform → fill</button>
+    <button type="button" data-route-choice="second" aria-pressed="false">Fill → transform</button>
+  </div>
+  <div class="square" data-square="composition"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-composition desc-composition">
+    <title id="title-composition">Substitution commutes with transformation</title>
+    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent C with the same substituted arguments at the target coordinate.</desc>
+    <defs><marker id="arrow-composition" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
+    <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-composition)"/>
+    <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-composition)"/>
+    <path data-branch="second" class="edge" d="M 150 112 V 208" marker-end="url(#arrow-composition)"/>
+    <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-composition)"/>
+    <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Open at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">r, a(g)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Open at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">F(r), F(a)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Filled at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(C[σ])</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Filled at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(C[σ])</text></g>
+    <text class="edge-label" x="350" y="52" text-anchor="middle">F each</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">F instance</text>
+    <text class="edge-label" x="550" y="174" text-anchor="middle">fill</text>
+    <text class="edge-label" x="150" y="174" text-anchor="middle">fill</text>
+    <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
+  </svg></div>
+  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance C[σ].</p>
+</figure>
+<p>This is the connecting law: <strong>fill, then transform; or transform the template
+and every argument, then fill</strong>. The <code>SubstitutionTransparency</code> interface records
+the operations needed to state it. The fourth parameter of <code>TransformationFamily</code>
+and <code>FamilyPath</code> specifies their allowed generic context; using <code>GenericId</code>
+admits both open and closed contracts. Their default remains the closed case.</p>
+<p>As with navigation transparency, S8 lifts to any coordinate path whose steps
+satisfy it: push each step through plugging, use congruence, then compose the
+transformed arguments. Consequently a pipeline can commute with instantiation,
+not just an individual generator. This requires all the relevant representations
+and operations to exist; a target supporting only closed contracts cannot take
+the open-template route by assumption.</p>
+<p>The strength of S8 depends on <code>≈</code>. If it observes only the instantiated contract,
+faithful substitution and preservation already imply agreement at that level.
+Exact generated-source equality is a stronger requirement. A specialized
+generator and a generic template may produce different but equivalent code.</p>
+<p>The <a href="#source-examples-composition-ts">composition example</a> uses nested and flat encodings
+of open contracts. A flat hole row is replaced by every row of its argument,
+with the occurrence path prefixed. An inserted empty contract still supplies a
+root row. Transforming the filled nested tree produces exactly the same flat
+artifact as filling the transformed template with transformed arguments.</p>
+<p>The example checks repeated holes, multiple different holes, a root hole, empty
+contracts, replacements containing holes, same-named holes surviving one-pass
+substitution, the identity/composition laws, and paths entering inserted trees.
+It rejects inconsistent represented arguments and fabricated result witnesses.</p>
+<h2 id="what-the-typescript-establishes">16. What the TypeScript establishes</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Obligation</th>
+<th>How the model addresses it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One changed axis at each primitive step</td>
+<td>Conditional types, for finite literal coordinates</td>
+</tr>
+<tr>
+<td>Matching coordinate endpoints along a path</td>
+<td>A tuple of typed adjacent steps</td>
+</tr>
+<tr>
+<td>Same subject type through transformation</td>
+<td>Generic input/output parameter <code>C</code>; runtime identity remains a law</td>
+</tr>
+<tr>
+<td>Family available at sub-contracts</td>
+<td>Polymorphic call signature, plus the domain-closure requirement</td>
+</tr>
+<tr>
+<td>Valid contract location</td>
+<td>Explicit witness data, checked in examples</td>
+</tr>
+<tr>
+<td>Faithful surfaces and navigation laws</td>
+<td>Executable checks on the supplied trees and encodings</td>
+</tr>
+<tr>
+<td>Universal transparency, equivalence, and behavioral preservation</td>
+<td>Semantic requirements; finite checks and TypeScript are not universal proofs</td>
+</tr>
+<tr>
+<td>Parallel-path coherence or an inverse</td>
+<td>Additional laws where requested, never inferred from endpoints</td>
+</tr>
+<tr>
+<td>Entire sub-contract holes and closed contracts</td>
+<td>A node/hole union, indexed by an allowed generic context; <code>never</code> excludes holes</td>
+</tr>
+<tr>
+<td>Substitution contexts and resulting subject</td>
+<td>Typed bindings and an explicit application witness; equality checked in examples</td>
+</tr>
+<tr>
+<td>Substitution/navigation/transformation interchange</td>
+<td>Stated laws and executable nested/flat examples; not universal proofs</td>
+</tr>
+</tbody></table></div>
+<p>From the repository root, with Node 22.12 or later and <code>pnpm install</code>:</p>
+<pre><code class="language-sh">pnpm --filter @nightseam/theory verify
+pnpm --filter @nightseam/theory render
+</code></pre>
+<p><code>verify</code> checks the types, runs the examples, and checks that the HTML edition
+is current. <code>render</code> regenerates it from this page and the four source files.
+The package scripts enable Node&#39;s TypeScript stripping; no compiled model is
+published.</p>
+<p>The executable examples operate on model artifacts. They do not run Go, compile
+the illustrative source strings, or execute Nightseam&#39;s generators.</p>
+<h2 id="embedded-sources">Embedded sources</h2><p>The complete model and all three example files are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">338 lines · embedded source</span></summary><pre><code>/**
+ * A metamodel, expressed entirely as types. S and the meanings of the axes
+ * are supplied by its users; there are no built-in languages or generator roles.
+ *
+ * Representation&lt;S, K&gt; means a representation OF S, not merely one tagged S.
+ * Preserving S (including any chosen behavioral laws) is a semantic obligation.
+ * TypeScript checks the indices and adjacency, not the meaning of an artifact.
+ */
+
+// IDs are opaque: the core compares identity without interpreting their meaning.
+// Element IDs are scoped to their axis; the same ID on another axis is unrelated.
+// Use concrete literals (`as const`), not unions or `string`.
+// Axis keys may encode ranked addresses such as &quot;0:form&quot; and &quot;1:language&quot;.
+export type AxisId = string;
+export type AxisElementId = string | number | boolean;
+export type EmptyCoordinate = null;
+export type CoordinateValue = AxisElementId | EmptyCoordinate;
+export type Coordinates = Readonly&lt;Record&lt;AxisId, CoordinateValue&gt;&gt;;
+
+// Required meaning: equality of IDs within the SAME axis, including empty slots.
+export type AxisElementEquality = (left: CoordinateValue, right: CoordinateValue) =&gt; boolean;
+
+// Required meaning: identical key sets and equal elements at every matching key.
+// A missing key is distinct from a present key whose value is explicitly null.
+export type CoordinateEquality = (left: Coordinates, right: Coordinates) =&gt; boolean;
+
+export interface Representation&lt;S, K extends Coordinates&gt; {
+  readonly subject: S;
+  readonly coordinates: K;
+  readonly artifact: unknown;
+}
+
+// An unrestricted map can interpret a path that changes zero or several axes.
+export type RepresentationMap&lt;S, From extends Coordinates, To extends Coordinates&gt; = (
+  input: Representation&lt;S, From&gt;,
+) =&gt; Representation&lt;S, To&gt;;
+
+type Equal&lt;A, B&gt; = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type IsUnion&lt;T, Whole = T&gt; = T extends Whole ? ([Whole] extends [T] ? false : true) : never;
+type At&lt;K, Axis extends PropertyKey&gt; = Axis extends keyof K ? K[Axis] : never;
+
+// Broad or union-valued coordinates describe families, not individual points.
+type IsLiteral&lt;T&gt; = [T] extends [never]
+  ? false
+  : [T] extends [CoordinateValue]
+    ? string extends T
+      ? false
+      : number extends T
+        ? false
+        : boolean extends T
+          ? false
+          : true extends IsUnion&lt;T&gt;
+            ? false
+            : true
+    : false;
+
+type IsPoint&lt;K extends Coordinates&gt; =
+  true extends IsUnion&lt;K&gt;
+    ? false
+    : [keyof K] extends [AxisId]
+      ? string extends keyof K
+        ? false
+        : false extends { [Axis in keyof K]-?: IsLiteral&lt;K[Axis]&gt; }[keyof K]
+          ? false
+          : true
+      : false;
+
+// Adding or removing a key also counts as changing that axis.
+export type DifferingAxes&lt;From extends Coordinates, To extends Coordinates&gt; = {
+  [Axis in keyof From | keyof To]: Equal&lt;At&lt;From, Axis&gt;, At&lt;To, Axis&gt;&gt; extends true ? never : Axis;
+}[keyof From | keyof To];
+
+// Static equality for concrete points. With families, equality is not yet known.
+export type CoordinatesEqual&lt;Left extends Coordinates, Right extends Coordinates&gt; =
+  IsPoint&lt;Left&gt; extends true
+    ? IsPoint&lt;Right&gt; extends true
+      ? [DifferingAxes&lt;Left, Right&gt;] extends [never]
+        ? true
+        : false
+      : boolean
+    : boolean;
+
+// The unique changed axis, or never for zero/multiple changes or nonliteral points.
+export type ChangedAxis&lt;From extends Coordinates, To extends Coordinates&gt; =
+  IsPoint&lt;From&gt; extends true
+    ? IsPoint&lt;To&gt; extends true
+      ? [DifferingAxes&lt;From, To&gt;] extends [never]
+        ? never
+        : true extends IsUnion&lt;DifferingAxes&lt;From, To&gt;&gt;
+          ? never
+          : DifferingAxes&lt;From, To&gt;
+      : never
+    : never;
+
+/**
+ * One elementary function, with the same S at both ends and exactly one axis
+ * changed. This type is empty (`never`) when the endpoints are not adjacent.
+ * Every inhabitant is required to preserve S; the signature alone is no proof
+ * of shape isomorphism or behavioral preservation.
+ */
+export type Transformation&lt;S, From extends Coordinates, To extends Coordinates&gt; = [ChangedAxis&lt;From, To&gt;] extends [
+  never,
+]
+  ? never
+  : RepresentationMap&lt;S, From, To&gt;;
+
+// The first-class signature: for fixed S, its identity is the ordered endpoint
+// tuple. It determines the transformation TYPE, without selecting an inhabitant.
+export type TransformationSignature&lt;S, From extends Coordinates, To extends Coordinates&gt; = [
+  ChangedAxis&lt;From, To&gt;,
+] extends [never]
+  ? never
+  : {
+      readonly subject: S;
+      readonly endpoints: readonly [from: From, to: To];
+    };
+
+// Several named functions may inhabit the same signature. `apply` is the
+// function itself; its id is independent of the signature&#39;s endpoint identity.
+export interface TransformationInstance&lt;S, From extends Coordinates, To extends Coordinates&gt; {
+  readonly id: string;
+  readonly signature: TransformationSignature&lt;S, From, To&gt;;
+  readonly apply: Transformation&lt;S, From, To&gt;;
+}
+
+// A path lists all visited coordinates. One stop and zero steps is identity.
+export type Stops = readonly [Coordinates, ...Coordinates[]];
+
+export type PathSteps&lt;S, Route extends Stops&gt; = Route extends readonly [
+  infer From extends Coordinates,
+  infer To extends Coordinates,
+  ...infer Rest extends Coordinates[],
+]
+  ? readonly [Transformation&lt;S, From, To&gt;, ...PathSteps&lt;S, readonly [To, ...Rest]&gt;]
+  : readonly [];
+
+export interface Path&lt;S, Route extends Stops&gt; {
+  readonly subject: S;
+  // A finite tuple makes every link checkable. An unbounded array loses that evidence.
+  readonly coordinates: number extends Route[&#39;length&#39;] ? never : Route;
+  readonly steps: PathSteps&lt;S, Route&gt;;
+}
+
+type Last&lt;Route extends Stops&gt; = Route extends readonly [...Coordinates[], infer K extends Coordinates] ? K : never;
+
+// Interpreting a path composes its steps; it need not be an elementary step.
+export type PathMeaning&lt;S, Route extends Stops&gt; = RepresentationMap&lt;S, Route[0], Last&lt;Route&gt;&gt;;
+
+// Contract structure specializes the previously opaque subject S. Contract keys
+// are independent of coordinate-axis IDs, even though both use opaque strings.
+export type ContractKey = string;
+export type ContractPath = readonly ContractKey[];
+
+export type GenericId = string;
+
+/** A hole stands for an ENTIRE contract; it has no local value or children. */
+export type Generic&lt;G extends GenericId&gt; = [G] extends [never] ? never : { readonly kind: &#39;generic&#39;; readonly id: G };
+
+/** An immutable, finite, acyclic node. Children have unique keys; order is immaterial. */
+export interface ContractNode&lt;O, G extends GenericId = never&gt; {
+  readonly kind: &#39;node&#39;;
+  readonly value?: O;
+  readonly children: ReadonlyMap&lt;ContractKey, Contract&lt;O, G&gt;&gt;;
+}
+
+/** G is the allowed free-hole context. G = never recovers closed contracts. */
+export type Contract&lt;O = unknown, G extends GenericId = never&gt; = ContractNode&lt;O, G&gt; | Generic&lt;G&gt;;
+
+// An existing node without a value or children is still Found, not Missing.
+export type Selection&lt;T&gt; = { readonly kind: &#39;found&#39;; readonly value: T } | { readonly kind: &#39;missing&#39; };
+
+/** Required laws: at(C, []) = C; at(C, p ++ q) = bind(at(C, p), at(_, q)). */
+export type ContractNavigation&lt;O, G extends GenericId = never&gt; = (
+  contract: Contract&lt;O, G&gt;,
+  path: ContractPath,
+) =&gt; Selection&lt;Contract&lt;O, G&gt;&gt;;
+
+/**
+ * A location witnesses that selected = at(root, path). Construction must establish
+ * this equation. TypeScript relates the subject types but cannot prove the lookup.
+ */
+export interface ContractLocation&lt;
+  O,
+  Root extends Contract&lt;O, G&gt;,
+  G extends GenericId = never,
+  Selected extends Contract&lt;O, G&gt; = Contract&lt;O, G&gt;,
+&gt; {
+  readonly root: Root;
+  readonly path: ContractPath;
+  readonly selected: Selected;
+}
+
+/**
+ * Given a valid location, select the corresponding representation at the SAME
+ * coordinate K. Navigation may retain the context needed to interpret a fragment.
+ * Its result&#39;s subject is the selected sub-contract, not the original root.
+ */
+export interface RepresentationNavigation&lt;O, K extends Coordinates, G extends GenericId = never&gt; {
+  &lt;Root extends Contract&lt;O, G&gt;, Selected extends Contract&lt;O, G&gt;&gt;(
+    input: Representation&lt;Root, K&gt;,
+    location: ContractLocation&lt;O, Root, G, Selected&gt;,
+  ): Representation&lt;Selected, K&gt;;
+}
+
+/** The observable contract surface at ONE node. Child order is not semantic. */
+export interface ContractNodeSurface&lt;O&gt; {
+  readonly kind: &#39;node&#39;;
+  readonly value?: O;
+  readonly keys: ReadonlySet&lt;ContractKey&gt;;
+}
+
+export type ContractSurface&lt;O, G extends GenericId = never&gt; = ContractNodeSurface&lt;O&gt; | Generic&lt;G&gt;;
+
+/**
+ * Observe the represented artifact, not just its subject field. Required law:
+ * observe(at_K(r, p)) = surface(at(r.subject, p)) for every valid path p.
+ * Equality of opaque values is supplied by the model&#39;s user.
+ */
+export interface RepresentationObservation&lt;O, K extends Coordinates, G extends GenericId = never&gt; {
+  &lt;C extends Contract&lt;O, G&gt;&gt;(input: Representation&lt;C, K&gt;): ContractSurface&lt;O, G&gt;;
+}
+
+/** An equivalence relation, respected by navigation and admitted transformations. */
+export interface RepresentationEquivalence&lt;K extends Coordinates&gt; {
+  &lt;S&gt;(left: Representation&lt;S, K&gt;, right: Representation&lt;S, K&gt;): boolean;
+}
+
+// A polymorphic map supplies a component for EVERY contract in the chosen domain.
+// The domain here is finite Contract&lt;O, G&gt; trees, and is closed under navigation.
+export interface ContractRepresentationMap&lt;
+  O,
+  From extends Coordinates,
+  To extends Coordinates,
+  G extends GenericId = never,
+&gt; {
+  &lt;C extends Contract&lt;O, G&gt;&gt;(input: Representation&lt;C, From&gt;): Representation&lt;C, To&gt;;
+}
+
+export type TransformationFamily&lt;O, From extends Coordinates, To extends Coordinates, G extends GenericId = never&gt; = [
+  ChangedAxis&lt;From, To&gt;,
+] extends [never]
+  ? never
+  : ContractRepresentationMap&lt;O, From, To, G&gt;;
+
+export type FamilyPathSteps&lt;O, Route extends Stops, G extends GenericId = never&gt; = Route extends readonly [
+  infer From extends Coordinates,
+  infer To extends Coordinates,
+  ...infer Rest extends Coordinates[],
+]
+  ? readonly [TransformationFamily&lt;O, From, To, G&gt;, ...FamilyPathSteps&lt;O, readonly [To, ...Rest], G&gt;]
+  : readonly [];
+
+export interface FamilyPath&lt;O, Route extends Stops, G extends GenericId = never&gt; {
+  readonly coordinates: number extends Route[&#39;length&#39;] ? never : Route;
+  readonly steps: FamilyPathSteps&lt;O, Route, G&gt;;
+}
+
+export type FamilyPathMeaning&lt;O, Route extends Stops, G extends GenericId = never&gt; = ContractRepresentationMap&lt;
+  O,
+  Route[0],
+  Last&lt;Route&gt;,
+  G
+&gt;;
+
+/**
+ * Operations specifying the navigation-transparency law, for a step OR a path:
+ *
+ *   targetAt(transform(input), location)
+ *     ≈ transform(sourceAt(input, location))
+ *
+ * The equation is required for every lawful input and valid location. Storing
+ * this record is not a proof. The examples exercise both sides on real encodings.
+ */
+export interface NavigationTransparency&lt;
+  O,
+  From extends Coordinates,
+  To extends Coordinates,
+  G extends GenericId = never,
+&gt; {
+  readonly transform: ContractRepresentationMap&lt;O, From, To, G&gt;;
+  readonly sourceAt: RepresentationNavigation&lt;O, From, G&gt;;
+  readonly targetAt: RepresentationNavigation&lt;O, To, G&gt;;
+  readonly equivalent: RepresentationEquivalence&lt;To&gt;;
+}
+
+/** A total, simultaneous assignment of source holes to contracts over target holes. */
+export type Substitution&lt;O, G extends GenericId, H extends GenericId&gt; = (id: G) =&gt; Contract&lt;O, H&gt;;
+
+/** Substitute once: a replacement is returned as-is, not traversed under the same assignment. */
+export interface ContractSubstitution&lt;O&gt; {
+  &lt;G extends GenericId, H extends GenericId&gt;(template: Contract&lt;O, G&gt;, bindings: Substitution&lt;O, G, H&gt;): Contract&lt;O, H&gt;;
+}
+
+/** A semantic witness: result = template[bindings], preserving the particular result subject. */
+export interface SubstitutionApplication&lt;
+  O,
+  G extends GenericId,
+  H extends GenericId,
+  C extends Contract&lt;O, G&gt;,
+  D extends Contract&lt;O, H&gt;,
+&gt; {
+  readonly template: C;
+  readonly bindings: Substitution&lt;O, G, H&gt;;
+  readonly result: D;
+}
+
+/** For each g, argument(g) must lawfully represent the SAME subject as semantic(g). */
+export interface RepresentedSubstitution&lt;O, G extends GenericId, H extends GenericId, K extends Coordinates&gt; {
+  readonly semantic: Substitution&lt;O, G, H&gt;;
+  readonly argument: (id: G) =&gt; Representation&lt;Contract&lt;O, H&gt;, K&gt;;
+}
+
+/**
+ * Substitution keeps K, but changes the subject from C to its instantiated D.
+ * This is not a subject-preserving, one-axis Transformation.
+ * The application witness must match the input and the bindings.
+ */
+export interface RepresentationSubstitution&lt;O, K extends Coordinates&gt; {
+  &lt;G extends GenericId, H extends GenericId, C extends Contract&lt;O, G&gt;, D extends Contract&lt;O, H&gt;&gt;(
+    input: Representation&lt;C, K&gt;,
+    bindings: RepresentedSubstitution&lt;O, G, H, K&gt;,
+    application: SubstitutionApplication&lt;O, G, H, C, D&gt;,
+  ): Representation&lt;D, K&gt;;
+}
+
+/**
+ * A family over both open and closed contracts, commuting with substitution:
+ * F(substitute_K(r, args)) ≈ substitute_L(F(r), g =&gt; F(args(g))).
+ * Identity/associativity of substitution and congruence are also required.
+ * As with NavigationTransparency, storing this record does not prove its laws.
+ */
+export interface SubstitutionTransparency&lt;O, From extends Coordinates, To extends Coordinates&gt; {
+  readonly transform: ContractRepresentationMap&lt;O, From, To, GenericId&gt;;
+  readonly sourceSubstitute: RepresentationSubstitution&lt;O, From&gt;;
+  readonly targetSubstitute: RepresentationSubstitution&lt;O, To&gt;;
+  readonly equivalent: RepresentationEquivalence&lt;To&gt;;
+}
+</code></pre></details>
+<details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">225 lines · embedded source</span></summary><pre><code>/**
+ * Instances of the opaque coordinate model. TypeScript is the metalanguage.
+ * The strings below describe Go/TypeScript artifacts; the functions map these
+ * example descriptions. They are finite examples, not Nightseam generators.
+ *
+ * This example takes S to be SHAPE ONLY. Its artifact interpretations are
+ * stipulated here; type-checking does not parse source or prove equivalence.
+ * Run from the repository root: pnpm --filter @nightseam/theory test
+ */
+import assert from &#39;node:assert/strict&#39;;
+import type {
+  AxisElementEquality,
+  ChangedAxis,
+  CoordinateEquality,
+  Coordinates,
+  CoordinatesEqual,
+  Path,
+  PathMeaning,
+  Representation,
+  Transformation,
+  TransformationInstance,
+  TransformationSignature,
+} from &#39;../model.ts&#39;;
+
+// A concrete interpretation of the equality operations. No axis meaning is
+// inspected. SameValueZero also makes equality reflexive for numeric IDs.
+export const equalAxisElements: AxisElementEquality = (left, right) =&gt; left === right || Object.is(left, right);
+export const equalCoordinates: CoordinateEquality = (left, right) =&gt; {
+  const axes = Object.keys(left);
+  return (
+    axes.length === Object.keys(right).length &amp;&amp;
+    axes.every((axis) =&gt; Object.hasOwn(right, axis) &amp;&amp; equalAxisElements(left[axis], right[axis]))
+  );
+};
+
+export const booleanCell = {
+  id: &#39;BooleanCell&#39;,
+  operations: {
+    read: { inputs: [], output: &#39;Bool&#39; },
+    write: { inputs: [&#39;Bool&#39;], output: &#39;Unit&#39; },
+  },
+} as const;
+type S = typeof booleanCell;
+
+// The axis schema is chosen here, outside the core model. &quot;rank:key&quot; addresses
+// encode positions and keys. The empty execution coordinate is still a value.
+export const goContractAt = {
+  &#39;0:role&#39;: &#39;contract&#39;,
+  &#39;0:form&#39;: &#39;syntax&#39;,
+  &#39;1:language&#39;: &#39;go&#39;,
+  &#39;2:execution&#39;: null,
+} as const satisfies Coordinates;
+
+export const goTypeAt = { ...goContractAt, &#39;0:role&#39;: &#39;model-type&#39; } as const satisfies Coordinates;
+export const tsContractAt = { ...goContractAt, &#39;1:language&#39;: &#39;typescript&#39; } as const satisfies Coordinates;
+export const tsTypeAt = { ...goTypeAt, &#39;1:language&#39;: &#39;typescript&#39; } as const satisfies Coordinates;
+export const goMeaningAt = { ...goTypeAt, &#39;0:form&#39;: &#39;semantics&#39; } as const satisfies Coordinates;
+
+// Contract descriptors expressed as source, followed by native type source.
+// Contract/Operation and defineContract are illustrative declaration constructs.
+export const goContract = {
+  subject: booleanCell,
+  coordinates: goContractAt,
+  artifact: `Contract{Name: &quot;BooleanCell&quot;, Operations: []Operation{
+  {Name: &quot;read&quot;, Inputs: nil, Output: &quot;Bool&quot;},
+  {Name: &quot;write&quot;, Inputs: []string{&quot;Bool&quot;}, Output: &quot;Unit&quot;},
+}}`,
+} as const satisfies Representation&lt;S, typeof goContractAt&gt;;
+
+export const goType = {
+  subject: booleanCell,
+  coordinates: goTypeAt,
+  artifact: &#39;type BooleanCell interface { Read() bool; Write(value bool) }&#39;,
+} as const satisfies Representation&lt;S, typeof goTypeAt&gt;;
+
+export const tsContract = {
+  subject: booleanCell,
+  coordinates: tsContractAt,
+  artifact: `defineContract(&quot;BooleanCell&quot;, {
+  read: { inputs: [], output: &quot;Bool&quot; },
+  write: { inputs: [&quot;Bool&quot;], output: &quot;Unit&quot; },
+})`,
+} as const satisfies Representation&lt;S, typeof tsContractAt&gt;;
+
+export const tsType = {
+  subject: booleanCell,
+  coordinates: tsTypeAt,
+  artifact: &#39;interface BooleanCell { read(): boolean; write(value: boolean): void }&#39;,
+} as const satisfies Representation&lt;S, typeof tsTypeAt&gt;;
+
+export const goMeaning = {
+  subject: booleanCell,
+  coordinates: goMeaningAt,
+  artifact: {
+    description: &#39;The native Go method-interface meaning.&#39;,
+    correspondence: { read: &#39;Read&#39;, write: &#39;Write&#39;, Bool: &#39;bool&#39;, Unit: &#39;no result&#39; },
+  },
+} as const satisfies Representation&lt;S, typeof goMeaningAt&gt;;
+
+// Different artifacts may occupy the SAME cell. Coordinates are not object IDs.
+export const formattedGoType = {
+  ...goType,
+  artifact: &#39;type BooleanCell interface {\n  Read() bool\n  Write(value bool)\n}&#39;,
+} as const satisfies Representation&lt;S, typeof goTypeAt&gt;;
+
+// Each function below is an inhabitant of a single-axis transformation type.
+// All inputs already represent our fixed S, so selecting a fixed output for S
+// is a legitimate small example of a shape-preserving map between these cells.
+export const generateGoType: Transformation&lt;S, typeof goContractAt, typeof goTypeAt&gt; = (input) =&gt; ({
+  ...goType,
+  subject: input.subject,
+});
+
+export const translateType: Transformation&lt;S, typeof goTypeAt, typeof tsTypeAt&gt; = (input) =&gt; ({
+  ...tsType,
+  subject: input.subject,
+});
+
+export const translateContract: Transformation&lt;S, typeof goContractAt, typeof tsContractAt&gt; = (input) =&gt; ({
+  ...tsContract,
+  subject: input.subject,
+});
+
+export const generateTypeScriptType: Transformation&lt;S, typeof tsContractAt, typeof tsTypeAt&gt; = (input) =&gt; ({
+  ...tsType,
+  subject: input.subject,
+});
+
+export const interpretGoType: Transformation&lt;S, typeof goTypeAt, typeof goMeaningAt&gt; = (input) =&gt; ({
+  ...goMeaning,
+  subject: input.subject,
+});
+
+// Make the endpoint tuple a model object in its own right. Both functions below
+// have exactly this signature, although they produce different source strings.
+export const goTypeGenerationSignature = {
+  subject: booleanCell,
+  endpoints: [goContractAt, goTypeAt],
+} as const satisfies TransformationSignature&lt;S, typeof goContractAt, typeof goTypeAt&gt;;
+
+export const goTypeGenerators = [
+  {
+    id: &#39;compact-go-type-generator&#39;,
+    signature: goTypeGenerationSignature,
+    apply: generateGoType,
+  },
+  {
+    id: &#39;multiline-go-type-generator&#39;,
+    signature: goTypeGenerationSignature,
+    apply: (input) =&gt; ({ ...formattedGoType, subject: input.subject }),
+  },
+] as const satisfies readonly TransformationInstance&lt;S, typeof goContractAt, typeof goTypeAt&gt;[];
+
+// Two distinct paths between the same endpoints. Each changes role and language,
+// in a different order. Each intermediate coordinate has a representation here.
+const throughGoStops = [goContractAt, goTypeAt, tsTypeAt] as const;
+export const throughGo = {
+  subject: booleanCell,
+  coordinates: throughGoStops,
+  steps: [generateGoType, translateType],
+} as const satisfies Path&lt;S, typeof throughGoStops&gt;;
+
+const throughTypeScriptStops = [goContractAt, tsContractAt, tsTypeAt] as const;
+export const throughTypeScript = {
+  subject: booleanCell,
+  coordinates: throughTypeScriptStops,
+  steps: [translateContract, generateTypeScriptType],
+} as const satisfies Path&lt;S, typeof throughTypeScriptStops&gt;;
+
+// Path interpretation is function composition in the metalanguage.
+export const runThroughGo: PathMeaning&lt;S, typeof throughGoStops&gt; = (input) =&gt;
+  throughGo.steps[1](throughGo.steps[0](input));
+export const runThroughTypeScript: PathMeaning&lt;S, typeof throughTypeScriptStops&gt; = (input) =&gt;
+  throughTypeScript.steps[1](throughTypeScript.steps[0](input));
+
+const identityStops = [goContractAt] as const;
+export const identityPath = {
+  subject: booleanCell,
+  coordinates: identityStops,
+  steps: [],
+} as const satisfies Path&lt;S, typeof identityStops&gt;;
+export const runIdentity: PathMeaning&lt;S, typeof identityStops&gt; = (input) =&gt; input;
+
+// Empty higher coordinates participate in the same comparison rule. Filling
+// this slot would be one change; it does not establish that a lawful map exists.
+export const initializedGoAt = { ...goMeaningAt, &#39;2:execution&#39;: &#39;initialized&#39; } as const satisfies Coordinates;
+export const executionAxis: ChangedAxis&lt;typeof goMeaningAt, typeof initializedGoAt&gt; = &#39;2:execution&#39;;
+
+// These types are empty: they cannot contain elementary transformations.
+type MustBeNever&lt;T extends never&gt; = T;
+export type NoZeroAxisStep = MustBeNever&lt;Transformation&lt;S, typeof goTypeAt, typeof goTypeAt&gt;&gt;;
+export type NoTwoAxisStep = MustBeNever&lt;Transformation&lt;S, typeof goContractAt, typeof tsTypeAt&gt;&gt;;
+export type NoUnspecifiedPoint = MustBeNever&lt;Transformation&lt;S, Coordinates, typeof goTypeAt&gt;&gt;;
+export const sameCell: CoordinatesEqual&lt;typeof goTypeAt, typeof formattedGoType.coordinates&gt; = true;
+export const differentCell: CoordinatesEqual&lt;typeof goTypeAt, typeof tsTypeAt&gt; = false;
+
+// A few checks on the concrete example, not a general proof of preservation.
+const resultThroughGo = runThroughGo(goContract);
+const resultThroughTypeScript = runThroughTypeScript(goContract);
+assert.equal(resultThroughGo.subject, booleanCell);
+assert.equal(resultThroughTypeScript.subject, booleanCell);
+assert.deepEqual(resultThroughGo, resultThroughTypeScript);
+assert.deepEqual(resultThroughGo, tsType);
+assert.equal(runIdentity(goContract), goContract);
+assert.deepEqual(interpretGoType(formattedGoType), goMeaning);
+assert.equal(equalCoordinates(goTypeAt, { ...goTypeAt }), true);
+assert.equal(equalCoordinates(goTypeAt, tsTypeAt), false);
+assert.equal(equalCoordinates({ first: &#39;a&#39;, second: &#39;b&#39; }, { first: &#39;b&#39;, second: &#39;a&#39; }), false);
+assert.equal(equalCoordinates({}, { &#39;2:execution&#39;: null }), false);
+assert.equal(goTypeGenerators[0].signature, goTypeGenerators[1].signature);
+const compact = goTypeGenerators[0].apply(goContract);
+const multiline = goTypeGenerators[1].apply(goContract);
+assert.equal(compact.subject, multiline.subject);
+assert.equal(equalCoordinates(compact.coordinates, multiline.coordinates), true);
+assert.notEqual(compact.artifact, multiline.artifact);
+
+console.log({
+  subject: booleanCell.id,
+  throughGo: throughGo.coordinates,
+  throughTypeScript: throughTypeScript.coordinates,
+  identitySteps: identityPath.steps.length,
+  sameSignatureDifferentFunctions: goTypeGenerators.map((generator) =&gt; generator.id),
+  bothPathsProduce: resultThroughGo.artifact,
+});
+</code></pre></details>
+<details class="source" id="source-examples-hierarchy-ts"><summary><span>examples/hierarchy.ts</span><span class="source-note">434 lines · embedded source</span></summary><pre><code>/**
+ * Hierarchical instances of the coordinate model; TypeScript is the metalanguage.
+ * Opaque value/key IDs are preserved between nested and flat tree encodings.
+ * Transformations consume artifacts; they do not reconstruct them from subject.
+ * Run from the repository root: pnpm --filter @nightseam/theory test
+ */
+import assert from &#39;node:assert/strict&#39;;
+import { isDeepStrictEqual } from &#39;node:util&#39;;
+import type {
+  Contract,
+  ContractKey,
+  ContractLocation,
+  ContractNavigation,
+  ContractPath,
+  ContractRepresentationMap,
+  Coordinates,
+  FamilyPath,
+  FamilyPathMeaning,
+  NavigationTransparency,
+  Representation,
+  RepresentationEquivalence,
+  RepresentationNavigation,
+  RepresentationObservation,
+  Selection,
+  TransformationFamily,
+} from &#39;../model.ts&#39;;
+
+type O = string; // The implementation treats these strings as opaque value IDs.
+const node = (value?: O, entries: readonly (readonly [ContractKey, Contract&lt;O&gt;])[] = []): Contract&lt;O&gt; =&gt; ({
+  kind: &#39;node&#39;,
+  ...(value === undefined ? {} : { value }),
+  children: new Map(entries),
+});
+
+export const booleanCellTree = node(&#39;BooleanCell&#39;, [
+  [
+    &#39;operations&#39;,
+    node(undefined, [
+      [
+        &#39;read&#39;,
+        node(&#39;operation&#39;, [
+          [&#39;arguments&#39;, node()],
+          [&#39;result&#39;, node(&#39;Bool&#39;)],
+        ]),
+      ],
+      [
+        &#39;write&#39;,
+        node(&#39;operation&#39;, [
+          [&#39;arguments&#39;, node(undefined, [[&#39;value&#39;, node(&#39;Bool&#39;)]])],
+          [&#39;result&#39;, node(&#39;Unit&#39;)],
+        ]),
+      ],
+    ]),
+  ],
+]);
+export const emptyContract = node();
+
+export const contractAt: ContractNavigation&lt;O&gt; = (contract, path) =&gt; {
+  let selected = contract;
+  for (const key of path) {
+    const child = selected.children.get(key);
+    if (child === undefined) return { kind: &#39;missing&#39; };
+    selected = child;
+  }
+  return { kind: &#39;found&#39;, value: selected };
+};
+
+export function locate&lt;C extends Contract&lt;O&gt;&gt;(root: C, path: ContractPath): Selection&lt;ContractLocation&lt;O, C&gt;&gt; {
+  const result = contractAt(root, path);
+  return result.kind === &#39;missing&#39; ? result : { kind: &#39;found&#39;, value: { root, path, selected: result.value } };
+}
+
+// Two independent axes; neither is a contract-child key. A higher slot is empty.
+export const nestedAscending = { &#39;0:layout&#39;: &#39;nested&#39;, &#39;0:order&#39;: &#39;ascending&#39;, &#39;1:execution&#39;: null } as const;
+export const flatAscending = { ...nestedAscending, &#39;0:layout&#39;: &#39;flat&#39; } as const;
+export const nestedDescending = { ...nestedAscending, &#39;0:order&#39;: &#39;descending&#39; } as const;
+export const flatDescending = { ...flatAscending, &#39;0:order&#39;: &#39;descending&#39; } as const;
+
+interface Nested {
+  readonly value?: O;
+  readonly children: readonly (readonly [ContractKey, Nested])[];
+}
+interface FlatNode {
+  readonly path: ContractPath;
+  readonly value?: O;
+}
+interface NestedArtifact {
+  readonly kind: &#39;nested&#39;;
+  readonly root: Nested;
+}
+interface FlatArtifact {
+  readonly kind: &#39;flat&#39;;
+  readonly nodes: readonly FlatNode[];
+}
+type Order = &#39;ascending&#39; | &#39;descending&#39;;
+const valueOf = (source: { readonly value?: O }): { readonly value?: O } =&gt;
+  source.value === undefined ? {} : { value: source.value };
+const compareIds = (a: string, b: string): number =&gt; (a &lt; b ? -1 : a &gt; b ? 1 : 0);
+
+function render(contract: Contract&lt;O&gt;): Nested {
+  return {
+    ...valueOf(contract),
+    children: [...contract.children].sort(([a], [b]) =&gt; compareIds(a, b)).map(([key, child]) =&gt; [key, render(child)]),
+  };
+}
+
+function nestedArtifact(artifact: unknown): NestedArtifact {
+  assert.ok(artifact !== null &amp;&amp; typeof artifact === &#39;object&#39; &amp;&amp; &#39;kind&#39; in artifact &amp;&amp; artifact.kind === &#39;nested&#39;);
+  // A coordinate-specific decoding boundary; lawful inputs have this encoding.
+  return artifact as NestedArtifact;
+}
+function flatArtifact(artifact: unknown): FlatArtifact {
+  assert.ok(artifact !== null &amp;&amp; typeof artifact === &#39;object&#39; &amp;&amp; &#39;kind&#39; in artifact &amp;&amp; artifact.kind === &#39;flat&#39;);
+  return artifact as FlatArtifact;
+}
+
+function flatten(root: Nested, path: ContractPath = []): FlatNode[] {
+  // Include EVERY node, even one with no value and no children.
+  return [{ path, ...valueOf(root) }, ...root.children.flatMap(([key, child]) =&gt; flatten(child, [...path, key]))];
+}
+function reverseChildren(root: Nested): Nested {
+  return {
+    ...valueOf(root),
+    children: [...root.children].reverse().map(([key, child]) =&gt; [key, reverseChildren(child)]),
+  };
+}
+function comparePaths(a: ContractPath, b: ContractPath, order: Order): number {
+  for (let index = 0; index &lt; Math.min(a.length, b.length); index++) {
+    const compared = compareIds(a[index], b[index]);
+    if (compared !== 0) return order === &#39;ascending&#39; ? compared : -compared;
+  }
+  return a.length - b.length; // A parent always precedes its children.
+}
+
+export function represent&lt;C extends Contract&lt;O&gt;&gt;(subject: C): Representation&lt;C, typeof nestedAscending&gt; {
+  return {
+    subject,
+    coordinates: nestedAscending,
+    artifact: { kind: &#39;nested&#39;, root: render(subject) } satisfies NestedArtifact,
+  };
+}
+
+export const flattenAscending: TransformationFamily&lt;O, typeof nestedAscending, typeof flatAscending&gt; = (input) =&gt; ({
+  subject: input.subject,
+  coordinates: flatAscending,
+  artifact: { kind: &#39;flat&#39;, nodes: flatten(nestedArtifact(input.artifact).root) } satisfies FlatArtifact,
+});
+export const reverseNested: TransformationFamily&lt;O, typeof nestedAscending, typeof nestedDescending&gt; = (input) =&gt; ({
+  subject: input.subject,
+  coordinates: nestedDescending,
+  artifact: { kind: &#39;nested&#39;, root: reverseChildren(nestedArtifact(input.artifact).root) } satisfies NestedArtifact,
+});
+export const reverseFlat: TransformationFamily&lt;O, typeof flatAscending, typeof flatDescending&gt; = (input) =&gt; ({
+  subject: input.subject,
+  coordinates: flatDescending,
+  artifact: {
+    kind: &#39;flat&#39;,
+    nodes: [...flatArtifact(input.artifact).nodes].sort((a, b) =&gt; comparePaths(a.path, b.path, &#39;descending&#39;)),
+  } satisfies FlatArtifact,
+});
+export const flattenDescending: TransformationFamily&lt;O, typeof nestedDescending, typeof flatDescending&gt; = (input) =&gt; ({
+  subject: input.subject,
+  coordinates: flatDescending,
+  artifact: { kind: &#39;flat&#39;, nodes: flatten(nestedArtifact(input.artifact).root) } satisfies FlatArtifact,
+});
+
+function verifyLocation&lt;Root extends Contract&lt;O&gt;, Selected extends Contract&lt;O&gt;&gt;(
+  subject: Root,
+  location: ContractLocation&lt;O, Root, never, Selected&gt;,
+): void {
+  assert.equal(location.root, subject, &#39;A location belongs to this root contract.&#39;);
+  const result = contractAt(subject, location.path);
+  assert.equal(result.kind, &#39;found&#39;, &#39;A location must name an existing child.&#39;);
+  if (result.kind === &#39;found&#39;)
+    assert.equal(result.value, location.selected, &#39;The selected subject must match the path.&#39;);
+}
+
+export function nestedNavigation&lt;K extends Coordinates&gt;(): RepresentationNavigation&lt;O, K&gt; {
+  return (input, location) =&gt; {
+    verifyLocation(input.subject, location);
+    let selected = nestedArtifact(input.artifact).root;
+    for (const key of location.path) {
+      const child = selected.children.find(([candidate]) =&gt; candidate === key);
+      assert.ok(child, &#39;A lawful representation exposes every contract child.&#39;);
+      selected = child[1];
+    }
+    return {
+      subject: location.selected,
+      coordinates: input.coordinates,
+      artifact: { kind: &#39;nested&#39;, root: selected } satisfies NestedArtifact,
+    };
+  };
+}
+export function flatNavigation&lt;K extends Coordinates&gt;(): RepresentationNavigation&lt;O, K&gt; {
+  return (input, location) =&gt; {
+    verifyLocation(input.subject, location);
+    const nodes = flatArtifact(input.artifact)
+      .nodes.filter((node) =&gt; location.path.every((key, index) =&gt; node.path[index] === key))
+      .map((node) =&gt; ({ ...valueOf(node), path: node.path.slice(location.path.length) }));
+    assert.ok(
+      nodes.some((node) =&gt; node.path.length === 0),
+      &#39;Even an empty sub-contract has a represented root.&#39;,
+    );
+    return {
+      subject: location.selected,
+      coordinates: input.coordinates,
+      artifact: { kind: &#39;flat&#39;, nodes } satisfies FlatArtifact,
+    };
+  };
+}
+
+// Equality is exact artifact equality in this canonical example. No semantic
+// behavior claims are inferred from the opaque strings in Contract.value.
+export function representationEquality&lt;K extends Coordinates&gt;(): RepresentationEquivalence&lt;K&gt; {
+  return (left, right) =&gt;
+    left.subject === right.subject &amp;&amp;
+    isDeepStrictEqual(left.coordinates, right.coordinates) &amp;&amp;
+    isDeepStrictEqual(left.artifact, right.artifact);
+}
+
+const atNestedAscending = nestedNavigation&lt;typeof nestedAscending&gt;();
+const atFlatAscending = flatNavigation&lt;typeof flatAscending&gt;();
+const atNestedDescending = nestedNavigation&lt;typeof nestedDescending&gt;();
+const atFlatDescending = flatNavigation&lt;typeof flatDescending&gt;();
+
+function observeNested&lt;K extends Coordinates&gt;(): RepresentationObservation&lt;O, K&gt; {
+  return (input) =&gt; {
+    const root = nestedArtifact(input.artifact).root;
+    return { kind: &#39;node&#39;, ...valueOf(root), keys: new Set(root.children.map(([key]) =&gt; key)) };
+  };
+}
+function observeFlat&lt;K extends Coordinates&gt;(): RepresentationObservation&lt;O, K&gt; {
+  return (input) =&gt; {
+    const nodes = flatArtifact(input.artifact).nodes;
+    const root = nodes.find((node) =&gt; node.path.length === 0);
+    assert.ok(root);
+    return {
+      ...valueOf(root),
+      kind: &#39;node&#39;,
+      keys: new Set(nodes.filter((node) =&gt; node.path.length === 1).map((node) =&gt; node.path[0])),
+    };
+  };
+}
+
+export const flattenLaw = {
+  transform: flattenAscending,
+  sourceAt: atNestedAscending,
+  targetAt: atFlatAscending,
+  equivalent: representationEquality&lt;typeof flatAscending&gt;(),
+} satisfies NavigationTransparency&lt;O, typeof nestedAscending, typeof flatAscending&gt;;
+const reverseNestedLaw = {
+  transform: reverseNested,
+  sourceAt: atNestedAscending,
+  targetAt: atNestedDescending,
+  equivalent: representationEquality&lt;typeof nestedDescending&gt;(),
+} satisfies NavigationTransparency&lt;O, typeof nestedAscending, typeof nestedDescending&gt;;
+const reverseFlatLaw = {
+  transform: reverseFlat,
+  sourceAt: atFlatAscending,
+  targetAt: atFlatDescending,
+  equivalent: representationEquality&lt;typeof flatDescending&gt;(),
+} satisfies NavigationTransparency&lt;O, typeof flatAscending, typeof flatDescending&gt;;
+const flattenDescendingLaw = {
+  transform: flattenDescending,
+  sourceAt: atNestedDescending,
+  targetAt: atFlatDescending,
+  equivalent: representationEquality&lt;typeof flatDescending&gt;(),
+} satisfies NavigationTransparency&lt;O, typeof nestedDescending, typeof flatDescending&gt;;
+
+const layoutFirstStops = [nestedAscending, flatAscending, flatDescending] as const;
+export const layoutFirst = {
+  coordinates: layoutFirstStops,
+  steps: [flattenAscending, reverseFlat],
+} as const satisfies FamilyPath&lt;O, typeof layoutFirstStops&gt;;
+const orderFirstStops = [nestedAscending, nestedDescending, flatDescending] as const;
+export const orderFirst = {
+  coordinates: orderFirstStops,
+  steps: [reverseNested, flattenDescending],
+} as const satisfies FamilyPath&lt;O, typeof orderFirstStops&gt;;
+export const runLayoutFirst: FamilyPathMeaning&lt;O, typeof layoutFirstStops&gt; = (input) =&gt;
+  reverseFlat(flattenAscending(input));
+export const runOrderFirst: FamilyPathMeaning&lt;O, typeof orderFirstStops&gt; = (input) =&gt;
+  flattenDescending(reverseNested(input));
+export const compositeLaw = {
+  transform: runLayoutFirst,
+  sourceAt: atNestedAscending,
+  targetAt: atFlatDescending,
+  equivalent: representationEquality&lt;typeof flatDescending&gt;(),
+} satisfies NavigationTransparency&lt;O, typeof nestedAscending, typeof flatDescending&gt;;
+
+function paths(contract: Contract&lt;O&gt;): ContractPath[] {
+  return [[], ...[...contract.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
+}
+function requireLocation&lt;C extends Contract&lt;O&gt;&gt;(root: C, path: ContractPath): ContractLocation&lt;O, C&gt; {
+  const selected = locate(root, path);
+  assert.equal(selected.kind, &#39;found&#39;);
+  return selected.value;
+}
+
+// This exercises the equation; a passing finite check is not a universal proof.
+export function checkTransparency&lt;From extends Coordinates, To extends Coordinates&gt;(
+  law: NavigationTransparency&lt;O, From, To&gt;,
+  input: Representation&lt;Contract&lt;O&gt;, From&gt;,
+  path: ContractPath,
+): void {
+  const location = requireLocation(input.subject, path);
+  const transformThenSelect = law.targetAt(law.transform(input), location);
+  const selectThenTransform = law.transform(law.sourceAt(input, location));
+  assert.ok(
+    law.equivalent(transformThenSelect, selectThenTransform),
+    `Navigation transparency at ${JSON.stringify(path)}`,
+  );
+}
+
+function checkRepresentationNavigation&lt;K extends Coordinates&gt;(
+  input: Representation&lt;Contract&lt;O&gt;, K&gt;,
+  at: RepresentationNavigation&lt;O, K&gt;,
+  observe: RepresentationObservation&lt;O, K&gt;,
+): void {
+  assert.ok(representationEquality&lt;K&gt;()(at(input, requireLocation(input.subject, [])), input));
+  for (const fullPath of paths(input.subject)) {
+    const location = requireLocation(input.subject, fullPath);
+    assert.deepEqual(
+      observe(at(input, location)),
+      {
+        ...valueOf(location.selected),
+        kind: &#39;node&#39;,
+        keys: new Set(location.selected.children.keys()),
+      },
+      &#39;Every represented local surface agrees with the contract.&#39;,
+    );
+    for (let split = 0; split &lt;= fullPath.length; split++) {
+      const prefix = requireLocation(input.subject, fullPath.slice(0, split));
+      const suffix = requireLocation(prefix.selected, fullPath.slice(split));
+      const direct = at(input, requireLocation(input.subject, fullPath));
+      const nested = at(at(input, prefix), suffix);
+      assert.ok(representationEquality&lt;K&gt;()(direct, nested), &#39;Representation navigation composes.&#39;);
+    }
+  }
+}
+
+export const rootRepresentation = represent(booleanCellTree);
+for (const contract of [booleanCellTree, emptyContract]) {
+  const root = represent(contract);
+  const a = root;
+  const b = flattenAscending(root);
+  const c = reverseNested(root);
+  const d = runLayoutFirst(root);
+  checkRepresentationNavigation(a, atNestedAscending, observeNested());
+  checkRepresentationNavigation(b, atFlatAscending, observeFlat());
+  checkRepresentationNavigation(c, atNestedDescending, observeNested());
+  checkRepresentationNavigation(d, atFlatDescending, observeFlat());
+  for (const path of paths(contract)) {
+    const direct = contractAt(contract, path);
+    for (let split = 0; split &lt;= path.length; split++) {
+      const first = contractAt(contract, path.slice(0, split));
+      assert.equal(first.kind, &#39;found&#39;);
+      if (first.kind === &#39;found&#39;) assert.deepEqual(contractAt(first.value, path.slice(split)), direct);
+      // The user&#39;s prefix law, exercised for the composite coordinate path:
+      // P(at(r, p ++ q)) = at(P(at(r, p)), q).
+      const prefix = requireLocation(contract, path.slice(0, split));
+      const suffix = requireLocation(prefix.selected, path.slice(split));
+      const left = runLayoutFirst(atNestedAscending(a, requireLocation(contract, path)));
+      const right = atFlatDescending(runLayoutFirst(atNestedAscending(a, prefix)), suffix);
+      assert.ok(representationEquality&lt;typeof flatDescending&gt;()(left, right));
+    }
+    checkTransparency(flattenLaw, a, path);
+    checkTransparency(reverseNestedLaw, a, path);
+    checkTransparency(reverseFlatLaw, b, path);
+    checkTransparency(flattenDescendingLaw, c, path);
+    checkTransparency(compositeLaw, a, path);
+    const location = requireLocation(contract, path);
+    const selected = atNestedAscending(a, location);
+    assert.ok(representationEquality&lt;typeof flatDescending&gt;()(runLayoutFirst(selected), runOrderFirst(selected)));
+  }
+  assert.ok(representationEquality&lt;typeof flatDescending&gt;()(runLayoutFirst(root), runOrderFirst(root)));
+}
+
+assert.equal(contractAt(emptyContract, []).kind, &#39;found&#39;);
+assert.equal(contractAt(emptyContract, [&#39;missing&#39;]).kind, &#39;missing&#39;);
+assert.equal(contractAt(booleanCellTree, [&#39;operations&#39;, &#39;missing&#39;, &#39;result&#39;]).kind, &#39;missing&#39;);
+assert.equal(contractAt(booleanCellTree, [&#39;operations&#39;, &#39;read&#39;, &#39;arguments&#39;]).kind, &#39;found&#39;);
+
+// Partial navigation uses Option/bind: a missing prefix cannot be resumed.
+for (const path of [[&#39;missing&#39;], [&#39;operations&#39;, &#39;missing&#39;, &#39;result&#39;]]) {
+  for (let split = 0; split &lt;= path.length; split++) {
+    const prefix = contractAt(booleanCellTree, path.slice(0, split));
+    const nested = prefix.kind === &#39;missing&#39; ? prefix : contractAt(prefix.value, path.slice(split));
+    assert.deepEqual(nested, contractAt(booleanCellTree, path));
+  }
+}
+
+// Counterexample: retaining subject and endpoint indices is insufficient. This
+// same-signature function drops flat descendant nodes and violates transparency.
+const dropDescendants: TransformationFamily&lt;O, typeof nestedAscending, typeof flatAscending&gt; = (input) =&gt; {
+  const output = flattenAscending(input);
+  return {
+    ...output,
+    artifact: { kind: &#39;flat&#39;, nodes: flatArtifact(output.artifact).nodes.slice(0, 1) } satisfies FlatArtifact,
+  };
+};
+assert.throws(() =&gt;
+  checkTransparency({ ...flattenLaw, transform: dropDescendants }, rootRepresentation, [&#39;operations&#39;]),
+);
+assert.throws(() =&gt;
+  atNestedAscending(rootRepresentation, { root: booleanCellTree, path: [&#39;operations&#39;], selected: emptyContract }),
+);
+
+// A different counterexample COMMUTES with navigation but changes every local
+// value. Faithfulness, not the commuting square alone, must rule it out.
+const replaceValues: TransformationFamily&lt;O, typeof nestedAscending, typeof flatAscending&gt; = (input) =&gt; {
+  const output = flattenAscending(input);
+  return {
+    ...output,
+    artifact: {
+      kind: &#39;flat&#39;,
+      nodes: flatArtifact(output.artifact).nodes.map((node) =&gt; ({ ...node, value: &#39;Changed&#39; })),
+    } satisfies FlatArtifact,
+  };
+};
+for (const path of paths(booleanCellTree)) {
+  checkTransparency({ ...flattenLaw, transform: replaceValues }, rootRepresentation, path);
+}
+assert.throws(() =&gt; checkRepresentationNavigation(replaceValues(rootRepresentation), atFlatAscending, observeFlat()));
+
+console.log({
+  subject: booleanCellTree.value,
+  contractPathsChecked: paths(booleanCellTree).length,
+  endpoint: flatDescending,
+  twoCoordinatePathsAgree: true,
+  navigationTransparency: &#39;checked at every node and every path split in the example&#39;,
+  invalidTransformAndLocation: &#39;rejected by the law checks&#39;,
+});
+</code></pre></details>
+<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">363 lines · embedded source</span></summary><pre><code>/**
+ * Whole-contract holes and simultaneous substitution. TypeScript is the metalanguage.
+ * Both encodings consume represented artifacts; neither transformation nor plugging
+ * reconstructs its output artifact from the subject field.
+ */
+import assert from &#39;node:assert/strict&#39;;
+import { isDeepStrictEqual } from &#39;node:util&#39;;
+import type {
+  Contract,
+  ContractKey,
+  ContractNode,
+  ContractPath,
+  ContractSubstitution,
+  Generic,
+  GenericId,
+  Representation,
+  RepresentedSubstitution,
+  RepresentationSubstitution,
+  Selection,
+  Substitution,
+  SubstitutionApplication,
+  SubstitutionTransparency,
+  TransformationFamily,
+} from &#39;../model.ts&#39;;
+
+type O = string;
+export const node = &lt;G extends GenericId = never&gt;(
+  value?: O,
+  children: readonly (readonly [ContractKey, Contract&lt;O, G&gt;])[] = [],
+): ContractNode&lt;O, G&gt; =&gt; ({ kind: &#39;node&#39;, ...(value === undefined ? {} : { value }), children: new Map(children) });
+
+// The conditional Generic&lt;never&gt; is empty; supplying an id witnesses G is inhabited.
+export const generic = &lt;G extends GenericId&gt;(id: G): Generic&lt;G&gt; =&gt; ({ kind: &#39;generic&#39;, id }) as Generic&lt;G&gt;;
+
+export const substitute: ContractSubstitution&lt;O&gt; = (template, bindings) =&gt; {
+  if (template.kind === &#39;generic&#39;) return bindings(template.id); // Do not substitute again inside the replacement.
+  return {
+    ...template,
+    children: new Map([...template.children].map(([key, child]) =&gt; [key, substitute(child, bindings)])),
+  };
+};
+export const identity = &lt;G extends GenericId&gt;(id: G): Contract&lt;O, G&gt; =&gt; generic(id);
+export const compose =
+  &lt;G extends GenericId, H extends GenericId, I extends GenericId&gt;(
+    first: Substitution&lt;O, G, H&gt;,
+    second: Substitution&lt;O, H, I&gt;,
+  ): Substitution&lt;O, G, I&gt; =&gt;
+  (id) =&gt;
+    substitute(first(id), second);
+
+export function contractAt&lt;G extends GenericId&gt;(
+  contract: Contract&lt;O, G&gt;,
+  path: ContractPath,
+): Selection&lt;Contract&lt;O, G&gt;&gt; {
+  let selected = contract;
+  for (const key of path) {
+    if (selected.kind === &#39;generic&#39;) return { kind: &#39;missing&#39; }; // Interior not known until instantiation.
+    const child = selected.children.get(key);
+    if (!child) return { kind: &#39;missing&#39; };
+    selected = child;
+  }
+  return { kind: &#39;found&#39;, value: selected };
+}
+function requireAt&lt;G extends GenericId&gt;(contract: Contract&lt;O, G&gt;, path: ContractPath): Contract&lt;O, G&gt; {
+  const result = contractAt(contract, path);
+  assert.equal(result.kind, &#39;found&#39;);
+  return result.value;
+}
+function paths&lt;G extends GenericId&gt;(contract: Contract&lt;O, G&gt;): ContractPath[] {
+  return contract.kind === &#39;generic&#39;
+    ? [[]]
+    : [[], ...[...contract.children].flatMap(([key, child]) =&gt; paths(child).map((path) =&gt; [key, ...path]))];
+}
+
+export const nestedAt = { &#39;0:encoding&#39;: &#39;nested&#39;, &#39;1:language&#39;: null } as const;
+export const flatAt = { ...nestedAt, &#39;0:encoding&#39;: &#39;flat&#39; } as const;
+type Nested =
+  | { readonly kind: &#39;generic&#39;; readonly id: GenericId }
+  | { readonly kind: &#39;node&#39;; readonly value?: O; readonly children: readonly (readonly [ContractKey, Nested])[] };
+type Row = { readonly path: ContractPath } &amp; (
+  { readonly kind: &#39;generic&#39;; readonly id: GenericId } | { readonly kind: &#39;node&#39;; readonly value?: O }
+);
+interface NestedArtifact {
+  readonly kind: &#39;nested&#39;;
+  readonly root: Nested;
+}
+interface FlatArtifact {
+  readonly kind: &#39;flat&#39;;
+  readonly rows: readonly Row[];
+}
+const localValue = (source: { readonly value?: O }) =&gt; (source.value === undefined ? {} : { value: source.value });
+const orderKeys = (a: string, b: string) =&gt; (a &lt; b ? -1 : a &gt; b ? 1 : 0);
+
+function encode(template: Contract&lt;O, GenericId&gt;): Nested {
+  return template.kind === &#39;generic&#39;
+    ? { kind: &#39;generic&#39;, id: template.id }
+    : {
+        kind: &#39;node&#39;,
+        ...localValue(template),
+        children: [...template.children]
+          .sort(([a], [b]) =&gt; orderKeys(a, b))
+          .map(([key, child]) =&gt; [key, encode(child)]),
+      };
+}
+function flatten(tree: Nested, path: ContractPath = []): Row[] {
+  return tree.kind === &#39;generic&#39;
+    ? [{ kind: &#39;generic&#39;, path, id: tree.id }]
+    : [
+        { kind: &#39;node&#39;, path, ...localValue(tree) },
+        ...tree.children.flatMap(([key, child]) =&gt; flatten(child, [...path, key])),
+      ];
+}
+function readNested(artifact: unknown): NestedArtifact {
+  assert.ok(artifact &amp;&amp; typeof artifact === &#39;object&#39; &amp;&amp; &#39;kind&#39; in artifact &amp;&amp; artifact.kind === &#39;nested&#39;);
+  return artifact as NestedArtifact; // Lawful artifacts use the declared encoding.
+}
+function readFlat(artifact: unknown): FlatArtifact {
+  assert.ok(artifact &amp;&amp; typeof artifact === &#39;object&#39; &amp;&amp; &#39;kind&#39; in artifact &amp;&amp; artifact.kind === &#39;flat&#39;);
+  return artifact as FlatArtifact;
+}
+export function represent&lt;C extends Contract&lt;O, GenericId&gt;&gt;(subject: C): Representation&lt;C, typeof nestedAt&gt; {
+  return {
+    subject,
+    coordinates: nestedAt,
+    artifact: { kind: &#39;nested&#39;, root: encode(subject) } satisfies NestedArtifact,
+  };
+}
+export const toFlat: TransformationFamily&lt;O, typeof nestedAt, typeof flatAt, GenericId&gt; = (input) =&gt; ({
+  subject: input.subject,
+  coordinates: flatAt,
+  artifact: { kind: &#39;flat&#39;, rows: flatten(readNested(input.artifact).root) } satisfies FlatArtifact,
+});
+
+function applyNested(tree: Nested, argument: (id: GenericId) =&gt; Nested): Nested {
+  return tree.kind === &#39;generic&#39;
+    ? argument(tree.id)
+    : {
+        ...tree,
+        children: tree.children.map(([key, child]) =&gt; [key, applyNested(child, argument)]),
+      };
+}
+function applyFlat(rows: readonly Row[], argument: (id: GenericId) =&gt; readonly Row[]): Row[] {
+  return rows.flatMap&lt;Row&gt;((row) =&gt;
+    row.kind === &#39;node&#39;
+      ? [row]
+      : argument(row.id).map((part) =&gt; ({
+          ...part,
+          path: [...row.path, ...part.path],
+        })),
+  );
+}
+
+function verifyApplication&lt;
+  G extends GenericId,
+  H extends GenericId,
+  C extends Contract&lt;O, G&gt;,
+  D extends Contract&lt;O, H&gt;,
+&gt;(template: C, bindings: Substitution&lt;O, G, H&gt;, application: SubstitutionApplication&lt;O, G, H, C, D&gt;): void {
+  assert.equal(application.template, template);
+  assert.equal(application.bindings, bindings);
+  assert.deepEqual(
+    application.result,
+    substitute(template, bindings),
+    &#39;The result subject is this substitution application.&#39;,
+  );
+}
+
+// Artifact encodings erase the static G. Resolve only an id present in the input
+// subject; this validates the narrowing back to G before looking up an argument.
+function resolve&lt;G extends GenericId, H extends GenericId&gt;(
+  template: Contract&lt;O, G&gt;,
+  bindings: Substitution&lt;O, G, H&gt;,
+  id: GenericId,
+): { readonly id: G; readonly subject: Contract&lt;O, H&gt; } {
+  if (template.kind === &#39;generic&#39;) {
+    assert.equal(template.id, id);
+    return { id: template.id, subject: bindings(template.id) };
+  }
+  for (const child of template.children.values()) {
+    if (freeIds(child).has(id)) return resolve(child, bindings, id);
+  }
+  throw new Error(`Unknown generic id ${id}`);
+}
+function freeIds&lt;G extends GenericId&gt;(template: Contract&lt;O, G&gt;): Set&lt;GenericId&gt; {
+  return template.kind === &#39;generic&#39;
+    ? new Set([template.id])
+    : new Set([...template.children.values()].flatMap((child) =&gt; [...freeIds(child)]));
+}
+
+export const substituteNested: RepresentationSubstitution&lt;O, typeof nestedAt&gt; = (input, bindings, application) =&gt; {
+  verifyApplication(input.subject, bindings.semantic, application);
+  assert.deepEqual(readNested(input.artifact).root, encode(input.subject));
+  const root = applyNested(readNested(input.artifact).root, (id) =&gt; {
+    const expected = resolve(input.subject, bindings.semantic, id);
+    const argument = bindings.argument(expected.id);
+    assert.deepEqual(argument.subject, expected.subject);
+    assert.deepEqual(argument.coordinates, nestedAt);
+    assert.deepEqual(readNested(argument.artifact).root, encode(expected.subject));
+    return readNested(argument.artifact).root;
+  });
+  return {
+    subject: application.result,
+    coordinates: nestedAt,
+    artifact: { kind: &#39;nested&#39;, root } satisfies NestedArtifact,
+  };
+};
+export const substituteFlat: RepresentationSubstitution&lt;O, typeof flatAt&gt; = (input, bindings, application) =&gt; {
+  verifyApplication(input.subject, bindings.semantic, application);
+  assert.deepEqual(readFlat(input.artifact).rows, flatten(encode(input.subject)));
+  const rows = applyFlat(readFlat(input.artifact).rows, (id) =&gt; {
+    const expected = resolve(input.subject, bindings.semantic, id);
+    const argument = bindings.argument(expected.id);
+    assert.deepEqual(argument.subject, expected.subject);
+    assert.deepEqual(argument.coordinates, flatAt);
+    assert.deepEqual(readFlat(argument.artifact).rows, flatten(encode(expected.subject)));
+    return readFlat(argument.artifact).rows;
+  });
+  return { subject: application.result, coordinates: flatAt, artifact: { kind: &#39;flat&#39;, rows } satisfies FlatArtifact };
+};
+
+export const substitutionLaw = {
+  transform: toFlat,
+  sourceSubstitute: substituteNested,
+  targetSubstitute: substituteFlat,
+  equivalent: (left, right) =&gt;
+    left.subject === right.subject &amp;&amp;
+    isDeepStrictEqual(left.coordinates, right.coordinates) &amp;&amp;
+    isDeepStrictEqual(left.artifact, right.artifact),
+} satisfies SubstitutionTransparency&lt;O, typeof nestedAt, typeof flatAt&gt;;
+
+function representedBindings&lt;G extends GenericId, H extends GenericId&gt;(
+  semantic: Substitution&lt;O, G, H&gt;,
+): RepresentedSubstitution&lt;O, G, H, typeof nestedAt&gt; {
+  return { semantic, argument: (id) =&gt; represent(semantic(id)) };
+}
+function application&lt;G extends GenericId, H extends GenericId&gt;(
+  template: Contract&lt;O, G&gt;,
+  bindings: Substitution&lt;O, G, H&gt;,
+) {
+  return { template, bindings, result: substitute(template, bindings) };
+}
+export function checkSubstitutionTransparency&lt;G extends GenericId, H extends GenericId&gt;(
+  template: Contract&lt;O, G&gt;,
+  semantic: Substitution&lt;O, G, H&gt;,
+): void {
+  const input = represent(template),
+    bindings = representedBindings(semantic),
+    witness = application(template, semantic);
+  const transformedBindings = { semantic, argument: (id: G) =&gt; toFlat(bindings.argument(id)) };
+  const fillThenTransform = toFlat(substituteNested(input, bindings, witness));
+  const transformThenFill = substituteFlat(toFlat(input), transformedBindings, witness);
+  assert.ok(substitutionLaw.equivalent(fillThenTransform, transformThenFill));
+  assert.deepEqual(readFlat(fillThenTransform.artifact).rows, flatten(encode(witness.result)));
+}
+
+// The SAME generic occurs twice; both occurrences receive the same whole contract.
+export const pair = node&lt;&#39;g0&#39;&gt;(&#39;Pair&#39;, [
+  [&#39;first&#39;, generic(&#39;g0&#39;)],
+  [&#39;second&#39;, generic(&#39;g0&#39;)],
+]);
+export const list = node&lt;&#39;h0&#39;&gt;(&#39;List&#39;, [[&#39;element&#39;, generic(&#39;h0&#39;)]]);
+export const bool = node(&#39;Bool&#39;);
+export const sigma: Substitution&lt;O, &#39;g0&#39;, &#39;h0&#39;&gt; = () =&gt; list;
+export const tau: Substitution&lt;O, &#39;h0&#39;, never&gt; = () =&gt; bool;
+export const pairOfLists = substitute(pair, sigma);
+export const closedPair = substitute(pairOfLists, tau);
+
+const empty = node();
+const closedBindings: Substitution&lt;O, never, never&gt; = (id) =&gt; {
+  throw new Error(`No closed-contract hole exists: ${id}`);
+};
+const twoHoles = node&lt;&#39;g0&#39; | &#39;g1&#39;&gt;(&#39;Operation&#39;, [
+  [&#39;input&#39;, generic(&#39;g0&#39;)],
+  [&#39;output&#39;, generic(&#39;g1&#39;)],
+]);
+const closedTable = { g0: empty, g1: bool } as const;
+const closeTwo: Substitution&lt;O, &#39;g0&#39; | &#39;g1&#39;, never&gt; = (id) =&gt; closedTable[id];
+
+for (const template of [pair, generic(&#39;g0&#39;), node&lt;&#39;g0&#39;&gt;()]) {
+  assert.deepEqual(substitute(template, identity&lt;&#39;g0&#39;&gt;), template);
+  assert.deepEqual(substitute(substitute(template, sigma), tau), substitute(template, compose(sigma, tau)));
+  checkSubstitutionTransparency(template, sigma);
+  checkSubstitutionTransparency(template, compose(sigma, tau));
+  for (const path of paths(template)) {
+    assert.deepEqual(requireAt(substitute(template, sigma), path), substitute(requireAt(template, path), sigma));
+  }
+}
+checkSubstitutionTransparency(pairOfLists, tau);
+checkSubstitutionTransparency(twoHoles, closeTwo);
+checkSubstitutionTransparency(empty, closedBindings);
+assert.deepEqual(substitute(empty, closedBindings), empty);
+assert.deepEqual(compose(identity&lt;&#39;g0&#39;&gt;, sigma)(&#39;g0&#39;), sigma(&#39;g0&#39;));
+assert.deepEqual(compose(sigma, identity&lt;&#39;h0&#39;&gt;)(&#39;g0&#39;), sigma(&#39;g0&#39;));
+assert.deepEqual(
+  compose(compose(sigma, tau), closedBindings)(&#39;g0&#39;),
+  compose(sigma, compose(tau, closedBindings))(&#39;g0&#39;),
+);
+
+// Navigation can enter the replacement after crossing a former hole occurrence.
+assert.equal(contractAt(pair, [&#39;first&#39;, &#39;element&#39;]).kind, &#39;missing&#39;);
+assert.deepEqual(requireAt(pairOfLists, [&#39;first&#39;, &#39;element&#39;]), generic(&#39;h0&#39;));
+assert.deepEqual(requireAt(closedPair, [&#39;first&#39;, &#39;element&#39;]), bool);
+assert.equal(contractAt(substitute(pair, sigma), [&#39;absent&#39;]).kind, &#39;missing&#39;);
+assert.deepEqual(requireAt(pairOfLists, [&#39;first&#39;]), requireAt(pairOfLists, [&#39;second&#39;]));
+
+// Simultaneous means exactly one pass. Same-named holes in a replacement survive.
+const selfShaped = node&lt;&#39;g0&#39;&gt;(&#39;Box&#39;, [[&#39;inside&#39;, generic(&#39;g0&#39;)]]);
+const selfBinding: Substitution&lt;O, &#39;g0&#39;, &#39;g0&#39;&gt; = () =&gt; selfShaped;
+assert.equal(substitute(generic(&#39;g0&#39;), selfBinding), selfShaped);
+checkSubstitutionTransparency(pair, selfBinding);
+
+// A filled-template subject and its represented arguments cannot be fabricated.
+const witness = application(pair, sigma);
+assert.throws(() =&gt;
+  substituteNested(represent(pair), representedBindings(sigma), { ...witness, result: node&lt;&#39;h0&#39;&gt;(&#39;Wrong&#39;) }),
+);
+assert.throws(() =&gt;
+  substituteNested(represent(pair), { semantic: sigma, argument: () =&gt; represent(node&lt;&#39;h0&#39;&gt;(&#39;Wrong&#39;)) }, witness),
+);
+
+// Representation substitution itself satisfies identity and staged composition.
+// Choose the same abstract result subject when comparing representations.
+const idWitness = { template: pair, bindings: identity&lt;&#39;g0&#39;&gt;, result: pair };
+const nestedIdentity = substituteNested(represent(pair), representedBindings(identity&lt;&#39;g0&#39;&gt;), idWitness);
+assert.equal(nestedIdentity.subject, pair);
+assert.deepEqual(nestedIdentity.artifact, represent(pair).artifact);
+const first = substituteNested(represent(pair), representedBindings(sigma), witness);
+const composed = compose(sigma, tau),
+  oneWitness = application(pair, composed);
+const secondWitness = { template: witness.result, bindings: tau, result: oneWitness.result };
+const staged = substituteNested(first, representedBindings(tau), secondWitness);
+const once = substituteNested(represent(pair), representedBindings(composed), oneWitness);
+assert.equal(staged.subject, once.subject);
+assert.deepEqual(staged.artifact, once.artifact);
+
+function flatBindings&lt;G extends GenericId, H extends GenericId&gt;(semantic: Substitution&lt;O, G, H&gt;) {
+  return { semantic, argument: (id: G) =&gt; toFlat(represent(semantic(id))) };
+}
+const flatIdentity = substituteFlat(toFlat(represent(pair)), flatBindings(identity&lt;&#39;g0&#39;&gt;), idWitness);
+assert.ok(substitutionLaw.equivalent(flatIdentity, toFlat(represent(pair))));
+const firstFlat = substituteFlat(toFlat(represent(pair)), flatBindings(sigma), witness);
+const stagedFlat = substituteFlat(firstFlat, flatBindings(tau), secondWitness);
+const onceFlat = substituteFlat(toFlat(represent(pair)), flatBindings(composed), oneWitness);
+assert.ok(substitutionLaw.equivalent(stagedFlat, onceFlat));
+
+// Compose represented arguments themselves, rather than only their semantic bindings.
+const composedArguments = {
+  semantic: composed,
+  argument: (id: &#39;g0&#39;) =&gt; substituteNested(represent(sigma(id)), representedBindings(tau), application(sigma(id), tau)),
+};
+const throughArguments = substituteNested(represent(pair), composedArguments, oneWitness);
+assert.equal(throughArguments.subject, staged.subject);
+assert.deepEqual(throughArguments.artifact, staged.artifact);
+
+console.log({
+  holes: &#39;entire sub-contracts&#39;,
+  example: &#39;Pair[g0][g0 := List[h0]][h0 := Bool]&#39;,
+  repeatedOccurrences: &#39;consistent&#39;,
+  substitution: &#39;identity and composition checked&#39;,
+  navigation: &#39;existing paths and paths entering inserted contracts checked&#39;,
+  transformationTransparency: &#39;fill then flatten = flatten then fill&#39;,
+});
+</code></pre></details><footer class="footer">TypeScript as metalanguage · Generated from foundations.md and the model sources</footer></article></div></div>
+<script>
+const samples = [{"path":[],"label":"[] — whole contract","nested":{"kind":"nested","root":{"value":"BooleanCell","children":[["operations",{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}]]}},"flat":{"kind":"flat","nodes":[{"value":"BooleanCell","path":[]},{"path":["operations"]},{"value":"operation","path":["operations","read"]},{"path":["operations","read","arguments"]},{"value":"Bool","path":["operations","read","result"]},{"value":"operation","path":["operations","write"]},{"path":["operations","write","arguments"]},{"value":"Bool","path":["operations","write","arguments","value"]},{"value":"Unit","path":["operations","write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"BooleanCell"},{"path":["operations"]},{"path":["operations","write"],"value":"operation"},{"path":["operations","write","result"],"value":"Unit"},{"path":["operations","write","arguments"]},{"path":["operations","write","arguments","value"],"value":"Bool"},{"path":["operations","read"],"value":"operation"},{"path":["operations","read","result"],"value":"Bool"},{"path":["operations","read","arguments"]}]}},{"path":["operations"],"label":"operations","nested":{"kind":"nested","root":{"children":[["read",{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}],["write",{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"operation","path":["read"]},{"path":["read","arguments"]},{"value":"Bool","path":["read","result"]},{"value":"operation","path":["write"]},{"path":["write","arguments"]},{"value":"Bool","path":["write","arguments","value"]},{"value":"Unit","path":["write","result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["write"],"value":"operation"},{"path":["write","result"],"value":"Unit"},{"path":["write","arguments"]},{"path":["write","arguments","value"],"value":"Bool"},{"path":["read"],"value":"operation"},{"path":["read","result"],"value":"Bool"},{"path":["read","arguments"]}]}},{"path":["operations","read"],"label":"operations / read","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[]}],["result",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Bool"},{"path":["arguments"]}]}},{"path":["operations","read","arguments"],"label":"operations / read / arguments","nested":{"kind":"nested","root":{"children":[]}},"flat":{"kind":"flat","nodes":[{"path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]}]}},{"path":["operations","read","result"],"label":"operations / read / result","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write"],"label":"operations / write","nested":{"kind":"nested","root":{"value":"operation","children":[["arguments",{"children":[["value",{"value":"Bool","children":[]}]]}],["result",{"value":"Unit","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"value":"operation","path":[]},{"path":["arguments"]},{"value":"Bool","path":["arguments","value"]},{"value":"Unit","path":["result"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"operation"},{"path":["result"],"value":"Unit"},{"path":["arguments"]},{"path":["arguments","value"],"value":"Bool"}]}},{"path":["operations","write","arguments"],"label":"operations / write / arguments","nested":{"kind":"nested","root":{"children":[["value",{"value":"Bool","children":[]}]]}},"flat":{"kind":"flat","nodes":[{"path":[]},{"value":"Bool","path":["value"]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[]},{"path":["value"],"value":"Bool"}]}},{"path":["operations","write","arguments","value"],"label":"operations / write / arguments / value","nested":{"kind":"nested","root":{"value":"Bool","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Bool","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Bool"}]}},{"path":["operations","write","result"],"label":"operations / write / result","nested":{"kind":"nested","root":{"value":"Unit","children":[]}},"flat":{"kind":"flat","nodes":[{"value":"Unit","path":[]}]},"flatDescending":{"kind":"flat","nodes":[{"path":[],"value":"Unit"}]}}];
+const stages = [{"title":"Template","tree":"Pair\n├─ first → ?g0\n└─ second → ?g0","description":"Pair[g0]: the same parameter occurs at first and second."},{"title":"Insert List","tree":"Pair\n├─ first → List\n│  └─ element → ?h0\n└─ second → List\n   └─ element → ?h0","description":"g0 := List[h0]: both holes receive an entire List contract, including its element child."},{"title":"Insert Bool","tree":"Pair\n├─ first → List\n│  └─ element → Bool\n└─ second → List\n   └─ element → Bool","description":"h0 := Bool: both lists are now closed contracts."}];
+const drawSquare = function drawSquare(kind, width) {
+  const w = Math.max(250, Math.round(width));
+  const narrow = w < 430;
+  const x = 8,
+    gap = narrow ? 46 : 116,
+    cw = (w - 2 * x - gap) / 2;
+  const xr = w - x - cw,
+    top = 36,
+    bottom = 218,
+    h = 68;
+  const leftMid = x + cw / 2,
+    rightMid = xr + cw / 2;
+  const isLaw = kind === 'transparency';
+  const isComposition = kind === 'composition';
+  const nodes = isLaw
+    ? [
+        ['Root at K', 'R_K(C)'],
+        ['Root at L', 'R_L(C)'],
+        ['Part at K', 'R_K(C|p)'],
+        ['Part at L', 'R_L(C|p)'],
+      ]
+    : isComposition
+      ? [
+          ['Open at K', 'r, a(g)'],
+          ['Open at L', 'F(r), F(a)'],
+          ['Filled at K', 'R_K(C[σ])'],
+          ['Filled at L', 'R_L(C[σ])'],
+        ]
+      : [
+          ['Nested', 'ascending'],
+          ['Flat', 'ascending'],
+          ['Nested', 'descending'],
+          ['Flat', 'descending'],
+        ];
+  const labels = isLaw
+    ? ['F_C', 'select p', 'select p', 'F_(C|p)']
+    : isComposition
+      ? ['F each', 'fill', 'fill', 'F instance']
+      : ['flatten', 'reorder', 'reorder', 'flatten'];
+  const route = (key, d) => `<path data-branch="${key}" class="edge" d="${d}" marker-end="url(#arrow-${kind})"/>`;
+  const node = (index, nx, ny) =>
+    `<g class="graph-node"><rect x="${nx}" y="${ny}" width="${cw}" height="${h}" rx="10"/><text class="node-title" x="${nx + cw / 2}" y="${ny + 27}" text-anchor="middle">${nodes[index][0]}</text><text class="node-detail" x="${nx + cw / 2}" y="${ny + 49}" text-anchor="middle">${nodes[index][1]}</text></g>`;
+  const edgeLabel = (text, nx, ny, anchor = 'middle') =>
+    `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
+  return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
+    <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-contract.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent C with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
+    ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
+    ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
+    ${route('second', `M ${leftMid} ${top + h + 8} V ${bottom - 10}`)}
+    ${route('second', `M ${x + cw + 6} ${bottom + h / 2} H ${xr - 8}`)}
+    ${node(0, x, top)}${node(1, xr, top)}${node(2, x, bottom)}${node(3, xr, bottom)}
+    ${edgeLabel(labels[0], w / 2, top + 16)}
+    ${edgeLabel(labels[3], w / 2, bottom + h + 19)}
+    ${edgeLabel(labels[1], rightMid, top + h + 70)}
+    ${edgeLabel(labels[2], leftMid, top + h + 70)}
+    <text class="equivalence" x="${w / 2}" y="171" text-anchor="middle">≈</text>
+  </svg>`;
+};
+const picker = document.getElementById('contract-path');
+const lawFigure = document.getElementById('transparency-figure');
+function updateSelection() {
+  const sample = samples[Number(picker.value)];
+  const route = lawFigure.dataset.route === 'first' ? 'Transform → select' : 'Select → transform';
+  const count = sample.flat.nodes.length;
+  document.getElementById('selection-result').textContent = route + ': ' + count + (count === 1 ? ' node' : ' nodes') + ' preserved at “' + sample.label + '”. Both routes agree.';
+  document.getElementById('nested-artifact').textContent = JSON.stringify(sample.nested, null, 2);
+  document.getElementById('flat-artifact').textContent = JSON.stringify(sample.flat, null, 2);
+}
+picker.addEventListener('change', updateSelection);
+document.querySelectorAll('.diagram').forEach(figure => {
+  figure.querySelectorAll('[data-route-choice]').forEach(button => button.addEventListener('click', () => {
+    figure.dataset.route = button.dataset.routeChoice;
+    figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+    if (figure === lawFigure) updateSelection();
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance C[σ].';
+    else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
+  }));
+});
+document.querySelectorAll('[data-stage-choice]').forEach(button => button.addEventListener('click', () => {
+  const stage = stages[Number(button.dataset.stageChoice)];
+  document.getElementById('composition-tree').textContent = stage.tree;
+  document.getElementById('composition-stage-result').textContent = stage.description;
+  document.querySelectorAll('[data-stage-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+}));
+document.querySelectorAll('[data-square]').forEach(container => {
+  const render = () => { container.innerHTML = drawSquare(container.dataset.square, container.clientWidth); };
+  new ResizeObserver(render).observe(container);
+  render();
+});
+if (matchMedia('(max-width:700px)').matches) document.querySelector('.toc').open = false;
+function revealSource() {
+  const element = document.getElementById(location.hash.slice(1));
+  if (element && element.classList.contains('source')) element.open = true;
+}
+window.addEventListener('hashchange', revealSource);
+updateSelection();
+revealSource();
+</script></body></html>

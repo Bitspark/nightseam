@@ -71,6 +71,7 @@ import { decodeMarkdown, links, ownURL } from "./links.mjs";
 export const sets = [
   { directory: "docs/goals", index: "docs/goals/README.md" },
   { directory: "docs/decisions", index: "docs/decisions/README.md" },
+  { directory: "docs/theory", index: "docs/theory/README.md" },
   { directory: "docs/wire", index: "docs/README.md" },
   { directory: "docs/runtime", index: "docs/README.md" },
   { directory: "docs/declaration", index: "docs/README.md" },
