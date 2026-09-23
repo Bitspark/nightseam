@@ -3,6 +3,9 @@
  * Opaque value/key IDs are preserved between nested and flat tree encodings.
  * Transformations consume artifacts; they do not reconstruct them from subject.
  * Run from the repository root: pnpm --filter @nightseam/theory test
+ * @see [Hierarchy and surfaces](../foundations.md#8-giving-the-shape-a-hierarchy)
+ * @see [Transparency laws](../foundations.md#11-transformation-families-and-the-transparency-square)
+ * @see [Worked example and counterexamples](../foundations.md#14-worked-example-two-routes-one-selected-subtree)
  */
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';

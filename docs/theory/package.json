@@ -8,7 +8,7 @@
   "scripts": {
     "check": "tsc -p tsconfig.json",
     "build": "node --experimental-strip-types render.mjs --check",
-    "test": "node --experimental-strip-types --test examples/coordinates.ts examples/hierarchy.ts examples/composition.ts examples/behavior.ts",
+    "test": "node --experimental-strip-types --test examples/coordinates.ts examples/hierarchy.ts examples/composition.ts examples/behavior.ts references.test.mjs",
     "render": "node --experimental-strip-types render.mjs",
     "verify": "pnpm run check && pnpm run test && pnpm run build"
   },

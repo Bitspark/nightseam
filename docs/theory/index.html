@@ -10,7 +10,11 @@
 @media(max-width:700px){.shell{padding:26px 18px 40px}.layout{display:block}aside{padding-top:22px}.toc{position:static;max-height:none;overflow:visible;border-bottom:1px solid var(--line);padding-bottom:18px;font-size:14px}.toc summary{margin-bottom:0}.toc[open] summary{margin-bottom:12px}.toc a{padding:8px 0}h2{margin-top:48px;font-size:24px}body{font-size:15.5px}.subtitle{font-size:18px}.diagram{margin:24px -3px;padding:14px}figcaption strong{font-size:18px}.artifact-grid{grid-template-columns:1fr}.route-controls{gap:6px}.route-controls button{font-size:12px;padding:8px;min-height:44px}pre{padding:14px 12px;font-size:12px}table{font-size:13px}td,th{padding:10px 7px}th:first-child,td:first-child{width:37%}select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{:root{color-scheme:light;--paper:white;--surface:white;--ink:#182a2d;--muted:#42595c;--line:#b9c8c4;--accent:#116959;--wash:#eef6f1;--code:#f2f5f3}body{font-size:10pt}.shell{padding:0;max-width:none}.layout{display:block}aside,.hero-links,.route-controls,select,.path-label,.artifact-details,.source{display:none}h1{font-size:32pt}h2{font-size:18pt;margin-top:28pt;break-after:avoid}h3{break-after:avoid}pre{font-size:8pt;break-inside:avoid}table{font-size:9pt}tr,.diagram{break-inside:avoid}.diagram{box-shadow:none;padding:14pt}a{color:inherit}p{orphans:3;widows:3}.footer{font-size:9pt}}
-</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1>Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="#behavior-figure">Explore behavior ↓</a><a href="#transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#what-the-model-describes">1. What the model describes</a><a href="#shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</a><a href="#native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</a><a href="#syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</a><a href="#adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</a><a href="#coordinates-and-cells">6. Coordinates and cells</a><a href="#elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</a><a href="#giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</a><a href="#shape-navigation">9. Shape navigation</a><a href="#navigating-a-representation">10. Navigating a representation</a><a href="#transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</a><a href="#the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</a><a href="#transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</a><a href="#worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</a><a href="#interpreting-generator-roles">15. Interpreting generator roles</a><a href="#whole-shape-holes">16. Whole-shape holes</a><a href="#substitution-and-its-composition-laws">17. Substitution and its composition laws</a><a href="#navigation-through-composed-shapes">18. Navigation through composed shapes</a><a href="#substitution-transparency-across-representations">19. Substitution transparency across representations</a><a href="#what-the-typescript-establishes">20. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article><h2 id="what-the-model-describes">1. What the model describes</h2>
+</style></head><body><div class="shell" id="top"><header class="hero"><div class="eyebrow">NIGHTSEAM THEORY · CONTRACTS AND REPRESENTATIONS</div><h1 id="contracts-implementations-and-representations">Contracts, behavior,<br>and representations.</h1><p class="subtitle">What a contract permits, what an implementation does, and what must survive a change of representation.</p><div class="hero-links"><a href="README.md">Theory index</a><a href="nightseam.md">Nightseam interpretation</a><a href="#behavior-figure">Explore behavior ↓</a><a href="#11-transformation-families-and-the-transparency-square">Compare transformation routes ↓</a><a href="#16-whole-shape-holes">Compose shapes ↓</a><a href="#embedded-sources">Read the model sources ↓</a></div></header><div class="layout"><aside><details class="toc" open><summary>In this document</summary><nav aria-label="Contents"><a href="#1-what-the-model-describes">1. What the model describes</a><a href="#2-shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</a><a href="#3-native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</a><a href="#4-syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</a><a href="#5-adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</a><a href="#6-coordinates-and-cells">6. Coordinates and cells</a><a href="#7-elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</a><a href="#8-giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</a><a href="#9-shape-navigation">9. Shape navigation</a><a href="#10-navigating-a-representation">10. Navigating a representation</a><a href="#11-transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</a><a href="#12-the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</a><a href="#13-transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</a><a href="#14-worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</a><a href="#15-interpreting-generator-roles">15. Interpreting generator roles</a><a href="#16-whole-shape-holes">16. Whole-shape holes</a><a href="#17-substitution-and-its-composition-laws">17. Substitution and its composition laws</a><a href="#18-navigation-through-composed-shapes">18. Navigation through composed shapes</a><a href="#19-substitution-transparency-across-representations">19. Substitution transparency across representations</a><a href="#20-what-the-typescript-establishes">20. What the TypeScript establishes</a><a href="#embedded-sources">Embedded sources</a></nav></details></aside><article>
+<p>Start with the <a href="README.md">theory index</a> and <a href="cross-references.md">evidence map</a>. The
+<a href="nightseam.md">Nightseam interpretation</a> relates these definitions to the
+repository&#39;s domain and implementation.</p>
+<h2 id="1-what-the-model-describes">1. What the model describes</h2>
 <p>The model distinguishes a contract&#39;s shape <code>S</code>, its behavioral specification
 <code>B</code>, and an implementation&#39;s actual behavior <code>b</code>. A contract is <code>C = (S, B)</code>.
 An artifact can represent <code>C</code>; an instance can satisfy <code>C</code>. These are different
@@ -70,8 +74,12 @@ the complete model and all four examples.</p>
 <td>The type of opaque local values</td>
 </tr>
 <tr>
-<td><code>K</code>, <code>L</code></td>
-<td>Coordinate assignments</td>
+<td><code>K</code>, <code>M</code>, <code>N</code></td>
+<td>Coordinate assignments; structural sections also use <code>L</code> as a coordinate</td>
+</tr>
+<tr>
+<td><code>D</code>, <code>L</code>, <code>H</code></td>
+<td>Declaration, target, and generator-host languages in the semantic sections</td>
 </tr>
 <tr>
 <td><code>r : R_K(S)</code></td>
@@ -98,7 +106,7 @@ the complete model and all four examples.</p>
 names the tree previously called <code>Contract&lt;O, G&gt;</code>; <code>Contract&lt;S, Beh&gt;</code> now names
 the semantic pair. <code>Beh</code> is the TypeScript carrier for <code>Behavior[S]</code>, whereas
 <code>B</code> is a predicate on that carrier. Neither <code>B</code> nor <code>b</code> is a syntax coordinate.</p>
-<h2 id="shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</h2>
+<h2 id="2-shape-specification-and-actual-behavior">2. Shape, specification, and actual behavior</h2>
 <p>A shape specifies available sorts, fields, constructors, operations, arguments,
 results, and roles. A behavior domain fixes what their execution can mean and
 what can be observed: state changes, return values, errors, effects, interaction
@@ -113,7 +121,10 @@ C = (S, B)
 Contracts = Σ S : Shape. { B : Behavior[S] -&gt; Prop | B respects ≈_S }
 </code></pre>
 <p>Here <code>Σ</code> forms a dependent pair. The specification depends on the shape through
-its behavior domain. <code>Prop</code> means a mathematical proposition; arbitrary behavior
+its behavior domain. This family is relative to a chosen domain and equivalence
+for each shape; changing the observations changes that interpretation. In
+<a href="#source-model-ts">model.ts</a>, <code>Contract.domain</code> retains this choice explicitly.
+<code>Prop</code> means a mathematical proposition; arbitrary behavior
 satisfaction need not be decidable. A specification may be presented by laws,
 a reference model, a protocol, or a set of admitted behaviors.</p>
 <p><strong>B1 — Observational invariance.</strong> If <code>b ≈_S b&#39;</code>, then <code>B(b) ↔ B(b&#39;)</code>.
@@ -129,7 +140,7 @@ and one initially false both satisfy <code>B</code>; a read distinguishes them. 
 ignoring writes has the right shape and violates <code>B</code>.</p>
 <p>Thus <code>B</code> is the <strong>specification of acceptable behavior</strong>, not the implementation&#39;s
 actual behavior <code>b</code>. Both belong to the semantic layer and may have syntax.</p>
-<h2 id="native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</h2>
+<h2 id="3-native-realizations-instances-and-satisfaction">3. Native realizations, instances, and satisfaction</h2>
 <p>A native realization includes a carrier of native values and an interpretation
 of those values as behavior at <code>S</code>:</p>
 <pre><code class="language-text">T : NativeRealization[L, S]
@@ -168,9 +179,9 @@ reifies a statement and its parameters; it neither decides nor proves it.
 <code>Satisfaction.evidence</code> is supplied by an interpretation. Arbitrarily constructing
 that record is not a trusted proof. The finite example has a separate decision
 procedure and rejects a witness attached to the wrong instance.</p>
-<h2 id="syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</h2>
+<h2 id="4-syntax-denotation-and-values-inside-an-interpreter">4. Syntax, denotation, and values inside an interpreter</h2>
 <p>Relative to a language interpretation and its required context:</p>
-<pre><code class="language-text">Syntax[L, X] = { s : Syntax[L] | ⟦s⟧_L = X }
+<pre><code class="language-text">Syntax[X, L] = { s : RawSyntax[L] | ⟦s⟧_L = X }
 </code></pre>
 <p>This is a semantic family, not a parser implementation. The TypeScript <code>Syntax</code>
 uses <code>Representation&lt;X, { form: &#39;syntax&#39;, language: L }&gt;</code>; its <code>subject</code> asserts
@@ -178,36 +189,37 @@ the intended denotation. An artifact can be source text or an AST.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>Syntax object</th>
+<th>TypeScript syntax family</th>
 <th>Denotes</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>ModelContractSyntax[D, C]</code></td>
-<td>The contract <code>C = (S, B)</code></td>
+<td><code>ModelContractSyntax&lt;S, Beh, D&gt;</code></td>
+<td>A contract <code>C = (S, B)</code> in the indicated domain</td>
 </tr>
 <tr>
-<td><code>ModelTypeSyntax[L, T]</code></td>
-<td>The selected native realization <code>T</code></td>
+<td><code>ModelTypeSyntax&lt;T&gt;</code></td>
+<td>The selected native realization <code>T</code>, in its language</td>
 </tr>
 <tr>
-<td><code>ImplementationSyntax[L, T, i]</code></td>
-<td>The particular instance/configuration <code>i</code>, or an explicitly modeled factory</td>
+<td><code>ImplementationSyntax&lt;T&gt;</code></td>
+<td>A particular initialized instance/configuration <code>i : Instance[T]</code></td>
 </tr>
 <tr>
-<td><code>AdapterSyntax[L, T, U]</code></td>
-<td>A function mapping instances of <code>T</code> to instances of <code>U</code></td>
+<td><code>AdapterSyntax&lt;T, U, L&gt;</code></td>
+<td>A function mapping instances of <code>T</code> to instances of <code>U</code>, written in <code>L</code></td>
 </tr>
 <tr>
-<td><code>GeneratorSyntax[H, g]</code></td>
-<td>A generator function <code>g</code>, implemented in host language <code>H</code></td>
+<td><code>GeneratorSyntax&lt;G, H&gt;</code></td>
+<td>A generator function <code>g : G</code>, written in host language <code>H</code></td>
 </tr>
 </tbody></table></div>
-<p>The semantic indices in this table use mathematical notation; the TypeScript
-aliases infer some indices from <code>T</code>. For example <code>ModelContractSyntax&lt;S, Beh, D&gt;</code>
-describes syntax for contracts in the indicated domain; <code>Syntax&lt;typeof C, D&gt;</code>
-retains a particular contract&#39;s type. TypeScript does not have full dependent
-types or verify an artifact&#39;s claimed denotation.</p>
+<p>The table uses the actual aliases in <a href="#source-model-ts">model.ts</a>. Mathematical
+<code>Syntax[X, L]</code> indexes a semantic subject; TypeScript&#39;s <code>Syntax&lt;typeof C, D&gt;</code>
+retains that subject&#39;s type and its <code>subject</code> field records the value.
+TypeScript does not have full dependent types or verify an artifact&#39;s claimed
+denotation. A factory has a different subject: use <code>Syntax&lt;FactoryMeaning, L&gt;</code>
+and an explicit initialization operation before claiming an instance meaning.</p>
 <p>Denoting <code>T</code> and representing its shape <code>S</code> are different views. The coordinate
 example interprets a Go interface through its structural view, so its fixed
 subject is <code>S</code>. The implementation example records its direct denotation <code>T</code>.
@@ -215,10 +227,12 @@ Neither view establishes <code>B</code> for every value of that type. A contract
 generation result keeps <code>C</code> alongside the type syntax.</p>
 <p>An AST in an interpreter&#39;s memory has both a host-value view and a syntax view:</p>
 <pre><code class="language-text">a : Instance[ASTModelType[H, L]]
-syntaxView(a) : Syntax[L]
-interpret_H(a) represents ⟦syntaxView(a)⟧_L
+syntaxView(a) : RawSyntax[L]
+evaluate_H,L(a) represents ⟦syntaxView(a)⟧_L
 </code></pre>
-<p>The native value can describe an addition node; its object-language meaning can
+<p>The final line is an interpreter-correctness obligation, in the chosen
+environment: <code>evaluate_H,L</code> runs the interpreter for <code>L</code> hosted in <code>H</code>.
+The native value can describe an addition node; its object-language meaning can
 be a number. The host&#39;s observation of the AST and the object&#39;s interpreted
 behavior are different semantic subjects related by <code>syntaxView</code> and evaluation.
 This does not require mutually exclusive node kinds or an infinite meta-level
@@ -248,7 +262,7 @@ Dynamic semantics describes execution; its mathematical definition need not itse
 be computed at runtime. A Wire surface can be interpreted as an interaction
 language whose well-formed requests have effects against an instance. A request
 denotes a particular interaction, not the entire contract.</p>
-<h2 id="adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</h2>
+<h2 id="5-adapters-generators-and-behavioral-preservation">5. Adapters, generators, and behavioral preservation</h2>
 <p>For two realizations of <code>S</code> interpreted in the same behavior domain:</p>
 <pre><code class="language-text">a : Instance[T] -&gt; Instance[U]
 
@@ -262,7 +276,11 @@ A2 — Behavioral transparency:
 A1 does not imply A2: an adapter can replace every input with a new storing cell
 initially false. Every output satisfies the cell contract, but adapting a true
 cell changes the result of its first read. An adapter&#39;s admitted domain must be
-stated; it may include only lawful inputs or all structurally compatible ones.</p>
+stated; it may include only lawful inputs or all structurally compatible ones.
+The displayed function and <code>AdapterSemantics&lt;T, U&gt;</code> are total on their chosen
+instance carriers. Restricting the transparency claim to a subset does not make
+that function partial; a partial adapter needs a correspondingly refined input
+carrier or an explicit failure result and its behavior.</p>
 <p>An adapter into a Wire realization uses the same equation after both sides are
 interpreted in the chosen abstract behavior domain. Transport failures, ownership,
 concurrency and other observable effects must either be included or explicitly
@@ -293,24 +311,37 @@ domain, not a proof about arbitrary programs or Nightseam transports.</p>
   <p class="figure-result">The verdict concerns all finite traces from each initial state. The controls show individual traces. Exhaustively checked across 512 finite method implementations; no transport or concurrency is modeled.</p>
 </figure>
 
-<p>Let <code>D</code> be the declaration language, <code>L</code> the output language, and <code>H</code> the host
-implementation language. A type generator has the dependent result:</p>
-<pre><code class="language-text">TypeGen[D, L] : Π C.
-  Syntax[D, C] -&gt; Σ T : NativeRealization[L, shape(C)]. Syntax[L, T]
+<p>Let <code>D</code> be the declaration language, <code>L</code> the native/output language, and <code>H</code>
+the host implementation language. All following families range over admitted
+contracts and supported realizations in a fixed environment, with the indicated
+syntax available. They do not promise to generate every mathematical contract.
+A type generator has the dependent result:</p>
+<pre><code class="language-text">TypeResult[L, C] = Σ T : NativeRealization[L, shape(C)].
+  ({C} × Syntax[T, L])
+
+TypeGen[D, L] : Π admitted C. Syntax[C, D] -&gt; TypeResult[L, C]
 </code></pre>
 <p><code>Π</code> means a family of functions, one per contract. <code>Σ</code> means that the output
-chooses a particular <code>T</code> and supplies syntax denoting it. The result is indexed
-by and retains <code>C</code>; the native declaration alone need not express <code>B</code>.
+chooses a particular <code>T</code> and supplies syntax denoting it. The singleton <code>{C}</code>
+records the input contract, matching <code>TypeGeneration&lt;T, C&gt;</code>; the native
+declaration alone need not express <code>B</code>. Every realization here uses <code>C</code>&#39;s
+chosen behavior domain, not just an equal-looking shape.
 Choosing a <code>T</code> for the shape does not synthesize a lawful implementation.</p>
-<p>For a selected target realization <code>U</code> of the same shape/domain:</p>
-<pre><code class="language-text">AdapterGen[D, L, U] : Π C. Π T : NativeRealization[L, shape(C)].
-  (Syntax[D, C] × Syntax[L, T]) -&gt; Syntax[L, Adapter(T, U)]
+<p>For each admitted <code>C</code>, choose a target realization <code>U_C</code> in that same
+shape/domain, such as an interpreted Wire surface. Write <code>U_(-)</code> for this
+family of targets:</p>
+<pre><code class="language-text">AdapterResult[L, C, T, U] =
+  {C} × Syntax[T, L] × Syntax[Adapter(T, U), L]
 
-JointResult[L, C, U] = Σ T : NativeRealization[L, shape(C)].
-  (Syntax[L, T] × Syntax[L, Adapter(T, U)])
+AdapterGen[D, L, U_(-)] : Π admitted C. Π supported T : NativeRealization[L, shape(C)].
+  (Syntax[C, D] × Syntax[T, L]) -&gt; AdapterResult[L, C, T, U_C]
+
+JointResult[L, C, U_C] = Σ T : NativeRealization[L, shape(C)].
+  AdapterResult[L, C, T, U_C]
 </code></pre>
-<p>The target <code>U</code> must be chosen compatibly for each <code>C</code>. The adapter&#39;s source is
-exactly the supplied <code>T</code>, not an unspecified realization of <code>C</code>. An adapter
+<p>The target depends on <code>C</code>; it is not one fixed realization for every shape.
+The adapter&#39;s source is exactly the supplied <code>T</code>. Its syntax uses <code>T</code>&#39;s native
+language <code>L</code>; the declaration and host languages remain independent. An adapter
 generator is behaviorally transparent when every admitted output denotes an
 adapter satisfying A2. <code>TypeGeneratorSemantics</code> and <code>AdapterGeneratorSemantics</code>
 model components with those choices fixed; their records retain <code>C</code> and <code>T</code>.
@@ -323,7 +354,7 @@ type or adapter. The host language <code>H</code> does not thereby become the ou
 its dependent input/output signature, and <code>B_g</code> its preservation laws. The actual
 function <code>g</code> is a candidate implementation satisfying those laws or violating them.
 Its source represents <code>g</code>, not the object contract <code>C</code> on which it operates.</p>
-<h2 id="coordinates-and-cells">6. Coordinates and cells</h2>
+<h2 id="6-coordinates-and-cells">6. Coordinates and cells</h2>
 <p>An axis is an opaque ID. Each axis has opaque element IDs and may admit an
 explicit empty value. The core needs equality of IDs, not an interpretation of
 their names. The interpretation still belongs to the model: choosing an axis
@@ -351,7 +382,7 @@ interfaces, for example. Coordinates identify a cell, not a unique artifact.
 Only meaningful coordinate assignments and inhabited cells need be present in
 the graph. Optional higher ranks avoid inventing dummy values, but do not by
 themselves prove that every possible combination has a representation.</p>
-<h2 id="elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</h2>
+<h2 id="7-elementary-transformations-and-coordinate-paths">7. Elementary transformations and coordinate paths</h2>
 <pre><code class="language-typescript">type RepresentationMap&lt;X, From, To&gt; = (input: Representation&lt;X, From&gt;) =&gt; Representation&lt;X, To&gt;;
 </code></pre>
 <p>This is mathematical shorthand; the source file supplies the coordinate
@@ -386,7 +417,7 @@ zero steps. It means identity. Writing <code>P ; Q</code> for doing <code>P</cod
 the effects must be included in its meaning and equivalence. A loop need not
 mean identity. A same-coordinate normalization can be an unrestricted
 <code>RepresentationMap</code>; it is not an elementary transformation under E2.</p>
-<h2 id="giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</h2>
+<h2 id="8-giving-the-shape-a-hierarchy">8. Giving the shape a hierarchy</h2>
 <p>The recursive type of finite <strong>closed</strong> shapes is:</p>
 <pre><code class="language-text">Shapes(O) = μX. Option(O) × FiniteMap(Key, X)
 </code></pre>
@@ -401,7 +432,7 @@ value and zero or more uniquely keyed children:</p>
 // Closed case; section 16 adds whole-shape holes.
 type Shape&lt;O&gt; = ShapeNode&lt;O&gt;;
 </code></pre>
-<p>The map makes <code>at(S, key)</code> single-valued. A set of key/child pairs is equivalent
+<p>The map makes <code>at(S, [key])</code> single-valued. A set of key/child pairs is equivalent
 only with a uniqueness condition on keys. Child order has no shape meaning.
 A node with neither a value nor children is a valid, present shape; it is
 different from a missing child. The semantic model assumes finite, immutable,
@@ -423,7 +454,7 @@ appearing twice does not merge its two occurrences: their shape paths
 distinguish them. This example states shape only. Local values can carry law
 descriptions, but preserving those descriptions does not establish satisfaction.
 Behavioral meaning lives in the separate domain and predicate of <code>C = (S, B)</code>.</p>
-<h2 id="shape-navigation">9. Shape navigation</h2>
+<h2 id="9-shape-navigation">9. Shape navigation</h2>
 <p>A shape path is a list of child keys; <code>++</code> concatenates lists and <code>[]</code> is
 the empty path. Navigation can fail, so the executable model returns
 <code>Selection&lt;Shape&lt;O&gt;&gt;</code>, a <code>found</code>/<code>missing</code> union.</p>
@@ -441,7 +472,7 @@ equation:</p>
 <p>Shape paths and coordinate paths must remain distinct. A shape path moves
 from a subject to a sub-shape. A coordinate path changes the representation
 of one fixed subject. They are the two directions in the transparency square.</p>
-<h2 id="navigating-a-representation">10. Navigating a representation</h2>
+<h2 id="10-navigating-a-representation">10. Navigating a representation</h2>
 <p>For every admitted coordinate, representation navigation must expose the same
 abstract children:</p>
 <pre><code class="language-text">at_K : (r : R_K(S), p : ValidPath(S)) → R_K(S|p)
@@ -478,7 +509,7 @@ type system cannot prove artifact faithfulness or identity of runtime values.</p
 <p>If a coordinate cannot support a sub-shape, the navigation requirement is
 not satisfied there. Supply a representation with sufficient context, or choose
 a domain and coordinate schema that are closed under this navigation.</p>
-<h2 id="transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</h2>
+<h2 id="11-transformation-families-and-the-transparency-square">11. Transformation families and the transparency square</h2>
 <p>A function for just one fixed <code>S</code> cannot be applied to <code>S|p</code> by assumption. We
 therefore introduce a family with a component for every shape in the chosen
 domain:</p>
@@ -545,7 +576,7 @@ equivalence cannot silently become an equivalence of implementations.</p>
 different value could commute with navigation while changing the shape.
 Faithful surfaces rule this out. The separate adapter counterexample demonstrates
 why preserving all structural observations still does not establish A2.</p>
-<h2 id="the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</h2>
+<h2 id="12-the-prefix-law-and-arbitrary-coordinate-paths">12. The prefix law and arbitrary coordinate paths</h2>
 <p>The prefix form of the law becomes well-typed by applying the appropriate component
 of the family at each selected subject:</p>
 <p><strong>T3 — Prefix transparency.</strong></p>
@@ -575,7 +606,7 @@ a set-valued functor. T2 makes the transformation family a natural
 transformation between these functors. This interpretation assumes R1–R2 and
 Q1; the TypeScript signature alone does not establish it. See Fong and Spivak,
 <a href="https://ocw.mit.edu/courses/18-s097-applied-category-theory-january-iap-2019/a4175d61479a35340d6307ae5e48ef5a_18-s097iap19textbook.pdf">An Invitation to Applied Category Theory, §3.3.4</a>.</p>
-<h2 id="transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</h2>
+<h2 id="13-transparency-does-not-force-a-unique-coordinate-path">13. Transparency does not force a unique coordinate path</h2>
 <p>Several routes can connect the same cells, and several transformation instances
 can connect the same pair. Navigation transparency says that <strong>each route
 commutes with selection</strong>. It does not say that any two routes produce identical
@@ -594,7 +625,7 @@ artifact, or coordinate route.</p>
 generator. To require a round trip, supply a reverse map <code>G</code> and require
 <code>G_S(F_S(r)) ≈ r</code> (and the other direction for a two-sided inverse). This is an
 extra law, not a consequence of having the same subject parameter.</p>
-<h2 id="worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</h2>
+<h2 id="14-worked-example-two-routes-one-selected-subtree">14. Worked example: two routes, one selected subtree</h2>
 <p>The hierarchy example has independent <code>layout</code> and <code>order</code> axes. Every artifact
 encodes the same nine-node BooleanCell tree. Nested encodings store child pairs;
 flat encodings store one row for <strong>every node</strong>, with its relative path and
@@ -634,7 +665,7 @@ bad, correctly typed generator keeps only the flat root and drops descendants;
 the law checker rejects it. A fabricated location naming the wrong selected
 shape is rejected as well. A second bad generator replaces every local value:
 it passes the commuting-square checks, but the faithful-surface check rejects it.</p>
-<h2 id="interpreting-generator-roles">15. Interpreting generator roles</h2>
+<h2 id="15-interpreting-generator-roles">15. Interpreting generator roles</h2>
 <p>The coordinate core reserves no role names. The semantic layer supplies objects
 that an interpretation may choose as its subjects. Pick the subject before
 claiming that a generator is a representation transformation:</p>
@@ -654,8 +685,12 @@ claiming that a generator is a representation transformation:</p>
 <td>The complete result retains shape and specification; projecting only a native interface can forget <code>B</code>.</td>
 </tr>
 <tr>
-<td>Instance <code>i</code> or behavior <code>b</code></td>
-<td>A realization change preserves the chosen observable behavior; producing some lawful instance is insufficient.</td>
+<td>Instance <code>i</code></td>
+<td>Syntax and other representations denote that same instance/configuration; an adapter generally produces a different native instance.</td>
+</tr>
+<tr>
+<td>Behavioral class <code>[b]_{≈_S}</code></td>
+<td>A realization change preserves the same observational behavior by A2; producing some lawful instance is insufficient.</td>
 </tr>
 <tr>
 <td>Generator function <code>g</code></td>
@@ -663,17 +698,22 @@ claiming that a generator is a representation transformation:</p>
 </tr>
 </tbody></table></div>
 <p>These are modeling choices, not claims about an existing Nightseam API. The
-generator signatures in section 5 connect different direct denotations: input
+<a href="#5-adapters-generators-and-behavioral-preservation">generator signatures</a> connect different direct denotations: input
 syntax denotes <code>C</code>, while output syntax denotes <code>T</code> or <code>a</code>. A common-subject
 representation map requires the appropriate interpretation of those outputs,
 such as the generated package that retains <code>C</code> and the chosen <code>T</code>. Erasing <code>B</code>
 from <code>C</code> is a change of subject, not a primitive coordinate transformation.</p>
+<p>A2 equates behaviors up to <code>≈_S</code>; it does not equate native instance identities.
+To view a transparent adapter as a fixed-subject representation map, choose
+<code>X = [BehaviorOf_T(i)]_{≈_S}</code> and interpret both native realizations as
+representations of that same behavioral class. The direct function
+<code>i ↦ a(i)</code> still changes its native value and realization.</p>
 <p>An implementation generator additionally needs enough information to construct
 a lawful <code>i</code>. An unimplemented scaffold only supplies structure. A semantic
 function need not preserve any subject at all. When a lawful representation map
 does exist and several axes change, use a path through meaningful intermediate
 cells or an unrestricted map outside the primitive edge type.</p>
-<h2 id="whole-shape-holes">16. Whole-shape holes</h2>
+<h2 id="16-whole-shape-holes">16. Whole-shape holes</h2>
 <p>A generic stands for a complete sub-shape, including its value and children.
 The union therefore surrounds the entire node constructor:</p>
 <pre><code class="language-text">Shapes(O, G) = μX. Generic(G) + (Option(O) × FiniteMap(Key, X))
@@ -706,7 +746,7 @@ Hole IDs belong to a chosen context. When combining independently named
 templates, consistently rename IDs if they are intended to remain distinct.
 The current language has no binders; introducing binders later would require
 additional scoping and capture-avoidance rules.</p>
-<h2 id="substitution-and-its-composition-laws">17. Substitution and its composition laws</h2>
+<h2 id="17-substitution-and-its-composition-laws">17. Substitution and its composition laws</h2>
 <p>A substitution assigns a shape to every generic in its source context:</p>
 <pre><code class="language-text">σ : G → Shapes(O, H)
 S : Shapes(O, G)
@@ -769,14 +809,14 @@ unchanged. The enlarged model therefore has two distinct operations:</p>
 </tbody></table></div>
 <p>A path mixing these operations must track its subject as well as its
 coordinates. The original fixed-subject paths remain exactly as defined.</p>
-<h2 id="navigation-through-composed-shapes">18. Navigation through composed shapes</h2>
-<p><strong>S5 — Existing paths commute with substitution.</strong> If <code>p</code> selects an existing
-node or hole in the original template:</p>
-<pre><code class="language-text">at(S[σ], p) = at(S, p)[σ]
+<h2 id="18-navigation-through-composed-shapes">18. Navigation through composed shapes</h2>
+<p><strong>S5 — Existing paths commute with substitution.</strong> If <code>at(S, p) = found(D)</code>
+selects an existing node or hole in the original template:</p>
+<pre><code class="language-text">at(S[σ], p) = found(D[σ])
 </code></pre>
 <p>An ordinary node remains at the same path. When that path ends at a hole, its
 selection after substitution is the supplied replacement shape.</p>
-<p><strong>S6 — Paths can continue inside an inserted shape.</strong> If <code>at(S, p) = Generic(g)</code>:</p>
+<p><strong>S6 — Paths can continue inside an inserted shape.</strong> If <code>at(S, p) = found(Generic(g))</code>:</p>
 <pre><code class="language-text">at(S[σ], p ++ q) = at(σ(g), q)
 </code></pre>
 <p>The right side may still be partial. It can select another hole if the
@@ -788,7 +828,7 @@ after <code>h0 := Bool</code>, it selects <code>Bool</code>. A missing child of 
 stays missing, but an unresolved path continuing through a hole may become
 valid. Thus a blanket equation propagating every failed template lookup through
 substitution would be incorrect.</p>
-<h2 id="substitution-transparency-across-representations">19. Substitution transparency across representations</h2>
+<h2 id="19-substitution-transparency-across-representations">19. Substitution transparency across representations</h2>
 <p>At each admitted coordinate <code>K</code>, represent both the template and its arguments:</p>
 <pre><code class="language-text">r : R_K(S)
 a(g) : R_K(σ(g))
@@ -807,7 +847,7 @@ arguments and then filling once. Plugging must also respect equivalence of the
 template and pointwise equivalence of its arguments. These are the represented
 counterparts of S3–S4, including their congruence requirement.</p>
 <p><strong>S8 — Transformation commutes with substitution.</strong> Let <code>F : K → L</code> be a family
-defined for the open template, its arguments, and its instance. Then:</p>
+defined for the open template, its arguments, and its instantiated shape. Then:</p>
 <pre><code class="language-text">F_(S[σ])(plug_K(r, a))
   ≈_L plug_L(F_S(r), g ↦ F_(σ(g))(a(g)))
 </code></pre>
@@ -819,7 +859,7 @@ defined for the open template, its arguments, and its instance. Then:</p>
   </div>
   <div class="square" data-square="composition"><svg viewBox="0 0 700 312" width="700" height="312" role="img" aria-labelledby="title-composition desc-composition">
     <title id="title-composition">Substitution commutes with transformation</title>
-    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent S with the same substituted arguments at the target coordinate.</desc>
+    <desc id="desc-composition">Transform the template and each argument, then fill; or fill first and transform the instantiated shape. Both routes represent S with the same substituted arguments at the target coordinate.</desc>
     <defs><marker id="arrow-composition" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     <path data-branch="first" class="edge" d="M 298 70 H 400" marker-end="url(#arrow-composition)"/>
     <path data-branch="first" class="edge" d="M 550 112 V 208" marker-end="url(#arrow-composition)"/>
@@ -827,12 +867,12 @@ defined for the open template, its arguments, and its instance. Then:</p>
     <path data-branch="second" class="edge" d="M 298 252 H 400" marker-end="url(#arrow-composition)"/>
     <g class="graph-node"><rect x="8" y="36" width="284" height="68" rx="10"/><text class="node-title" x="150" y="63" text-anchor="middle">Open at K</text><text class="node-detail" x="150" y="85" text-anchor="middle">r, a(g)</text></g><g class="graph-node"><rect x="408" y="36" width="284" height="68" rx="10"/><text class="node-title" x="550" y="63" text-anchor="middle">Open at L</text><text class="node-detail" x="550" y="85" text-anchor="middle">F(r), F(a)</text></g><g class="graph-node"><rect x="8" y="218" width="284" height="68" rx="10"/><text class="node-title" x="150" y="245" text-anchor="middle">Filled at K</text><text class="node-detail" x="150" y="267" text-anchor="middle">R_K(S[σ])</text></g><g class="graph-node"><rect x="408" y="218" width="284" height="68" rx="10"/><text class="node-title" x="550" y="245" text-anchor="middle">Filled at L</text><text class="node-detail" x="550" y="267" text-anchor="middle">R_L(S[σ])</text></g>
     <text class="edge-label" x="350" y="52" text-anchor="middle">F each</text>
-    <text class="edge-label" x="350" y="305" text-anchor="middle">F instance</text>
+    <text class="edge-label" x="350" y="305" text-anchor="middle">F filled shape</text>
     <text class="edge-label" x="550" y="174" text-anchor="middle">fill</text>
     <text class="edge-label" x="150" y="174" text-anchor="middle">fill</text>
     <text class="equivalence" x="350" y="171" text-anchor="middle">≈</text>
   </svg></div>
-  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instance S[σ].</p>
+  <p class="figure-result" aria-live="polite">Transform the template and every argument, then fill. Both routes represent the same instantiated shape S[σ].</p>
 </figure>
 <p>This is the connecting law: <strong>fill, then transform; or transform the template
 and every argument, then fill</strong>. The <code>SubstitutionTransparency</code> interface records
@@ -858,7 +898,7 @@ artifact as filling the transformed template with transformed arguments.</p>
 shapes, replacements containing holes, same-named holes surviving one-pass
 substitution, the identity/composition laws, and paths entering inserted trees.
 It rejects inconsistent represented arguments and fabricated result witnesses.</p>
-<h3>Lifting structural operations to contracts and implementations</h3>
+<h3 id="lifting-structural-operations-to-contracts-and-implementations">Lifting structural operations to contracts and implementations</h3>
 <p><code>ShapeNavigation</code> and <code>ShapeSubstitution</code> operate on <code>S</code>. They do not silently
 define operations on <code>B</code>. A read-after-write law relates two sibling operations;
 selecting the <code>read</code> subtree does not yield an independent copy of that law.
@@ -885,7 +925,7 @@ extensions require corresponding identity, composition, and congruence laws for
 the supplied specification and implementation operations. Code-generation routes
 that preserve particular instances must additionally agree under A2, not merely
 produce implementations satisfying the same resulting contract.</p>
-<h2 id="what-the-typescript-establishes">20. What the TypeScript establishes</h2>
+<h2 id="20-what-the-typescript-establishes">20. What the TypeScript establishes</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -903,7 +943,7 @@ produce implementations satisfying the same resulting contract.</p>
 </tr>
 <tr>
 <td>Same subject type through transformation</td>
-<td>Generic input/output parameter <code>S</code>; runtime identity remains a law</td>
+<td>Generic input/output parameter <code>X</code>; exact subject identity remains a law</td>
 </tr>
 <tr>
 <td>Family available at sub-shapes</td>
@@ -966,13 +1006,19 @@ produce implementations satisfying the same resulting contract.</p>
 <pre><code class="language-sh">pnpm --filter @nightseam/theory verify
 pnpm --filter @nightseam/theory render
 </code></pre>
-<p><code>verify</code> checks the types, runs the examples, and checks that the HTML edition
-is current. <code>render</code> regenerates it from this page and the embedded sources.
+<p><code>verify</code> checks the types, runs the examples and cross-reference checks, and
+checks that the HTML edition is current. <code>render</code> regenerates it from this page
+and the embedded sources. The <a href="cross-references.md">evidence map</a>
+connects each group of laws to its types and checks.
 The package scripts enable Node&#39;s TypeScript stripping; no compiled model is
 published.</p>
 <p>The executable examples operate on model artifacts. They do not run Go, compile
-the illustrative source strings, or execute Nightseam&#39;s generators.</p>
-<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">483 lines · embedded source</span></summary><pre><code>/**
+the illustrative Go source strings, or execute Nightseam&#39;s generators.
+The behavior example interprets its adapter identifier in an explicit binding
+environment and reloads the actual JavaScript generator expression in its
+declared host environment. Those checks establish the fixture application,
+not denotation for arbitrary source.</p>
+<h2 id="embedded-sources">Embedded sources</h2><p>The complete model, compile-only assertions, and all four examples are included below. The diagrams, interactions, styles, and sources work offline.</p><details class="source" id="source-model-ts"><summary><span>model.ts</span><span class="source-note">488 lines · embedded source</span></summary><pre><code>/**
  * A metamodel, expressed entirely as types. X and the meanings of the axes
  * are supplied by an interpretation. The coordinate core assigns no role names;
  * the semantic layer distinguishes contracts, realizations and implementations.
@@ -980,6 +1026,8 @@ the illustrative source strings, or execute Nightseam&#39;s generators.</p>
  * Representation&lt;X, K&gt; means a representation OF X, not merely one tagged X.
  * Preserving X (including any chosen behavioral laws) is a semantic obligation.
  * TypeScript checks the indices and adjacency, not the meaning of an artifact.
+ * @see [Concepts and evidence](cross-references.md)
+ * @see [Definitions and laws](foundations.md)
  */
 
 // IDs are opaque: the core compares identity without interpreting their meaning.
@@ -1144,14 +1192,14 @@ export type Shape&lt;O = unknown, G extends GenericId = never&gt; = ShapeNode&lt
 // An existing node without a value or children is still Found, not Missing.
 export type Selection&lt;T&gt; = { readonly kind: &#39;found&#39;; readonly value: T } | { readonly kind: &#39;missing&#39; };
 
-/** Required laws: at(S, []) = S; at(S, p ++ q) = bind(at(S, p), at(_, q)). */
+/** Required laws: at(S, []) = found(S); at(S, p ++ q) = bind(at(S, p), at(_, q)). */
 export type ShapeNavigation&lt;O, G extends GenericId = never&gt; = (
   shape: Shape&lt;O, G&gt;,
   path: ShapePath,
 ) =&gt; Selection&lt;Shape&lt;O, G&gt;&gt;;
 
 /**
- * A location witnesses that selected = at(root, path). Construction must establish
+ * A location witnesses that found(selected) = at(root, path). Construction must establish
  * this equation. TypeScript relates the subject types but cannot prove the lookup.
  */
 export interface ShapeLocation&lt;
@@ -1360,6 +1408,7 @@ export interface ModelTypeIndex {
   readonly behaviorOf: (value: never) =&gt; unknown;
 }
 export type NativeValue&lt;T extends ModelTypeIndex&gt; = Parameters&lt;T[&#39;behaviorOf&#39;]&gt;[0];
+/** The carrier Behavior[S], not a particular behavior b in that carrier. */
 export type ActualBehavior&lt;T extends ModelTypeIndex&gt; = ReturnType&lt;T[&#39;behaviorOf&#39;]&gt;;
 export type ShapeOf&lt;T extends ModelTypeIndex&gt; = T[&#39;domain&#39;][&#39;shape&#39;];
 export type ContractFor&lt;T extends ModelTypeIndex&gt; = Contract&lt;ShapeOf&lt;T&gt;, ActualBehavior&lt;T&gt;&gt;;
@@ -1407,6 +1456,7 @@ export type AdapterSemantics&lt;T extends ModelTypeIndex, U extends ModelTypeInd
 export type Syntax&lt;X, L extends string&gt; = Representation&lt;X, { readonly form: &#39;syntax&#39;; readonly language: L }&gt;;
 export type ModelContractSyntax&lt;S, Beh, D extends string&gt; = Syntax&lt;Contract&lt;S, Beh&gt;, D&gt;;
 export type ModelTypeSyntax&lt;T extends ModelTypeIndex&gt; = Syntax&lt;T, T[&#39;language&#39;]&gt;;
+/** Denotes an initialized instance/configuration. Factory syntax has a different subject. */
 export type ImplementationSyntax&lt;T extends ModelTypeIndex&gt; = Syntax&lt;ModelInstance&lt;T&gt;, T[&#39;language&#39;]&gt;;
 export type AdapterSyntax&lt;T extends ModelTypeIndex, U extends ModelTypeIndex, L extends string&gt; = Syntax&lt;
   AdapterSemantics&lt;T, U&gt;,
@@ -1430,7 +1480,7 @@ export type TypeGeneratorSemantics&lt;C extends ContractFor&lt;T&gt;, T extends 
 export interface AdapterGeneration&lt;
   T extends ModelTypeIndex,
   U extends ModelTypeIndex,
-  L extends string,
+  L extends T[&#39;language&#39;],
   C extends ContractFor&lt;T&gt; = ContractFor&lt;T&gt;,
 &gt; extends TypeGeneration&lt;T, C&gt; {
   readonly adapter: AdapterSyntax&lt;T, U, L&gt;;
@@ -1440,13 +1490,14 @@ export interface AdapterGeneration&lt;
  * The supplied T is the SAME T targeted by generated adapter semantics. For a
  * transparent generator, every admitted output adapter must preserve behavior;
  * retaining C and T in this record is necessary bookkeeping, not that proof.
+ * This family emits adapters in T&#39;s native language; D and the host H are separate.
  */
 export type AdapterGeneratorSemantics&lt;
   C extends ContractFor&lt;T&gt;,
   T extends ModelTypeIndex,
   U extends ModelTypeIndex,
   D extends string,
-  L extends string,
+  L extends T[&#39;language&#39;],
 &gt; = (input: {
   readonly contract: Syntax&lt;C, D&gt;;
   readonly modelType: ModelTypeSyntax&lt;T&gt;;
@@ -1455,7 +1506,9 @@ export type AdapterGeneratorSemantics&lt;
 /** Loaded generators are semantic functions; their source uses a separate host H. */
 export type GeneratorSyntax&lt;G, H extends string&gt; = Syntax&lt;G, H&gt;;
 </code></pre></details>
-<details class="source" id="source-model-typecheck-ts"><summary><span>model.typecheck.ts</span><span class="source-note">193 lines · embedded source</span></summary><pre><code>// Compile-only assertions, including intentional failures. Do not execute this file.
+<details class="source" id="source-model-typecheck-ts"><summary><span>model.typecheck.ts</span><span class="source-note">204 lines · embedded source</span></summary><pre><code>// Compile-only assertions, including intentional failures. Do not execute this file.
+// @see [What the types establish](foundations.md#20-what-the-typescript-establishes)
+// @see [Model definitions](model.ts)
 import type {
   ChangedAxis,
   Shape,
@@ -1473,6 +1526,7 @@ import type {
   Generic,
   Substitution,
   AdapterSemantics,
+  AdapterGeneratorSemantics,
   Contract,
   ContractImplementation,
   ModelInstance,
@@ -1576,7 +1630,7 @@ declare const arbitraryShape: Shape&lt;string&gt;;
 const subjectReplacingFamily: ShapeRepresentationMap&lt;string, KA, KB&gt; = (input) =&gt; ({
   ...input,
   coordinates: { form: &#39;flat&#39;, order: &#39;ascending&#39; } as const,
-  // @ts-expect-error A family must preserve the particular C, not replace it with any Shape.
+  // @ts-expect-error A family must preserve the particular S, not replace it with any Shape.
   subject: arbitraryShape,
 });
 // @ts-expect-error Navigation returns Selected, not Root, even though both are shapes.
@@ -1610,6 +1664,14 @@ const unfinishedShape: Shape&lt;string, &#39;h0&#39;&gt; = { kind: &#39;generic&
 const unfinishedClosingSubstitution: Substitution&lt;string, &#39;g0&#39;, never&gt; = () =&gt; unfinishedShape;
 
 const correctSelectedType: ModelTypeSyntax&lt;typeof methodType&gt; = adapterGeneration.modelType;
+type WrongAdapterLanguage = AdapterGeneratorSemantics&lt;
+  typeof cellContract,
+  typeof methodType,
+  typeof surfaceType,
+  &#39;cell-declaration&#39;,
+  // @ts-expect-error This generator emits the selected native type&#39;s language, not an unrelated one.
+  &#39;typescript&#39;
+&gt;;
 // @ts-expect-error A function-record value is not an instance of the chosen method interface.
 const wrongNativeInstance: ModelInstance&lt;typeof methodType&gt; = functionCell;
 const wrongTypeSyntax: ModelTypeSyntax&lt;typeof methodType&gt; = {
@@ -1648,7 +1710,7 @@ const missingSatisfaction: ContractImplementation&lt;typeof methodType&gt; = {
   instance: trueCell,
 };
 </code></pre></details>
-<details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">225 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-coordinates-ts"><summary><span>examples/coordinates.ts</span><span class="source-note">228 lines · embedded source</span></summary><pre><code>/**
  * Instances of the opaque coordinate model. TypeScript is the metalanguage.
  * The strings below describe Go/TypeScript artifacts; the functions map these
  * example descriptions. They are finite examples, not Nightseam generators.
@@ -1656,6 +1718,9 @@ const missingSatisfaction: ContractImplementation&lt;typeof methodType&gt; = {
  * This example takes S to be SHAPE ONLY. Its artifact interpretations are
  * stipulated here; type-checking does not parse source or prove equivalence.
  * Run from the repository root: pnpm --filter @nightseam/theory test
+ * @see [Coordinates and cells](../foundations.md#6-coordinates-and-cells)
+ * @see [Elementary transformations and paths](../foundations.md#7-elementary-transformations-and-coordinate-paths)
+ * @see [Evidence map](../cross-references.md)
  */
 import assert from &#39;node:assert/strict&#39;;
 import type {
@@ -1873,11 +1938,14 @@ console.log({
   bothPathsProduce: resultThroughGo.artifact,
 });
 </code></pre></details>
-<details class="source" id="source-examples-hierarchy-ts"><summary><span>examples/hierarchy.ts</span><span class="source-note">434 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-hierarchy-ts"><summary><span>examples/hierarchy.ts</span><span class="source-note">437 lines · embedded source</span></summary><pre><code>/**
  * Hierarchical instances of the coordinate model; TypeScript is the metalanguage.
  * Opaque value/key IDs are preserved between nested and flat tree encodings.
  * Transformations consume artifacts; they do not reconstruct them from subject.
  * Run from the repository root: pnpm --filter @nightseam/theory test
+ * @see [Hierarchy and surfaces](../foundations.md#8-giving-the-shape-a-hierarchy)
+ * @see [Transparency laws](../foundations.md#11-transformation-families-and-the-transparency-square)
+ * @see [Worked example and counterexamples](../foundations.md#14-worked-example-two-routes-one-selected-subtree)
  */
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
@@ -2307,10 +2375,13 @@ console.log({
   invalidTransformAndLocation: &#39;rejected by the law checks&#39;,
 });
 </code></pre></details>
-<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">356 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-composition-ts"><summary><span>examples/composition.ts</span><span class="source-note">359 lines · embedded source</span></summary><pre><code>/**
  * Whole-shape holes and simultaneous substitution. TypeScript is the metalanguage.
  * Both encodings consume represented artifacts; neither transformation nor plugging
  * reconstructs its output artifact from the subject field.
+ * @see [Whole-shape holes](../foundations.md#16-whole-shape-holes)
+ * @see [Substitution laws](../foundations.md#17-substitution-and-its-composition-laws)
+ * @see [Substitution transparency](../foundations.md#19-substitution-transparency-across-representations)
  */
 import assert from &#39;node:assert/strict&#39;;
 import { isDeepStrictEqual } from &#39;node:util&#39;;
@@ -2663,20 +2734,25 @@ console.log({
   transformationTransparency: &#39;fill then flatten = flatten then fill&#39;,
 });
 </code></pre></details>
-<details class="source" id="source-examples-behavior-ts"><summary><span>examples/behavior.ts</span><span class="source-note">339 lines · embedded source</span></summary><pre><code>/**
+<details class="source" id="source-examples-behavior-ts"><summary><span>examples/behavior.ts</span><span class="source-note">363 lines · embedded source</span></summary><pre><code>/**
  * Finite, deterministic, total BooleanCell semantics. TypeScript models native
  * realizations; it does not execute Go or infer behavior from arbitrary code.
  * Product exploration checks all finite interaction traces of each given pair,
  * not merely traces up to a chosen length. No concurrency, failure or divergence
  * is admitted by this example&#39;s observation model.
+ * @see [Behavior and specification](../foundations.md#2-shape-specification-and-actual-behavior)
+ * @see [Satisfaction](../foundations.md#3-native-realizations-instances-and-satisfaction)
+ * @see [Adapters and generators](../foundations.md#5-adapters-generators-and-behavioral-preservation)
  */
 import assert from &#39;node:assert/strict&#39;;
+import { Script } from &#39;node:vm&#39;;
 import type {
   AdapterGeneratorSemantics,
   AdapterSemantics,
   BehaviorDomain,
   Contract,
   ContractImplementation,
+  GeneratorSyntax,
   ModelInstance,
   ModelType,
   ModelTypeSyntax,
@@ -2888,8 +2964,11 @@ const adaptedBehavior = (
   return result.modelType.behaviorOf(result.value);
 };
 
-// A loaded generator is a semantic function on syntax values. These fixtures
-// stipulate denotation; they do not parse or compile their illustrative source.
+// A loaded generator is a semantic function on syntax values. The declaration
+// and native-type fixtures stipulate denotation; no Go parser/compiler is used.
+// Adapter output is a contextual Go identifier expression. Its interpretation
+// binds BindBooleanCell to forwardingAdapter; it references an available adapter,
+// rather than supplying its implementation as a comment-only source placeholder.
 export const contractSyntax: Syntax&lt;typeof cellContract, &#39;cell-declaration&#39;&gt; = {
   subject: cellContract,
   coordinates: { form: &#39;syntax&#39;, language: &#39;cell-declaration&#39; },
@@ -2920,17 +2999,33 @@ export const generateAdapter: AdapterGeneratorSemantics&lt;
     adapter: {
       subject: forwardingAdapter,
       coordinates: { form: &#39;syntax&#39;, language: &#39;go&#39; },
-      artifact: &#39;// Illustrative adapter source for the selected BooleanCell method interface.&#39;,
+      artifact: &#39;BindBooleanCell&#39;,
     },
   };
 };
 export const typeGeneration = generateType(contractSyntax);
 export const adapterGeneration = generateAdapter({ contract: contractSyntax, modelType: typeGeneration.modelType });
-const generatorSyntax: Syntax&lt;typeof generateAdapter, &#39;go&#39;&gt; = {
+// Node executes the stripped TypeScript as JavaScript. This actual function
+// expression denotes g in the explicitly supplied host environment below.
+export const generatorSyntax: GeneratorSyntax&lt;typeof generateAdapter, &#39;javascript&#39;&gt; = {
   subject: generateAdapter,
-  coordinates: { form: &#39;syntax&#39;, language: &#39;go&#39; },
-  artifact: &#39;// Illustrative Go source denoting the loaded adapter generator.&#39;,
+  coordinates: { form: &#39;syntax&#39;, language: &#39;javascript&#39; },
+  artifact: generateAdapter.toString(),
 };
+const adapterBindings = new Map([[&#39;BindBooleanCell&#39;, forwardingAdapter]]);
+assert.equal(typeof adapterGeneration.adapter.artifact, &#39;string&#39;);
+assert.equal(adapterBindings.get(adapterGeneration.adapter.artifact as string), adapterGeneration.adapter.subject);
+assert.equal(typeof generatorSyntax.artifact, &#39;string&#39;);
+const loadedGenerator: typeof generateAdapter = new Script(`(${generatorSyntax.artifact})`).runInNewContext({
+  assert,
+  methodType,
+  forwardingAdapter,
+});
+const loadedResult = loadedGenerator({ contract: contractSyntax, modelType: methodSyntax });
+assert.equal(loadedResult.contract, cellContract);
+assert.equal(loadedResult.modelType, methodSyntax);
+assert.equal(loadedResult.adapter.subject, forwardingAdapter);
+assert.equal(loadedResult.adapter.artifact, adapterGeneration.adapter.artifact);
 
 assert.ok(satisfiesCell(behaviorOf(falseCell)));
 assert.ok(satisfiesCell(behaviorOf(trueCell)));
@@ -3077,7 +3172,7 @@ const drawSquare = function drawSquare(kind, width) {
   const labels = isLaw
     ? ['F_S', 'select p', 'select p', 'F_(S|p)']
     : isComposition
-      ? ['F each', 'fill', 'fill', 'F instance']
+      ? ['F each', 'fill', 'fill', 'F filled shape']
       : ['flatten', 'reorder', 'reorder', 'flatten'];
   const route = (key, d) => `<path data-branch="${key}" class="edge" d="${d}" marker-end="url(#arrow-${kind})"/>`;
   const node = (index, nx, ny) =>
@@ -3086,7 +3181,7 @@ const drawSquare = function drawSquare(kind, width) {
     `<text class="edge-label" x="${nx}" y="${ny}" text-anchor="${anchor}">${text}</text>`;
   return `<svg viewBox="0 0 ${w} 312" width="${w}" height="312" role="img" aria-labelledby="title-${kind} desc-${kind}">
     <title id="title-${kind}">${isLaw ? 'Navigation commutes with transformation' : isComposition ? 'Substitution commutes with transformation' : 'Two coordinate routes to the same representation'}</title>
-    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the resulting instance. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
+    <desc id="desc-${kind}">${isLaw ? 'Transforming the whole and then selecting path p agrees with selecting p first and transforming that sub-shape.' : isComposition ? 'Transform the template and each argument, then fill; or fill first and transform the instantiated shape. Both routes represent S with the same substituted arguments at the target coordinate.' : 'Flatten then reorder, or reorder then flatten. Each edge changes one axis. Both routes produce the same canonical flat descending encoding in this example.'}</desc>
     <defs><marker id="arrow-${kind}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>
     ${route('first', `M ${x + cw + 6} ${top + h / 2} H ${xr - 8}`)}
     ${route('first', `M ${rightMid} ${top + h + 8} V ${bottom - 10}`)}
@@ -3116,7 +3211,7 @@ document.querySelectorAll('.diagram').forEach(figure => {
     figure.dataset.route = button.dataset.routeChoice;
     figure.querySelectorAll('[data-route-choice]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
     if (figure === lawFigure) updateSelection();
-    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the resulting instance.') + ' Both routes represent the same instance S[σ].';
+    else if (figure.id === 'composition-figure') figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Transform the template and every argument, then fill.' : 'Fill the template, then transform the instantiated shape.') + ' Both routes represent the same instantiated shape S[σ].';
     else figure.querySelector('.figure-result').textContent = (figure.dataset.route === 'first' ? 'Flatten → reorder.' : 'Reorder → flatten.') + ' The other route produces the same canonical artifact in this example.';
   }));
 });

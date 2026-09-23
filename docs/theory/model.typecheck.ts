@@ -1,4 +1,6 @@
 // Compile-only assertions, including intentional failures. Do not execute this file.
+// @see [What the types establish](foundations.md#20-what-the-typescript-establishes)
+// @see [Model definitions](model.ts)
 import type {
   ChangedAxis,
   Shape,
@@ -16,6 +18,7 @@ import type {
   Generic,
   Substitution,
   AdapterSemantics,
+  AdapterGeneratorSemantics,
   Contract,
   ContractImplementation,
   ModelInstance,
@@ -119,7 +122,7 @@ declare const arbitraryShape: Shape<string>;
 const subjectReplacingFamily: ShapeRepresentationMap<string, KA, KB> = (input) => ({
   ...input,
   coordinates: { form: 'flat', order: 'ascending' } as const,
-  // @ts-expect-error A family must preserve the particular C, not replace it with any Shape.
+  // @ts-expect-error A family must preserve the particular S, not replace it with any Shape.
   subject: arbitraryShape,
 });
 // @ts-expect-error Navigation returns Selected, not Root, even though both are shapes.
@@ -153,6 +156,14 @@ const unfinishedShape: Shape<string, 'h0'> = { kind: 'generic', id: 'h0' };
 const unfinishedClosingSubstitution: Substitution<string, 'g0', never> = () => unfinishedShape;
 
 const correctSelectedType: ModelTypeSyntax<typeof methodType> = adapterGeneration.modelType;
+type WrongAdapterLanguage = AdapterGeneratorSemantics<
+  typeof cellContract,
+  typeof methodType,
+  typeof surfaceType,
+  'cell-declaration',
+  // @ts-expect-error This generator emits the selected native type's language, not an unrelated one.
+  'typescript'
+>;
 // @ts-expect-error A function-record value is not an instance of the chosen method interface.
 const wrongNativeInstance: ModelInstance<typeof methodType> = functionCell;
 const wrongTypeSyntax: ModelTypeSyntax<typeof methodType> = {

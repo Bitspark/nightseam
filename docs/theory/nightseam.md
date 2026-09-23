@@ -7,6 +7,9 @@ native and Wire values realize them. This page connects those objects to the
 representation calculus and names existing evidence. It does not introduce a
 generator API or claim a production implementation of the complete theory.
 
+Read this alongside the [foundations](foundations.md) and the
+[concepts and evidence map](cross-references.md).
+
 ## Choose the subject before choosing its coordinates
 
 `S` describes a declared interface and its parts: operations, arguments, result
@@ -71,19 +74,21 @@ input and output can both be syntax. The language used to implement the
 generator is separate from the languages of the artifacts it consumes and
 produces.
 
-The semantic signatures expose the selected realization:
+The [semantic signatures](foundations.md#5-adapters-generators-and-behavioral-preservation)
+expose the selected realization. Using the result packages defined there:
 
 ```text
-TypeGen[D, L] : Π C. Syntax[D, C]
-                 -> Σ T : NativeRealization[L, shape(C)]. Syntax[L, T]
+TypeGen[D, L] : Π admitted C. Syntax[C, D] -> TypeResult[L, C]
 
-AdapterGen[D, L, U] : Π C. Π T : NativeRealization[L, shape(C)].
-  (Syntax[D, C] × Syntax[L, T]) -> Syntax[L, Adapter(T, U)]
+AdapterGen[D, L, U_(-)] : Π admitted C. Π supported T : NativeRealization[L, shape(C)].
+  (Syntax[C, D] × Syntax[T, L]) -> AdapterResult[L, C, T, U_C]
 ```
 
-`U` is the chosen target realization, such as an interpreted Wire surface, in
-the same shape/behavior domain. The complete generated result retains `C` and
-the selected `T`. An environment `E` can fix naming, binding, target, or strategy.
+`U_C` is the target chosen for each `C`, such as an interpreted Wire surface,
+in that contract's shape/behavior domain. The complete generated result retains
+`C` and the selected `T`. Adapter syntax uses `T`'s language `L`; the admitted
+domain states which contracts and realizations the generator supports.
+An environment `E` can fix naming, binding, target, or strategy.
 After fixing those choices and supplying the common-subject interpretation,
 one can obtain `F_E,C : R_K(C) -> R_M(C)`. The unary map is a view of this richer
 generation operation, not a reason to erase its dependencies.
@@ -96,8 +101,8 @@ lawful instance; a scaffold of unimplemented methods satisfies a weaker claim.
 There are distinct objects at the generator level too: its shape/signature
 `S_g`, behavioral specification `B_g`, and actual semantic function `g`.
 The function implements `(S_g, B_g)` when its behavior satisfies the preservation
-laws for every admitted input. `GeneratorSyntax<H, g>` denotes that function in
-host language `H`. A generator loaded in Go can consume declaration syntax and
+laws for every admitted input. `GeneratorSyntax<G, H>` describes syntax denoting
+a function `g : G` in host language `H`. A generator loaded in Go can consume declaration syntax and
 produce TypeScript syntax. Hosting, input language, and output language are
 independent choices; the acted-upon contract `C` is not the generator's contract.
 
@@ -120,6 +125,9 @@ These are claims about that instance's behavior. The weaker implication
 `i ⊨ C => bind(i) ⊨ C` permits replacing a true cell with a fresh false cell when
 both initial values satisfy `C`. The finite example's forwarding adapter preserves
 behavior; its replacing adapter preserves satisfaction and fails transparency.
+This is observational equivalence, not equality of native instances. The
+[fixed-subject interpretation](foundations.md#15-interpreting-generator-roles)
+uses the common behavioral equivalence class when relating different realizations.
 
 A production interpretation must account for the profile's observable failures,
 lifecycle, ownership and concurrency, or state the environmental assumptions
@@ -167,7 +175,9 @@ A law linking `read` and `write` cannot be recovered from an isolated `read`
 method signature. Composing implementations additionally needs a constructor
 that preserves satisfaction, and behavioral equivalence for routes claiming to
 preserve particular instances. Tree substitution or equal declaration digests
-do not supply these arguments.
+do not supply these arguments. The
+[behavioral lifting obligations](foundations.md#lifting-structural-operations-to-contracts-and-implementations)
+state what must be supplied beyond the structural laws.
 
 ## Where the remaining decisions belong
 
