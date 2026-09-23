@@ -82,6 +82,8 @@ are one number. Entries are in the words of the commits that landed them.
   and "cut on a green tree" means the commit passed the tiers, by CI or by
   the run. The operator's verdict A on #618, recorded on its decision page.
 
+- Update the maintained checkout, cache, Java setup, Swift setup, and artifact upload actions.
+
 ### Fixed
 
 - runtime/py: publish request serials in order, refuse non-increasing incoming serials, and close before identifier exhaustion.
