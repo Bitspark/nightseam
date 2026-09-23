@@ -357,6 +357,18 @@ func ToWire[T any](model protocol.ClientModel[T], environment runtime.AdapterCon
 	complete = true
 	return access, nil
 }
+
+// Declared describes access to this side's model as a declared composition of
+// its complete operation domain: every operation it receives, and the identity
+// check, is a child that selects that path on access. The origin refuses. An
+// assembler composes guards around the children it rebuilds from the parts.
+func Declared(access bitwire.Wire) (duplex.Declared, error) {
+	children := make([]duplex.DeclaredChild, 0, 1)
+	for _, name := range []string{runtime.IdentityMethod} {
+		children = append(children, duplex.DeclaredChild{Key: name, Wire: duplex.At(access, []string{name})})
+	}
+	return duplex.ComposeDeclared(duplex.RefusingOrigin{}, children)
+}
 func declarationIdentity[T any](adapterT runtime.ValueAdapter[T]) (runtime.DeclarationIdentity, error) {
 	digest, err := protocol.WireSchema().Bind(map[string]any{"T": adapterT.Binding}, nil).DeclarationDigest()
 	if err != nil {

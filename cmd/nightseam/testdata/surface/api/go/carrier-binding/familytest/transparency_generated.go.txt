@@ -1,5 +1,6 @@
 func (observingMethods[SEnvelope, SHandle]) Attach(ctx context.Context, params protocol.AttachParams) (protocol.Attachment[SHandle], error)
 func (observingMethods[SEnvelope, SHandle]) Relay(ctx context.Context, params protocol.Frame[SEnvelope]) (probeprotocol.Envelope, error)
+func Declared(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Example[T any](name string) (T, error)
 func Forwarded(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)
 func Local(_ context.Context, wire bitwire.Endpoint) (bitwire.Endpoint, func(), error)

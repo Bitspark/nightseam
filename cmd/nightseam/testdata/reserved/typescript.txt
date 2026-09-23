@@ -21,6 +21,7 @@ ClientModel
 toWire
 fromWire
 prepareFromWire
+declared
 makeAdapter
 RecordedEvent
 Recorder
@@ -35,6 +36,9 @@ Wire
 Endpoint
 HandlerRegistry
 createDispatcher
+at
+Declared
+refusingOrigin
 WireModelContext
 WireCallOptions
 AdapterContext

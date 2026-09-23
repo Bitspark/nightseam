@@ -24,6 +24,7 @@ ClientModel
 ToWire
 FromWire
 PrepareFromWire
+Declared
 Record
 Recorder
 RecordedEvent
