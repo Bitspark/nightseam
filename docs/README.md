@@ -104,6 +104,7 @@ fact once, with both spellings.
 | page | what |
 | --- | --- |
 | [wire.md](runtime/wire.md) | relative-path frame access: local pairs, peer and channel origins, selection, mounting, forwarding, bounds, context and ownership |
+| [examples.md](runtime/examples.md) | runnable example model and approach: bookshop state, retained child access, guards, cancellation, ownership, packaging and CI |
 | [record.md](runtime/record.md) | opaque Wire recording, consumer storage, atomic replay-to-live handoff, bounded subscriber isolation and preserved reference scope |
 | [peer.md](runtime/peer.md) | the peer: the seam beneath, making one, the order it starts in, options and limits, the subprotocol surface, the server's hooks, errors, request metadata, the propagator, the validator |
 | [tunnel.md](runtime/tunnel.md) | the tunnel: making one and when, the surface, options, credit in each language |
@@ -165,7 +166,7 @@ them.
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | the short path in: what to run, how a change is cut |
 | [COLLABORATION.md](../COLLABORATION.md) | how work is organized: the boundary rule, no legacy, parity, the two tiers, goldens, lanes, how a change lands |
 | [conformance/DRIVER.md](../conformance/DRIVER.md) | the conformance suite: the protocol a language's testee speaks to the runner, every op, and how a language joins |
-| [examples/README.md](../examples/README.md) | the getting-started: one family, generated and committed, a Go server and a TypeScript client a consumer installs and runs |
+| [examples/README.md](../examples/README.md) | runnable Go/TypeScript use cases, their models and expected results, with a common packaged-consumer runner and the generated WebSocket probe |
 | [RELEASING.md](../RELEASING.md) | what is published and how a release is cut |
 | [CHANGELOG.md](../CHANGELOG.md) | what landed, by version |
 | [SECURITY.md](../SECURITY.md) | reporting a vulnerability, and what counts as one |

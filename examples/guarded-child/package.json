@@ -1,0 +1,22 @@
+{
+  "name": "guarded-child-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning ts/main.ts"
+  },
+  "dependencies": {
+    "@bitspark/bitwire": "0.2.0",
+    "@nightseam/duplex": "0.6.0",
+    "@nightseam/runtime": "0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.1",
+    "typescript": "7.0.2"
+  }
+}
