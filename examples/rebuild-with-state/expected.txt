@@ -1,0 +1,5 @@
+before: book, pen
+same cart capability: true
+shop: Bookshop
+after: book, pen, notebook
+recommendations: pencil

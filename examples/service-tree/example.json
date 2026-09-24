@@ -1,0 +1,10 @@
+{
+  "title": "Give a parent its own behavior and complete children",
+  "order": 1,
+  "runner": "wire",
+  "availability": "source",
+  "languages": [
+    "go",
+    "ts"
+  ]
+}

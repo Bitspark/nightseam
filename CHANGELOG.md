@@ -30,6 +30,13 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Added
 
+- A runnable Go and TypeScript example catalogue demonstrates service trees,
+  selected children, cart state and admission budgets retained through parent
+  reconstruction, and pending-call cancellation after assembler replacement.
+  Each recipe documents its model, availability and checked output. One runner
+  executes isolated packaged consumers, including the existing WebSocket probe,
+  and the required CI gate holds the catalogue on Linux and Windows.
+
 - Go and TypeScript declared Wire composition follows Bitwire ADR0006: an
   origin and complete child access, including opaque endpoints, selected views,
   forwarders and guards. Copied construction parts retain capability identities

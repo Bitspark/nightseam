@@ -1,0 +1,4 @@
+remaining after first add: 1
+remaining after rebuild and second add: 0
+third add: refused
+cart: book, pen, notebook, pencil

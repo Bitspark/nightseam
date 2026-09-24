@@ -1,0 +1,10 @@
+{
+  "title": "Expand the shop without resetting its cart",
+  "order": 3,
+  "runner": "wire",
+  "availability": "source",
+  "languages": [
+    "go",
+    "ts"
+  ]
+}

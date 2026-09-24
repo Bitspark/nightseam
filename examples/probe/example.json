@@ -1,0 +1,10 @@
+{
+  "title": "Call across Go and TypeScript over WebSockets",
+  "order": 6,
+  "runner": "probe",
+  "availability": "released",
+  "languages": [
+    "go",
+    "ts"
+  ]
+}

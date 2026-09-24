@@ -1,0 +1,10 @@
+{
+  "title": "Cancel the original invocation after replacing access",
+  "order": 5,
+  "runner": "wire",
+  "availability": "source",
+  "languages": [
+    "go",
+    "ts"
+  ]
+}

@@ -70,6 +70,8 @@ export function commands(env) {
   return { run, pnpm };
 }
 
+const probe = "examples/probe";
+
 export async function main(argv = process.argv.slice(2)) {
   const tag = argv[0];
   if (!/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(tag ?? "")) {
@@ -80,8 +82,8 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`round trip: skipped — ${tag} is not a tag in this checkout, so there is nothing published to install; it runs after the tag is pushed`);
     return 0;
   }
-  if (examples.length === 0) {
-    console.error("no example under examples/; the round trip installs the getting-started, the same consumer the packed smoke does");
+  if (!examples.includes(probe)) {
+    console.error("missing examples/probe; the registry round trip requires the generated WebSocket consumer");
     return 1;
   }
   const scratch = mkdtempSync(join(tmpdir(), "nightseam-roundtrip-"));
@@ -104,8 +106,8 @@ export async function roundTrip({ tag, scratch, held, run, pnpm }) {
   // release everywhere, then install once; failures still reach report().
   await waitForRegistries(tag, { log: step });
   const consumer = join(scratch, "consumer");
-  step(`copying ${examples[0]} to a consumer outside the workspace`);
-  copyRegistryConsumer(join(root, examples[0]), consumer);
+  step(`copying ${probe} to a consumer outside the workspace`);
+  copyRegistryConsumer(join(root, probe), consumer);
   // Include packages the example does not use, pinned to this release, so
   // registry availability is followed by an actual import of every entry.
   addPublishedDependencies(consumer, version);
@@ -148,7 +150,7 @@ export async function roundTrip({ tag, scratch, held, run, pnpm }) {
   const out = pnpm(["start"], { cwd: consumer, env: { PROBE_URL: `ws://${address}/probe` } });
   process.stdout.write(out);
   holdProbeExchange(out);
-  console.log(`round trip: ${tag} installed from npm and from the proxy, and ${examples[0]} ran against it`);
+  console.log(`round trip: ${tag} installed from npm and from the proxy, and ${probe} ran against it`);
 }
 
 /**

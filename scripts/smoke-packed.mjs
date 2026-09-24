@@ -60,8 +60,9 @@ if (unbuilt.length) {
   console.error(`not built: ${unbuilt.join(", ")}\nrun pnpm -r build first; what the tarballs hold is dist`);
   process.exit(1);
 }
-if (examples.length === 0) {
-  console.error("no example under examples/; the smoke's consumer is the getting-started, and there is one consumer for both smokes");
+const probe = "examples/probe";
+if (!examples.includes(probe)) {
+  console.error("missing examples/probe; the packed smoke requires the generated WebSocket consumer");
   process.exit(1);
 }
 
@@ -100,8 +101,8 @@ async function smoke() {
   // would read the root workspace and go would read the root module, and
   // resolving through either is the thing being ruled out.
   const consumer = join(scratch, "consumer");
-  step(`copying ${examples[0]} to a consumer outside the workspace`);
-  cpSync(join(root, examples[0]), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });
+  step(`copying ${probe} to a consumer outside the workspace`);
+  cpSync(join(root, probe), consumer, { recursive: true, filter: source => !/[\\/](node_modules|dist)$/.test(source) });
   registryPolicy(consumer);
   mkdirSync(join(consumer, "tarballs"));
   for (const file of Object.values(packed)) cpSync(join(tarballs, file), join(consumer, "tarballs", file));
@@ -164,7 +165,7 @@ async function smoke() {
   const out = pnpm(["start"], { cwd: consumer, env: { PROBE_URL: `ws://${address}/probe` } });
   process.stdout.write(out);
   holdProbeExchange(out);
-  console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@${rehearsal.version} installed from outside the workspace, and ${examples[0]} ran against them`);
+  console.log(`smoke: ${Object.keys(packed).length} packages and ${module}@${rehearsal.version} installed from outside the workspace, and ${probe} ran against them`);
 }
 
 /**

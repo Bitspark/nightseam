@@ -133,8 +133,27 @@ jobs:
           swift-version: "6.1.3"
       - run: node scripts/swift.mjs
 
+  # These are ordinary packaged consumers, outside both repository workspaces.
+  # Run the documented catalogue command on both supported host platforms.
+  examples:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: node scripts/examples.mjs check --all
+
   full:
-    needs: swift
+    needs: [swift, examples]
     if: always()
     runs-on: ubuntu-latest
     env:
@@ -142,6 +161,9 @@ jobs:
     steps:
       - name: Require the Swift package gate
         if: needs.swift.result != 'success'
+        run: exit 1
+      - name: Require the runnable examples gate
+        if: needs.examples.result != 'success'
         run: exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -257,7 +279,7 @@ jobs:
       # Prepare the same package notices the release includes; the smoke
       # refuses any tarball missing them, including during a local run.
       - run: node --input-type=module -e "import { copyNotices } from './scripts/packages.mjs'; copyNotices();"
-      - run: node scripts/smoke-packed.mjs
+      # The examples matrix already ran the packed Go/TypeScript probe.
       - run: node scripts/smoke-rust-packed.mjs
       - run: go vet ./...
         working-directory: otel/go
