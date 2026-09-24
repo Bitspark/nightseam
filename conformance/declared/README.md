@@ -40,6 +40,60 @@ evidence. Actual endpoint scheduling, invocation and carrier mapping remain
 the runtime's. Plain composition delegates every message unchanged; destinations
 and profiles decide validity, and the runtime owns captured invocation controls.
 
+## Generated models across carriers
+
+Bitwire's cases drive handwritten origins. The generated scenarios
+[`wire-declared-local`](../scenarios/generated/wire-declared-local.json) and
+[`wire-declared-carriers`](../scenarios/generated/wire-declared-carriers.json)
+drive a generated Cell model through the same production facilities, one row
+of the [declared composition table](../tables/declared-composition.json) at a
+time:
+
+- The caller builds a root, then `svc`, then the operation domain the generated
+  `Declared` / `declared` spells. Counting consumer guards wrap the root's
+  access and `svc`.
+- The caller interprets the model with generated `FromWire` over
+  `duplex.Through`, so its sends go through declared access and the server's
+  callbacks and events reach it on the carrier.
+
+| axis | values |
+| --- | --- |
+| access | the `svc` node itself; `svc` selected through the root; the same after rebuilding every description from its parts; the same through a local forwarding relay |
+| slot | a string; a live unary function; a live factory that takes a callback |
+| carrier | the model's own bounded local pair, in one process; a WebSocket; a prepared tunnel channel over a WebSocket |
+| languages | Go and TypeScript, the server in either and the caller in either |
+
+Each run holds these, in order:
+
+1. Calls, and the server's callback into the caller.
+2. Events both ways.
+3. One refused message, after which the model, the access and the carrier are
+   still usable.
+4. A reply delayed across a complete rebuild and a rebind of `svc` to another
+   prefix, while calls through the rebound tree reach the new target.
+5. A caller's cancellation that reaches the body and then cancels the body's
+   own callback, so it crosses the carrier both ways.
+6. Metadata the caller established, observed at the server.
+7. Guard checks: one per request or event at each guard crossed, none for a
+   cancel.
+8. Teardown that releases every live binding to zero and leaves the borrowed
+   carrier usable for a fresh interpretation.
+
+**Combinations exercised.**
+
+- *CI* runs the Go star's pairings: Go/Go, Go/TypeScript and TypeScript/Go.
+  Each pairing runs 12 local rows on its first side and 24 carrier rows in
+  both roles: 60 runs per pairing, 180 in all.
+- *Locally*, on 2026-09-24, TypeScript/TypeScript also passed its 60, with all
+  four pairings green at 240 runs.
+- *Nightly* matrix runs cover every pairing.
+- *Not exercised:* the six other ports, which have no declared construction
+  API yet (#702), and any carrier fault. The carriers are assumed connected,
+  ordered and nonfaulting.
+- *What is compared:* a local pair keeps the caller's return capability object.
+  A physical hop correlates each reply and cancel with its own request, and the
+  scenarios compare observations, not objects.
+
 The structural contract follows Bitwire ADR0006. No tree codec or additional
 package is embedded or imported here. Canonical serialization, verified
 authority, richer interception, other runtime languages and

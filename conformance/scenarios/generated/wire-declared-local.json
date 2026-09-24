@@ -1,0 +1,28 @@
+{
+  "name": "GEN-DECLARED-LOCAL a generated model behind declared composition keeps its behavior on its own local pair",
+  "description": "The caller interprets the generated Cell server through declared access over the model's own bounded local pair: root, then svc, then the operation domain the generated description spells, bound directly at svc behind its guard, selected below the root, after a complete rebuild, or through a local forwarding relay. One run holds calls, the server's callback and events both ways, one refused message that leaves everything usable, a reply delayed across a complete rebuild and a rebind of svc elsewhere, a caller's cancellation that reaches the body and its own callback, metadata established at the server, and teardown that releases every binding and leaves the borrowed carrier usable for a fresh interpretation. Local composition keeps the caller's return capability object. Consumer guards around the root's access and around svc check requests and events once per crossing, and pass cancels and replies through.",
+  "layer": "generated",
+  "needs": [
+    "generated",
+    "live"
+  ],
+  "foreach": {
+    "table": "tables/declared-composition.json",
+    "as": "row",
+    "where": {
+      "mode": "local"
+    }
+  },
+  "steps": [
+    {
+      "on": "a",
+      "op": "gen.wire_declared",
+      "args": {
+        "access": "$row.access",
+        "slot": "$row.slot",
+        "within_ms": 15000
+      },
+      "expect": "$row.local"
+    }
+  ]
+}

@@ -137,13 +137,13 @@ pairing.
 <!-- matrix:start -->
 | language | tier | core | generator | tunnel | live | observability | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cpp` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `cpp` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
 | `go` *(reference)* | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
-| `haskell` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `java` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `python` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
-| `rust` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
-| `swift` | 4 | ✓ | — 336 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `haskell` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `java` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `python` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 2 skipped | ok |
+| `rust` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
+| `swift` | 4 | ✓ | — 456 skipped | — 12 skipped | — 32 skipped | ✓ 18 skipped | ok |
 | `typescript` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ok |
 
 Planned to rise as they hold: `cpp`, `haskell`, `python`, `rust` at tier 2.

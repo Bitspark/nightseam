@@ -1,0 +1,597 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	cellbinding "example.test/generated/api/go/cell-binding"
+	cell "example.test/generated/api/go/cell-protocol"
+	combinator "example.test/generated/api/go/combinator-protocol"
+	"fmt"
+	bitwire "github.com/Bitspark/bitwire/wire/go"
+	"github.com/Bitspark/nightseam/duplex/go"
+	"github.com/Bitspark/nightseam/live/go"
+	"github.com/Bitspark/nightseam/runtime/go"
+	"github.com/Bitspark/nightseam/tunnel/go"
+	"sync"
+)
+
+// declaredGate is one guard's state. It counts its checks and can refuse the
+// next one, so that a refusal is observed as one refused message.
+type declaredGate struct {
+	mu     sync.Mutex
+	checks int
+	refuse bool
+}
+
+var errDeclaredRefused = errors.New("refused by a declared guard")
+
+func (g *declaredGate) admit() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.checks++
+	if g.refuse {
+		g.refuse = false
+		return errDeclaredRefused
+	}
+	return nil
+}
+
+// declaredGuard is consumer interception composed around access, as Bitwire
+// ADR 0006 puts it. It checks requests and events once per crossing and
+// passes replies and cancels through unchecked, so admitted work keeps them.
+type declaredGuard struct {
+	gate  *declaredGate
+	inner bitwire.Wire
+}
+
+func (g declaredGuard) Send(path []string, message bitwire.Message) error {
+	if kind := message.Frame.Kind; kind == bitwire.ProfileRequest || kind == bitwire.ProfileEvent {
+		if err := g.gate.admit(); err != nil {
+			return err
+		}
+	}
+	return g.inner.Send(path, message)
+}
+func (g *declaredGate) refuseNext() { g.mu.Lock(); g.refuse = true; g.mu.Unlock() }
+func (g *declaredGate) count() int  { g.mu.Lock(); defer g.mu.Unlock(); return g.checks }
+
+// declaredMirror answers the server's callback, holding it when asked so that
+// a reply can be delayed across a rebuild, or its cancellation observed.
+type declaredMirror[T any] struct {
+	mu        sync.Mutex
+	hold      chan struct{}
+	entered   chan struct{}
+	cancelled chan struct{}
+}
+
+func newDeclaredMirror[T any]() *declaredMirror[T] {
+	return &declaredMirror[T]{entered: make(chan struct{}, 1), cancelled: make(chan struct{}, 1)}
+}
+
+// holding makes the next callback wait until the returned channel is closed.
+func (m *declaredMirror[T]) holding() chan struct{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.hold = make(chan struct{})
+	return m.hold
+}
+func (m *declaredMirror[T]) Mirror(ctx context.Context, params cell.PutParams[T]) (T, error) {
+	m.mu.Lock()
+	hold := m.hold
+	m.hold = nil
+	m.mu.Unlock()
+	if hold == nil {
+		return params.Value, nil
+	}
+	m.entered <- struct{}{}
+	select {
+	case <-hold:
+		return params.Value, nil
+	case <-ctx.Done():
+		m.cancelled <- struct{}{}
+		return params.Value, ctx.Err()
+	}
+}
+
+// declaredTree is the caller's declared composition of access to the server
+// model: a guarded root, then a guarded svc, then the model's complete
+// operation domain as the generated description spells it. The assembler keeps
+// both descriptions; a guard is opaque access, retained whole.
+type declaredTree struct{ root, svc *declaredGate }
+
+type declaredDescriptions struct{ model, root duplex.Declared }
+
+func (t declaredTree) build(target bitwire.Wire) (declaredDescriptions, error) {
+	model, err := cellbinding.Declared(target)
+	if err != nil {
+		return declaredDescriptions{}, err
+	}
+	return t.over(model)
+}
+
+func (t declaredTree) over(model duplex.Declared) (declaredDescriptions, error) {
+	root, err := duplex.ComposeDeclared(duplex.RefusingOrigin{}, []duplex.DeclaredChild{{Key: "svc", Wire: declaredGuard{t.svc, model.Bind()}}})
+	return declaredDescriptions{model, root}, err
+}
+
+// rebuilt recomposes both descriptions from their parts, the model first: a
+// complete cut at every depth, retaining each origin, child and guard state.
+func (t declaredTree) rebuilt(d declaredDescriptions) (declaredDescriptions, error) {
+	model, err := duplex.ComposeDeclared(d.model.Decompose())
+	if err != nil {
+		return declaredDescriptions{}, err
+	}
+	return t.over(model)
+}
+
+// access binds the caller's access: the model node itself behind its guard,
+// svc selected through the guarded root, or the same after a complete rebuild.
+func (t declaredTree) access(d declaredDescriptions, access string) (bitwire.Wire, error) {
+	switch access {
+	case "direct":
+		return declaredGuard{t.svc, d.model.Bind()}, nil
+	case "selected", "forwarded":
+		return duplex.At(declaredGuard{t.root, d.root.Bind()}, []string{"svc"}), nil
+	case "reconstructed":
+		rebuilt, err := t.rebuilt(d)
+		if err != nil {
+			return nil, err
+		}
+		return duplex.At(declaredGuard{t.root, rebuilt.root.Bind()}, []string{"svc"}), nil
+	}
+	return nil, fmt.Errorf("unknown declared access %s", access)
+}
+
+// declaredClient interprets the server model through declared access. Its own
+// origins select on target, where the server's callbacks and events arrive.
+type declaredClient[T any] struct {
+	values  wireValues[T]
+	access  string
+	tree    declaredTree
+	origin  bitwire.Endpoint
+	target  bitwire.Endpoint
+	parts   declaredDescriptions
+	server  cell.Server[T]
+	mirror  *declaredMirror[T]
+	changed chan T
+	scope   *live.Scope
+	env     runtime.AdapterContext
+	cleanup []func()
+}
+
+func newDeclaredClient[T any](values wireValues[T], access string) *declaredClient[T] {
+	return &declaredClient[T]{values: values, access: access, tree: declaredTree{&declaredGate{}, &declaredGate{}}, mirror: newDeclaredMirror[T](), changed: make(chan T, 4)}
+}
+
+// prepare installs the interpretation on a carrier origin before its reads
+// start; the returned completion runs once the carrier is attached.
+func (c *declaredClient[T]) prepare(origin bitwire.Endpoint, environment runtime.AdapterContext) (func(context.Context) error, error) {
+	c.origin, c.target, c.env = origin, origin, environment
+	if c.access == "forwarded" {
+		left, right, err := runtime.NewWirePair(environment.Options)
+		if err != nil {
+			return nil, err
+		}
+		detach, err := runtime.ForwardWire(right, origin)
+		if err != nil {
+			_ = left.Close(1000, "")
+			_ = right.Close(1000, "")
+			return nil, err
+		}
+		c.cleanup = append(c.cleanup, func() { detach(); _ = left.Close(1000, ""); _ = right.Close(1000, "") })
+		c.target = left
+	}
+	parts, err := c.tree.build(c.target)
+	if err != nil {
+		return nil, err
+	}
+	c.parts = parts
+	access, err := c.tree.access(parts, c.access)
+	if err != nil {
+		return nil, err
+	}
+	through := duplex.Through(c.target, access)
+	c.cleanup = append(c.cleanup, func() { _ = through.Close(1000, "") })
+	complete, unbind, err := cellbinding.PrepareFromWire(through, environment, c.values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	c.cleanup = append(c.cleanup, unbind)
+	return func(ctx context.Context) error {
+		model, err := complete(ctx)
+		if err != nil {
+			return err
+		}
+		c.server, err = model(cell.Client[T]{Methods: c.mirror, Events: wireChanged[T]{c.changed}})
+		return err
+	}, nil
+}
+
+func declaredWait[V any](ctx context.Context, channel <-chan V, what string) (V, error) {
+	select {
+	case value := <-channel:
+		return value, nil
+	case <-ctx.Done():
+		var zero V
+		return zero, fmt.Errorf("%s: %w", what, ctx.Err())
+	}
+}
+
+func declaredCode(err error) string {
+	var public *runtime.PublicError
+	if errors.As(err, &public) {
+		return public.Code
+	}
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	if errors.Is(err, errDeclaredRefused) {
+		return "refused"
+	}
+	if err == nil {
+		return ""
+	}
+	return "internal"
+}
+
+type declaredOutcome[T any] struct {
+	value T
+	err   error
+}
+
+// exercise holds every behavior this access promises, in one run: calls, a
+// callback, events both ways, a refused message, a reply delayed across a
+// complete rebuild and a rebind, a cancellation carried back through the
+// callback, and teardown that leaves the borrowed carrier usable.
+func (c *declaredClient[T]) exercise(ctx context.Context) (map[string]any, error) {
+	server := c.server
+	first, err := server.Methods.Put(ctx, cell.PutParams[T]{Value: c.values.make(1)})
+	if err != nil {
+		return nil, err
+	}
+	var retained T
+	if c.values.retain {
+		if retained, err = server.Methods.Get(ctx); err != nil {
+			return nil, err
+		}
+	}
+	second, err := server.Methods.Put(ctx, cell.PutParams[T]{Value: c.values.make(2)})
+	if err != nil {
+		return nil, err
+	}
+	value, err := server.Methods.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reverse, err := server.Methods.RoundTrip(ctx, cell.PutParams[T]{Value: value})
+	if err != nil {
+		return nil, err
+	}
+	if err = server.Events.Noted(ctx, cell.PutParams[T]{Value: c.values.make(1)}); err != nil {
+		return nil, err
+	}
+	change, err := declaredWait(ctx, c.changed, "changed event")
+	if err != nil {
+		return nil, err
+	}
+
+	// One refused message leaves the model, the access and the carrier usable.
+	c.tree.svc.refuseNext()
+	_, refusal := server.Methods.Put(ctx, cell.PutParams[T]{Value: c.values.make(1)})
+	after, err := server.Methods.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// A reply delayed across a complete rebuild and a rebind of svc elsewhere.
+	established := runtime.WithMeta(ctx, runtime.Meta{"access": c.access})
+	release := c.mirror.holding()
+	delayed := make(chan declaredOutcome[T], 1)
+	go func() {
+		v, err := server.Methods.RoundTrip(established, cell.PutParams[T]{Value: value})
+		delayed <- declaredOutcome[T]{v, err}
+	}()
+	if _, err = declaredWait(ctx, c.mirror.entered, "held callback"); err != nil {
+		return nil, err
+	}
+	rebuilt, err := c.tree.rebuilt(c.parts)
+	if err != nil {
+		return nil, err
+	}
+	elsewhere, err := cellbinding.Declared(duplex.At(c.target, []string{"elsewhere"}))
+	if err != nil {
+		return nil, err
+	}
+	origin, children := rebuilt.root.Decompose()
+	for i := range children {
+		if children[i].Key == "svc" {
+			children[i].Wire = declaredGuard{c.tree.svc, elsewhere.Bind()}
+		}
+	}
+	rebound, err := duplex.ComposeDeclared(origin, children)
+	if err != nil {
+		return nil, err
+	}
+	var raw json.RawMessage
+	reboundErr := runtime.CallWire(ctx, declaredGuard{c.tree.root, rebound.Bind()}, []string{"svc", "get"}, nil, &raw)
+	close(release)
+	late, err := declaredWait(ctx, delayed, "delayed reply")
+	if err != nil {
+		return nil, err
+	}
+	if late.err != nil {
+		return nil, late.err
+	}
+	lateChange, err := declaredWait(ctx, c.changed, "delayed changed event")
+	if err != nil {
+		return nil, err
+	}
+
+	// A cancellation through the admitting access reaches the body, which
+	// cancels its own callback: the cancel crosses the carrier both ways.
+	c.mirror.holding()
+	cancellable, cancel := context.WithCancel(established)
+	defer cancel()
+	cancelled := make(chan error, 1)
+	go func() {
+		_, err := server.Methods.RoundTrip(cancellable, cell.PutParams[T]{Value: value})
+		cancelled <- err
+	}()
+	if _, err = declaredWait(ctx, c.mirror.entered, "callback to cancel"); err != nil {
+		return nil, err
+	}
+	cancel()
+	callErr, err := declaredWait(ctx, cancelled, "cancelled call")
+	if err != nil {
+		return nil, err
+	}
+	if _, err = declaredWait(ctx, c.mirror.cancelled, "cancelled callback"); err != nil {
+		return nil, err
+	}
+
+	observe := func(v T) (any, error) { return c.values.observe(ctx, v) }
+	result := map[string]any{
+		"revisions": []int64{first, second},
+		"refusal":   declaredCode(refusal),
+		"rebound":   declaredCode(reboundErr),
+		"cancelled": declaredCode(callErr),
+		"checks":    map[string]int{"root": c.tree.root.count(), "svc": c.tree.svc.count()},
+	}
+	for name, v := range map[string]T{"value": value, "reverse": reverse, "changed": change, "after_refusal": after, "delayed": late.value, "delayed_changed": lateChange} {
+		if result[name], err = observe(v); err != nil {
+			return nil, err
+		}
+	}
+	if c.values.retain {
+		if result["retained"], err = observe(retained); err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+// close releases this side's bindings and detaches the interpretation. The
+// borrowed carrier stays usable: a fresh interpretation completes over it.
+func (c *declaredClient[T]) close(ctx context.Context) (map[string]any, error) {
+	released := wireEmptyCounts()
+	if c.scope != nil {
+		if err := c.scope.Owner().Release(); err != nil {
+			return nil, err
+		}
+		if err := ownersZero(c.scope, within(nil)); err != nil {
+			return nil, err
+		}
+		released = ownerCounts(c.scope)
+	}
+	c.shutdown()
+	complete, unbind, err := cellbinding.PrepareFromWire(c.origin, c.env, c.values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	defer unbind()
+	_, err = complete(ctx)
+	return map[string]any{"released_counts": released, "borrowed": err == nil}, nil
+}
+
+func (c *declaredClient[T]) shutdown() {
+	for i := len(c.cleanup) - 1; i >= 0; i-- {
+		c.cleanup[i]()
+	}
+	c.cleanup = nil
+}
+
+// declaredHandle is one declared caller over a physical carrier.
+type declaredHandle struct {
+	mu       sync.Mutex
+	peer     *runtime.Peer
+	exercise func(context.Context) (map[string]any, error)
+	close    func(context.Context) (map[string]any, error)
+	stop     func()
+}
+
+func (h *declaredHandle) shutdown() {
+	h.mu.Lock()
+	peer, stop := h.peer, h.stop
+	h.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	if peer != nil {
+		_ = peer.Close()
+	}
+}
+
+func declaredDial[T any](ctx context.Context, values wireValues[T], carrier, access, url, slot string) (*declaredHandle, error) {
+	client := newDeclaredClient(values, access)
+	h := &declaredHandle{exercise: client.exercise, close: client.close, stop: client.shutdown}
+	var complete func(context.Context) error
+	prepare := func(peer *runtime.Peer) error {
+		environment := runtime.AdapterContext{Options: runtime.Options{}}
+		if values.adapter.NeedsContext {
+			var err error
+			if environment, err = fixtureLiveContext(peer, runtime.Options{}); err != nil {
+				return err
+			}
+			client.scope, _ = live.ScopeOf(peer)
+		}
+		var err error
+		complete, err = client.prepare(peer.Wire(), environment)
+		return err
+	}
+	var err error
+	switch carrier {
+	case "socket":
+		h.peer, _, err = runtime.Dial(context.Background(), url, runtime.DialOptions{Options: runtime.Options{Prepare: prepare}})
+	case "channel":
+		var multiplex *tunnel.Tunnel
+		h.peer, _, err = runtime.Dial(context.Background(), url, runtime.DialOptions{Options: runtime.Options{Prepare: func(peer *runtime.Peer) (err error) { multiplex, err = tunnel.New(peer, tunnel.Options{}); return }}})
+		if err == nil {
+			var digest string
+			if digest, err = wireCarrierDigest(slot); err == nil {
+				_, err = multiplex.Open(ctx, "cell", digest, runtime.Options{Prepare: prepare})
+			}
+		}
+	default:
+		return nil, fmt.Errorf("unknown declared carrier %s", carrier)
+	}
+	if err == nil {
+		err = complete(ctx)
+	}
+	if err != nil {
+		h.shutdown()
+		return nil, err
+	}
+	return h, nil
+}
+
+// declaredLocal runs the same caller over the model's own bounded local pair,
+// with the server in this process, and reads the server's side directly.
+func declaredLocal[T any](ctx context.Context, values wireValues[T], access string) (map[string]any, error) {
+	client := newDeclaredClient(values, access)
+	defer client.shutdown()
+	callee := runtime.AdapterContext{}
+	if values.adapter.NeedsContext {
+		a, b := duplex.Pipe(1 << 20)
+		var callerScope, calleeScope *live.Scope
+		prepare := func(scope **live.Scope) runtime.Options {
+			return runtime.Options{Prepare: func(peer *runtime.Peer) (err error) { *scope, err = live.Over(peer, live.Options{}); return }}
+		}
+		pa, err := runtime.NewPeer(context.Background(), a, runtime.ClientRole, prepare(&callerScope))
+		if err != nil {
+			return nil, err
+		}
+		defer pa.Close()
+		pb, err := runtime.NewPeer(context.Background(), b, runtime.ServerRole, prepare(&calleeScope))
+		if err != nil {
+			return nil, err
+		}
+		defer pb.Close()
+		client.scope = callerScope
+		client.env = runtime.AdapterContext{ValueEnvironment: live.ValueEnvironment(callerScope)}
+		callee.ValueEnvironment = live.ValueEnvironment(calleeScope)
+		defer func() { _ = calleeScope.Owner().Release() }()
+	}
+	implementation := &wireCell[T]{noted: make(chan T, 4)}
+	wire, err := cellbinding.ToWire(func(remote cell.Client[T]) (cell.Server[T], error) {
+		implementation.remote = remote
+		return cell.Server[T]{Methods: implementation, Events: wireNoted[T]{implementation.noted}}, nil
+	}, callee, values.adapter)
+	if err != nil {
+		return nil, err
+	}
+	defer wire.Close(1000, "")
+	complete, err := client.prepare(wire, client.env)
+	if err != nil {
+		return nil, err
+	}
+	if err = complete(ctx); err != nil {
+		return nil, err
+	}
+	result, err := client.exercise(ctx)
+	if err != nil {
+		return nil, err
+	}
+	note, err := declaredWait(ctx, implementation.noted, "noted event")
+	if err != nil {
+		return nil, err
+	}
+	implementation.mu.Lock()
+	revision, meta := implementation.puts, implementation.meta
+	implementation.mu.Unlock()
+	if result["noted"], err = values.observe(ctx, note); err != nil {
+		return nil, err
+	}
+	if meta == nil {
+		meta = runtime.Meta{}
+	}
+	result["server"] = map[string]any{"revision": revision, "meta": meta}
+	closed, err := client.close(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range closed {
+		result[key] = value
+	}
+	return result, nil
+}
+
+func declaredSlot(slot string, run func(any) (any, error)) (any, error) {
+	switch slot {
+	case "", "string":
+		return run(wireStrings())
+	case "unary":
+		return run(wireUnaries())
+	case "factory":
+		return run(wireFactories())
+	}
+	return nil, fmt.Errorf("unknown declared slot %s", slot)
+}
+
+func (t *testee) wireDeclaredDispatch(op string, raw map[string]json.RawMessage) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), within(raw))
+	defer cancel()
+	slot, access := str(raw, "slot"), str(raw, "access")
+	switch op {
+	case "gen.wire_declared":
+		return declaredSlot(slot, func(values any) (any, error) {
+			switch v := values.(type) {
+			case wireValues[string]:
+				return declaredLocal(ctx, v, access)
+			case wireValues[combinator.Unary]:
+				return declaredLocal(ctx, v, access)
+			case wireValues[combinator.Factory]:
+				return declaredLocal(ctx, v, access)
+			}
+			return nil, fmt.Errorf("unknown declared slot %s", slot)
+		})
+	case "gen.wire_declared_dial":
+		handle, err := declaredSlot(slot, func(values any) (any, error) {
+			carrier, url := str(raw, "carrier"), str(raw, "url")
+			switch v := values.(type) {
+			case wireValues[string]:
+				return declaredDial(ctx, v, carrier, access, url, slot)
+			case wireValues[combinator.Unary]:
+				return declaredDial(ctx, v, carrier, access, url, slot)
+			case wireValues[combinator.Factory]:
+				return declaredDial(ctx, v, carrier, access, url, slot)
+			}
+			return nil, fmt.Errorf("unknown declared slot %s", slot)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"handle": t.mint("declared", handle)}, nil
+	case "gen.wire_declared_exercise", "gen.wire_declared_close":
+		h, err := liveOf[*declaredHandle](t, raw)
+		if err != nil {
+			return nil, err
+		}
+		if op == "gen.wire_declared_close" {
+			return h.close(ctx)
+		}
+		return h.exercise(ctx)
+	}
+	return nil, fail("unsupported", "no declared wire operation %s", op)
+}
