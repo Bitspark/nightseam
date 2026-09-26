@@ -11,6 +11,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ### Clarified
 
+- Distinguish the adopted `Data`/`DataTree` and `Wire`/`WireTree` names from
+  Nightseam's pinned Bitwire v0.2.0 addressed `Wire` API, and document the full
+  common tree contract and coordinated successor migration boundary.
 - Reject patterned coordinate families in the theory type model and cross-reference
   every exported type and law; the standalone guide includes all theory pages
   with portable internal links.

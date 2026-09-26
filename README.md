@@ -5,6 +5,14 @@
 [![npm](https://img.shields.io/npm/v/@nightseam/runtime.svg)](https://www.npmjs.com/package/@nightseam/runtime)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+**Successor naming:** the adopted family model uses addressless `Wire.send(message)`
+and `Data.read()`, with full `WireTree = DeixisNode<Wire>` and
+`DataTree = DeixisNode<Data>` structures. This checkout still uses Bitwire
+**v0.2.0**, whose historical `Wire.send(path, message)` is addressed access.
+The [naming and release boundary](docs/runtime/wire.md#primitive-and-tree-names)
+distinguishes those APIs and the coordinated migration into the successor
+repositories tracked by [#725](https://github.com/Bitspark/nightseam/issues/725).
+
 Declare a duplex API once, in tiers of JSON. Get a typed server and a typed
 client in Go and TypeScript — every one of them typed in
 both directions, since a client serves what the server calls — all speaking
