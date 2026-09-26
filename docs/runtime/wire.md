@@ -1,5 +1,61 @@
 # Relative-path wires
 
+This page's runtime reference describes the pinned **Bitwire v0.2.0** API.
+Its addressed `Wire` name predates the adopted primitive/tree names below.
+
+## Primitive and tree names
+
+The maintainer adopted the following names on 2026-09-26 for the successor
+contracts. These signatures describe that model, not exports from this
+checkout's v0.2.0 dependency:
+
+```ts
+interface Data {
+  read(): Promise<Bytes>;
+}
+
+interface Wire {
+  send(message: Message): void;
+}
+
+type DataTree = DeixisNode<Data>;
+type WireTree = DeixisNode<Wire>;
+```
+
+`Data` reads fixed byte content; `Wire` sends to one destination without a path.
+Both tree types have the same full Deixis structure: an own primitive, a complete
+map of children keyed by exact bytes, relative-path selection, decomposition
+and recomposition. The structure is finite and acyclic. Changing the own-value
+type changes the primitive operation, not those structural obligations.
+For a path whose selection exists, their derived operations are:
+
+```text
+read(tree, path)          = select(tree, path).own().read()
+send(tree, path, message) = select(tree, path).own().send(message)
+```
+
+Selection distinguishes a missing child from an existing child whose primitive
+refuses an operation. `DataTree` holds readers rather than materialized byte
+values; reading its primitives obtains the bytes needed for a data encoding.
+A send-only addressed handle cannot expose the complete tree merely by being
+renamed: successful sends or refusals do not reveal its child map.
+
+Nightseam's published ports and generated adapters still import Bitwire v0.2.0,
+where `Wire.send(path, message)` means addressed send access. Those release pins
+and the reference below remain unchanged. In an adopting revision, the old
+pathful shape is explicitly an `AddressedWire` bridge; it is neither the new
+primitive `Wire` nor a full `WireTree`. Historical references to a primitive
+`End` or a bytes-valued tree named `Data` are superseded by the names above.
+
+The [successor handoff](https://github.com/Bitspark/nightseam/issues/725) assigns
+the contracts to [Bitwire](https://github.com/Bitspark/bitwire) and the runtime
+to bitruntime. Any adopting consumer upgrade must move its runtime ports,
+generators, generated adapters, dependency
+pins and conformance tests together. The primitive/tree rename does not itself
+revise the profile's frame encoding or prove that migration has shipped.
+
+## Pinned v0.2.0 reference
+
 A Wire is access to an origin. Its message is one of the profile's request,
 response, event or cancel frames, and its path is relative to that origin.
 The contract is [Bitwire](https://github.com/Bitspark/bitwire)'s, adopted at
