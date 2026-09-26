@@ -272,3 +272,8 @@ published and how a release is cut.
 
 Apache License, Version 2.0: [LICENSE](LICENSE), with [NOTICE](NOTICE)
 beside it.
+
+## Source layout
+
+Read [LAYOUT.md](LAYOUT.md) for the component-first, two-letter language
+directory convention and this repository's adoption notes.

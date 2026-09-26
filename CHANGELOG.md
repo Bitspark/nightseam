@@ -6,6 +6,9 @@ are one number. Entries are in the words of the commits that landed them.
 
 ## Unreleased
 
+- Document the family component-first layout with two-letter language directories,
+  command paths and explicit adoption notes for existing source.
+
 ### Clarified
 
 - Reject patterned coordinate families in the theory type model and cross-reference
