@@ -71,8 +71,8 @@
     }
   },
   "dependencies": {
-    "@bitspark/archon": "^0.7.0",
-    "@bitspark/archon-sdk": "^0.7.0",
+    "@bitspark/archon": "^0.8.1",
+    "@bitspark/archon-sdk": "^0.8.1",
     "@nightseam/runtime": "workspace:*",
     "@noble/hashes": "^2.2.0"
   },

@@ -167,8 +167,8 @@ importers:
   .:
     devDependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:duplex/ts
@@ -182,11 +182,11 @@ importers:
         specifier: workspace:*
         version: link:tunnel/ts
       '@types/node':
-        specifier: ^26.6.1
-        version: 26.6.1
+        specifier: ^26.6.3
+        version: 26.6.3
       prettier:
-        specifier: 3.9.8
-        version: 3.9.8
+        specifier: 3.9.9
+        version: 3.9.9
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -194,11 +194,11 @@ importers:
   auth/ts:
     dependencies:
       '@bitspark/archon':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@bitspark/archon-sdk':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
@@ -216,8 +216,8 @@ importers:
   conformance/ts:
     dependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
@@ -232,8 +232,8 @@ importers:
         version: link:../../tunnel/ts
     devDependencies:
       '@types/node':
-        specifier: ^26.6.1
-        version: 26.6.1
+        specifier: ^26.6.3
+        version: 26.6.3
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.1
@@ -241,17 +241,17 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
       ws:
-        specifier: ^8.18.0
-        version: 8.21.3
+        specifier: ^8.22.0
+        version: 8.22.0
 
   docs/theory:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.1
-        version: 26.6.1
+        specifier: ^26.6.3
+        version: 26.6.3
       marked:
-        specifier: 17.0.5
-        version: 17.0.5
+        specifier: 18.0.14
+        version: 18.0.14
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -259,8 +259,8 @@ importers:
   duplex/ts:
     dependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -269,8 +269,8 @@ importers:
   live/ts:
     dependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@nightseam/runtime':
         specifier: workspace:*
         version: link:../../runtime/ts
@@ -316,8 +316,8 @@ importers:
   runtime/ts:
     dependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
@@ -329,8 +329,8 @@ importers:
   tunnel/ts:
     dependencies:
       '@bitspark/bitwire':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@nightseam/duplex':
         specifier: workspace:*
         version: link:../../duplex/ts
@@ -344,14 +344,14 @@ importers:
 
 packages:
 
-  '@bitspark/archon-sdk@0.7.0':
-    resolution: {integrity: sha512-NzTp54F6yRHpA12Rgg4YjmSAEzyE7JeGPlx1xhJEH6gOAPKGZPIOI1MCzKtLBahDDOu1Nmj2xXmBNGpbWiFRUg==}
+  '@bitspark/archon-sdk@0.8.1':
+    resolution: {integrity: sha512-BbrfGMty1dijkFM8PFx91rVWQhAaHFy7N7cfergmY4WI1sMFuzghgAjVtH/eIBSjeq6Mmc74VCLcz36tkIjM3g==}
 
-  '@bitspark/archon@0.7.0':
-    resolution: {integrity: sha512-TRKeeOi16PxlqU3KhciEPjlCQQs0sS0gawU3iP6nd1sW/bI2j73RAJ4Jcmu+ONJGcp8NanuaoTvY3qQ9Mczn0Q==}
+  '@bitspark/archon@0.8.1':
+    resolution: {integrity: sha512-nX/bQA9n7YmWpd7pwjcGri1c3+OpOl+P8yuqA62qGe7/bZYDZ49g3DqIY5m5YC6LhUexy5svoOVbcYrcMsIbaw==}
 
-  '@bitspark/bitwire@0.2.0':
-    resolution: {integrity: sha512-1vKXTpkzzrrStbMOH1EetDngd957DQYIT2MtAhkfgQiym6HY7RHURDGY+9h2fBjAFdGq1Izg71FyumkumKUb5Q==}
+  '@bitspark/bitwire@0.3.0':
+    resolution: {integrity: sha512-6tqme+2nfJAp2xwmYIrO7hSSh+6TrJ7gPIb8SZX4dQAoZZHs/iqPPsZFv8vJsMUBejzgBxwNtOoC3PjI0KMPRw==}
 
   '@noble/curves@2.4.0':
     resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
@@ -399,8 +399,8 @@ packages:
     resolution: {integrity: sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg==}
     engines: {node: '>=14'}
 
-  '@types/node@26.6.1':
-    resolution: {integrity: sha512-VqGJBMCtdhqkBUCcBLvywI0NJ+KLuVzgNnlBUNFOQjqVxzo2lxLUNg1DSey8+u2u6ktswSAxg+s68QLzWHNOuA==}
+  '@types/node@26.6.3':
+    resolution: {integrity: sha512-dsqMQQoeTLqu9wynDD00q573mNzso3IdQOAfHRJqLCcmCFPoGo9A1bDpUcv/9tnKpErQWv9uKeGfl37EIS02Yg==}
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
@@ -525,13 +525,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  marked@17.0.5:
-    resolution: {integrity: sha512-6hLvc0/JEbRjRgzI6wnT2P1XuM1/RrrDEX0kPt0N7jGm1133g6X7DlxFasUIx+72aKAr904GTxhSLDrd5DIlZg==}
+  marked@18.0.14:
+    resolution: {integrity: sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==}
     engines: {node: '>= 20'}
     hasBin: true
 
-  prettier@3.9.8:
-    resolution: {integrity: sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==}
+  prettier@3.9.9:
+    resolution: {integrity: sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -543,8 +543,8 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
-  ws@8.21.3:
-    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -557,16 +557,16 @@ packages:
 
 snapshots:
 
-  '@bitspark/archon-sdk@0.7.0':
+  '@bitspark/archon-sdk@0.8.1':
     dependencies:
-      '@bitspark/archon': 0.7.0
+      '@bitspark/archon': 0.8.1
 
-  '@bitspark/archon@0.7.0':
+  '@bitspark/archon@0.8.1':
     dependencies:
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0
 
-  '@bitspark/bitwire@0.2.0': {}
+  '@bitspark/bitwire@0.3.0': {}
 
   '@noble/curves@2.4.0':
     dependencies:
@@ -608,13 +608,13 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.43.0': {}
 
-  '@types/node@26.6.1':
+  '@types/node@26.6.3':
     dependencies:
       undici-types: 8.9.0
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 26.6.1
+      '@types/node': 26.6.3
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -676,9 +676,9 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  marked@17.0.5: {}
+  marked@18.0.14: {}
 
-  prettier@3.9.8: {}
+  prettier@3.9.9: {}
 
   typescript@7.0.2:
     optionalDependencies:
@@ -705,4 +705,4 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  ws@8.21.3: {}
+  ws@8.22.0: {}
