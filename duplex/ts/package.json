@@ -55,6 +55,6 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@bitspark/bitwire": "0.2.0"
+    "@bitspark/bitwire": "0.6.0"
   }
 }

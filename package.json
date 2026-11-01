@@ -23,8 +23,8 @@
     "@nightseam/runtime": "workspace:*",
     "@nightseam/tunnel": "workspace:*",
     "typescript": "^7.0.2",
-    "@types/node": "^26.6.1",
-    "prettier": "3.9.8",
-    "@bitspark/bitwire": "0.2.0"
+    "@types/node": "^26.6.6",
+    "prettier": "3.9.10",
+    "@bitspark/bitwire": "0.6.0"
   }
 }

@@ -13,8 +13,8 @@
     "verify": "pnpm run check && pnpm run test && pnpm run build"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
-    "marked": "17.0.5",
+    "@types/node": "^26.6.6",
+    "marked": "18.1.2",
     "typescript": "^7.0.2"
   }
 }
