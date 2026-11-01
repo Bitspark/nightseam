@@ -3,13 +3,13 @@ module github.com/Bitspark/nightseam
 go 1.26.0
 
 require (
-	github.com/Bitspark/bitwire v0.2.0
+	github.com/Bitspark/bitwire v0.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 )
 
 require (
